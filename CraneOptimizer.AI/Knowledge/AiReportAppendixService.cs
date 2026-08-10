@@ -7,7 +7,7 @@ namespace CraneOptimizer.AI.Knowledge
         public string BuildAppendixMarkdown(string question, string answer, string model, string contextPreview)
         {
             var builder = new StringBuilder();
-            builder.AppendLine("# AI Copilot Report Appendix");
+            builder.AppendLine("# AI Studio Report Appendix");
             builder.AppendLine();
             builder.AppendLine($"- Generated: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
             builder.AppendLine($"- Local model: {model}");

@@ -8,48 +8,78 @@ using System.Windows.Shapes;
 namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Views
 {
     /// <summary>
-    /// Draws AutoCAD-style Object Snap markers on a transparent Canvas overlay
-    /// that sits above the HelixViewport3D.
-    ///
-    /// Each snap type gets a distinct geometric symbol (matching AutoCAD conventions):
-    ///   Endpoint     → hollow square      (yellow)
-    ///   Midpoint     → hollow triangle    (yellow)
-    ///   Intersection → × cross            (red)
-    ///   Perpendicular→ right-angle bracket (green)
-    ///   Nearest      → hollow diamond     (orange)
-    ///   Grid         → + plus sign        (white)
-    ///
-    /// The symbol colour also shifts by source:
-    ///   Zone → gold,  DXF → orange,  IFC → cyan,  Grid → light grey
+    /// Reusable AutoCAD-style Object Snap overlay. Geometry, brushes, and
+    /// controls are allocated once; pointer updates only change transforms,
+    /// text, colour references, and visibility.
     /// </summary>
     public sealed class OsnapIndicator
     {
-        // ─── Canvas children ─────────────────────────────────────────────────
-        private readonly Canvas      _canvas;
-        private readonly Path        _marker;
-        private readonly TextBlock   _label;
-        private readonly Ellipse     _dot;      // tiny centre dot for precision feedback
+        private const double MarkerHalfSize = 9.0;
+        private const double StrokeWidth = 1.6;
 
-        // ─── Geometry constants ───────────────────────────────────────────────
-        private const double S  = 9.0;          // half-size of marker (px)
-        private const double SW = 1.6;          // stroke width
+        private static readonly Brush ZoneBrush =
+            CreateBrush(Color.FromRgb(0xFF, 0xDD, 0x00));
+        private static readonly Brush DxfBrush =
+            CreateBrush(Color.FromRgb(0xFF, 0x88, 0x00));
+        private static readonly Brush IfcBrush =
+            CreateBrush(Color.FromRgb(0x00, 0xDD, 0xFF));
+        private static readonly Brush GridBrush =
+            CreateBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+        private static readonly Brush LabelBackgroundBrush =
+            CreateBrush(Color.FromArgb(140, 0, 0, 0));
 
-        // ─── Colours by source ────────────────────────────────────────────────
-        private static readonly Color ZoneColor = Color.FromRgb(0xFF, 0xDD, 0x00);  // gold
-        private static readonly Color DxfColor  = Color.FromRgb(0xFF, 0x88, 0x00);  // orange
-        private static readonly Color IfcColor  = Color.FromRgb(0x00, 0xDD, 0xFF);  // cyan
-        private static readonly Color GridColor = Color.FromRgb(0xCC, 0xCC, 0xCC);  // light grey
+        private static readonly Geometry EndpointGeometry =
+            Freeze(new RectangleGeometry(
+                new Rect(
+                    -MarkerHalfSize,
+                    -MarkerHalfSize,
+                    MarkerHalfSize * 2,
+                    MarkerHalfSize * 2)));
+        private static readonly Geometry MidpointGeometry =
+            CreatePolygon(
+                new Point(0, -MarkerHalfSize),
+                new Point(MarkerHalfSize, MarkerHalfSize),
+                new Point(-MarkerHalfSize, MarkerHalfSize));
+        private static readonly Geometry IntersectionGeometry =
+            CreateLines(
+                new Point(-MarkerHalfSize, -MarkerHalfSize),
+                new Point(MarkerHalfSize, MarkerHalfSize),
+                new Point(MarkerHalfSize, -MarkerHalfSize),
+                new Point(-MarkerHalfSize, MarkerHalfSize));
+        private static readonly Geometry PerpendicularGeometry =
+            CreateRightAngle();
+        private static readonly Geometry DiamondGeometry =
+            CreatePolygon(
+                new Point(0, -MarkerHalfSize),
+                new Point(MarkerHalfSize, 0),
+                new Point(0, MarkerHalfSize),
+                new Point(-MarkerHalfSize, 0));
+        private static readonly Geometry GridGeometry =
+            CreateLines(
+                new Point(-MarkerHalfSize, 0),
+                new Point(MarkerHalfSize, 0),
+                new Point(0, -MarkerHalfSize),
+                new Point(0, MarkerHalfSize));
+        private static readonly Geometry CenterGeometry =
+            Freeze(new EllipseGeometry(
+                new Point(0, 0),
+                MarkerHalfSize,
+                MarkerHalfSize));
 
-        // ─── Constructor ─────────────────────────────────────────────────────
+        private readonly Path _marker;
+        private readonly TextBlock _label;
+        private readonly Ellipse _dot;
+        private readonly TranslateTransform _markerTransform = new();
+
         public OsnapIndicator(Canvas canvas)
         {
-            _canvas = canvas ?? throw new ArgumentNullException(nameof(canvas));
+            ArgumentNullException.ThrowIfNull(canvas);
 
             _dot = new Ellipse
             {
-                Width  = 3,
+                Width = 3,
                 Height = 3,
-                Fill   = Brushes.White,
+                Fill = Brushes.White,
                 IsHitTestVisible = false,
                 Visibility = Visibility.Collapsed,
                 RenderTransformOrigin = new Point(0.5, 0.5)
@@ -57,207 +87,179 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Views
 
             _marker = new Path
             {
-                StrokeThickness  = SW,
-                Fill             = Brushes.Transparent,
+                StrokeThickness = StrokeWidth,
+                Fill = Brushes.Transparent,
                 IsHitTestVisible = false,
-                Visibility       = Visibility.Collapsed,
+                Visibility = Visibility.Collapsed,
                 StrokeStartLineCap = PenLineCap.Round,
-                StrokeEndLineCap   = PenLineCap.Round,
-                StrokeLineJoin     = PenLineJoin.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                StrokeLineJoin = PenLineJoin.Round,
+                RenderTransform = _markerTransform
             };
 
             _label = new TextBlock
             {
-                FontFamily       = new FontFamily("Consolas, Courier New"),
-                FontSize         = 9,
-                FontWeight       = FontWeights.Bold,
+                FontFamily = new FontFamily("Consolas, Courier New"),
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
                 IsHitTestVisible = false,
-                Visibility       = Visibility.Collapsed,
-                // subtle background behind the label for readability
-                Background = new SolidColorBrush(Color.FromArgb(140, 0, 0, 0))
+                Visibility = Visibility.Collapsed,
+                Background = LabelBackgroundBrush
             };
 
-            // Render order: dot → marker → label (label is on top)
-            _canvas.Children.Add(_dot);
-            _canvas.Children.Add(_marker);
-            _canvas.Children.Add(_label);
+            canvas.Children.Add(_dot);
+            canvas.Children.Add(_marker);
+            canvas.Children.Add(_label);
         }
 
-        // ─── Public API ───────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Show the snap marker at the given result's projected screen position.
-        /// Call from the UI thread only.
-        /// </summary>
+        /// <summary>Applies one accepted result on the UI thread.</summary>
         public void Update(OsnapResult? result)
         {
-            if (result == null || !result.ScreenPoint.HasValue)
+            if (result?.ScreenPoint is not Point point)
             {
                 Hide();
                 return;
             }
 
-            var pt    = result.ScreenPoint.Value;
-            var color = SourceColor(result.Source);
-            var brush = new SolidColorBrush(color);
-
-            // ── marker symbol ────────────────────────────────────────────────
-            _marker.Stroke     = brush;
-            _marker.Data       = BuildGeometry(result.SnapType, pt);
+            Brush brush = SourceBrush(result.Source);
+            _marker.Stroke = brush;
+            _marker.Data = GeometryFor(result.SnapType);
+            _markerTransform.X = point.X;
+            _markerTransform.Y = point.Y;
             _marker.Visibility = Visibility.Visible;
 
-            // ── centre precision dot ─────────────────────────────────────────
             _dot.Fill = brush;
-            Canvas.SetLeft(_dot, pt.X - 1.5);
-            Canvas.SetTop (_dot, pt.Y - 1.5);
+            Canvas.SetLeft(_dot, point.X - 1.5);
+            Canvas.SetTop(_dot, point.Y - 1.5);
             _dot.Visibility = Visibility.Visible;
 
-            // ── type label (END / MID / INT …) ───────────────────────────────
-            _label.Text       = SnapLabel(result.SnapType);
+            _label.Text = SnapLabel(result.SnapType);
             _label.Foreground = brush;
-            Canvas.SetLeft(_label, pt.X + S + 4);
-            Canvas.SetTop (_label, pt.Y - 7);
+            Canvas.SetLeft(_label, point.X + MarkerHalfSize + 4);
+            Canvas.SetTop(_label, point.Y - 7);
             _label.Visibility = Visibility.Visible;
         }
 
-        /// <summary>Hides all overlay elements.</summary>
         public void Hide()
         {
             _marker.Visibility = Visibility.Collapsed;
-            _dot.Visibility    = Visibility.Collapsed;
-            _label.Visibility  = Visibility.Collapsed;
+            _dot.Visibility = Visibility.Collapsed;
+            _label.Visibility = Visibility.Collapsed;
         }
 
-        // ─── Geometry builders ────────────────────────────────────────────────
-
-        private static Geometry BuildGeometry(OsnapType type, Point c)
+        private static Geometry GeometryFor(OsnapType type) => type switch
         {
-            return type switch
-            {
-                OsnapType.Endpoint      => BuildSquare(c),
-                OsnapType.Midpoint      => BuildTriangle(c),
-                OsnapType.Intersection  => BuildCross(c),
-                OsnapType.Perpendicular => BuildRightAngle(c),
-                OsnapType.Nearest       => BuildDiamond(c),
-                OsnapType.Grid          => BuildPlus(c),
-                OsnapType.Center        => BuildCircleMarker(c),
-                OsnapType.Quadrant      => BuildDiamond(c),
-                _                       => BuildSquare(c),
-            };
-        }
+            OsnapType.Endpoint => EndpointGeometry,
+            OsnapType.Midpoint => MidpointGeometry,
+            OsnapType.Intersection => IntersectionGeometry,
+            OsnapType.Perpendicular => PerpendicularGeometry,
+            OsnapType.Nearest => DiamondGeometry,
+            OsnapType.Grid => GridGeometry,
+            OsnapType.Center => CenterGeometry,
+            OsnapType.Quadrant => DiamondGeometry,
+            _ => EndpointGeometry
+        };
 
-        /// <summary>Endpoint → hollow square, AutoCAD style.</summary>
-        private static Geometry BuildSquare(Point c)
+        private static Brush SourceBrush(OsnapSource source) => source switch
         {
-            var r = new RectangleGeometry(new Rect(c.X - S, c.Y - S, S * 2, S * 2));
-            r.Freeze();
-            return r;
-        }
-
-        /// <summary>Midpoint → hollow equilateral triangle pointing up.</summary>
-        private static Geometry BuildTriangle(Point c)
-        {
-            var sg = new StreamGeometry();
-            using (var ctx = sg.Open())
-            {
-                ctx.BeginFigure(new Point(c.X,     c.Y - S),     false, true);
-                ctx.LineTo     (new Point(c.X + S, c.Y + S),     true,  false);
-                ctx.LineTo     (new Point(c.X - S, c.Y + S),     true,  false);
-            }
-            sg.Freeze();
-            return sg;
-        }
-
-        /// <summary>Intersection → × (two diagonal lines).</summary>
-        private static Geometry BuildCross(Point c)
-        {
-            var g = new GeometryGroup { FillRule = FillRule.Nonzero };
-            g.Children.Add(new LineGeometry(new Point(c.X - S, c.Y - S), new Point(c.X + S, c.Y + S)));
-            g.Children.Add(new LineGeometry(new Point(c.X + S, c.Y - S), new Point(c.X - S, c.Y + S)));
-            g.Freeze();
-            return g;
-        }
-
-        /// <summary>Perpendicular → L-bracket with a small corner tick, AutoCAD style.</summary>
-        private static Geometry BuildRightAngle(Point c)
-        {
-            // Outer L: vertical then horizontal
-            double x0 = c.X - S, y0 = c.Y - S;
-            double x1 = c.X - S, y1 = c.Y + S;
-            double x2 = c.X + S, y2 = c.Y + S;
-            double tick = 4.0;   // inner corner tick length
-
-            var sg = new StreamGeometry();
-            using (var ctx = sg.Open())
-            {
-                // Outer L
-                ctx.BeginFigure(new Point(x0, y0), false, false);
-                ctx.LineTo     (new Point(x1, y1), true,  false);
-                ctx.LineTo     (new Point(x2, y2), true,  false);
-
-                // Inner corner tick
-                ctx.BeginFigure(new Point(x1 + tick, y1 - tick),  false, false);
-                ctx.LineTo     (new Point(x1 + tick, y1),         true,  false);
-                ctx.LineTo     (new Point(x1 + tick * 2, y1),     true,  false);
-            }
-            sg.Freeze();
-            return sg;
-        }
-
-        /// <summary>Nearest → hollow diamond.</summary>
-        private static Geometry BuildDiamond(Point c)
-        {
-            var sg = new StreamGeometry();
-            using (var ctx = sg.Open())
-            {
-                ctx.BeginFigure(new Point(c.X,     c.Y - S),   false, true);
-                ctx.LineTo     (new Point(c.X + S, c.Y),       true,  false);
-                ctx.LineTo     (new Point(c.X,     c.Y + S),   true,  false);
-                ctx.LineTo     (new Point(c.X - S, c.Y),       true,  false);
-            }
-            sg.Freeze();
-            return sg;
-        }
-
-        /// <summary>Grid → + (plus sign).</summary>
-        private static Geometry BuildPlus(Point c)
-        {
-            var g = new GeometryGroup { FillRule = FillRule.Nonzero };
-            g.Children.Add(new LineGeometry(new Point(c.X - S, c.Y), new Point(c.X + S, c.Y)));
-            g.Children.Add(new LineGeometry(new Point(c.X, c.Y - S), new Point(c.X, c.Y + S)));
-            g.Freeze();
-            return g;
-        }
-
-        /// <summary>Center → hollow circle (AutoCAD style).</summary>
-        private static Geometry BuildCircleMarker(Point c)
-        {
-            var r = new EllipseGeometry(c, S, S);
-            r.Freeze();
-            return r;
-        }
-
-        // ─── Helpers ─────────────────────────────────────────────────────────
-        private static Color SourceColor(OsnapSource src) => src switch
-        {
-            OsnapSource.Zone => ZoneColor,
-            OsnapSource.Dxf  => DxfColor,
-            OsnapSource.Ifc  => IfcColor,
-            OsnapSource.Grid => GridColor,
-            _                => ZoneColor,
+            OsnapSource.Zone => ZoneBrush,
+            OsnapSource.Dxf => DxfBrush,
+            OsnapSource.Ifc => IfcBrush,
+            OsnapSource.Grid => GridBrush,
+            _ => ZoneBrush
         };
 
         private static string SnapLabel(OsnapType type) => type switch
         {
-            OsnapType.Endpoint      => "END",
-            OsnapType.Midpoint      => "MID",
-            OsnapType.Intersection  => "INT",
+            OsnapType.Endpoint => "END",
+            OsnapType.Midpoint => "MID",
+            OsnapType.Intersection => "INT",
             OsnapType.Perpendicular => "PER",
-            OsnapType.Nearest       => "NEA",
-            OsnapType.Grid          => "GRID",
-            OsnapType.Center        => "CEN",
-            OsnapType.Quadrant      => "QUA",
-            _                       => "",
+            OsnapType.Nearest => "NEA",
+            OsnapType.Grid => "GRID",
+            OsnapType.Center => "CEN",
+            OsnapType.Quadrant => "QUA",
+            _ => string.Empty
         };
+
+        private static Brush CreateBrush(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+
+        private static Geometry CreatePolygon(params Point[] points)
+        {
+            var geometry = new StreamGeometry();
+            using (StreamGeometryContext context = geometry.Open())
+            {
+                context.BeginFigure(points[0], false, true);
+                for (int index = 1; index < points.Length; index++)
+                    context.LineTo(points[index], true, false);
+            }
+
+            geometry.Freeze();
+            return geometry;
+        }
+
+        private static Geometry CreateLines(params Point[] points)
+        {
+            var geometry = new StreamGeometry();
+            using (StreamGeometryContext context = geometry.Open())
+            {
+                for (int index = 0; index + 1 < points.Length; index += 2)
+                {
+                    context.BeginFigure(points[index], false, false);
+                    context.LineTo(points[index + 1], true, false);
+                }
+            }
+
+            geometry.Freeze();
+            return geometry;
+        }
+
+        private static Geometry CreateRightAngle()
+        {
+            const double tick = 4.0;
+            var geometry = new StreamGeometry();
+            using (StreamGeometryContext context = geometry.Open())
+            {
+                context.BeginFigure(
+                    new Point(-MarkerHalfSize, -MarkerHalfSize),
+                    false,
+                    false);
+                context.LineTo(
+                    new Point(-MarkerHalfSize, MarkerHalfSize),
+                    true,
+                    false);
+                context.LineTo(
+                    new Point(MarkerHalfSize, MarkerHalfSize),
+                    true,
+                    false);
+                context.BeginFigure(
+                    new Point(-MarkerHalfSize + tick, MarkerHalfSize - tick),
+                    false,
+                    false);
+                context.LineTo(
+                    new Point(-MarkerHalfSize + tick, MarkerHalfSize),
+                    true,
+                    false);
+                context.LineTo(
+                    new Point(-MarkerHalfSize + tick * 2, MarkerHalfSize),
+                    true,
+                    false);
+            }
+
+            geometry.Freeze();
+            return geometry;
+        }
+
+        private static T Freeze<T>(T freezable)
+            where T : Freezable
+        {
+            freezable.Freeze();
+            return freezable;
+        }
     }
 }

@@ -10,19 +10,17 @@
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
     xmlns:F18Views="clr-namespace:CraneOptimizer.UI.Features.F18_CoordinateReference.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views"
-    xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views"
-    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration"
-    xmlns:AiAdvisorViews="clr-namespace:CraneOptimizer.AI.Views;assembly=CraneOptimizer.AI">
+    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"
-        BorderBrush="{DynamicResource BorderBrush}"
-        BorderThickness="0,0,0,1">
+        BorderBrush="{StaticResource PrimaryBrush}"
+        BorderThickness="0,0,0,2">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="28" />
                 <!--  Tab selector strip  -->
-                <RowDefinition Height="120" />
+                <RowDefinition Height="Auto" />
                 <!--  Tab content area  -->
             </Grid.RowDefinitions>
 
@@ -73,20 +71,7 @@
                     <RadioButton
                         x:Name="TabAnalyze"
                         Checked="Tab_Checked"
-                        Content="ANALYZE"
-                        GroupName="RibbonTabs"
-                        Style="{StaticResource RibbonTabBtn}" />
-
-                    <RadioButton
-                        x:Name="TabReports"
-                        Checked="Tab_Checked"
-                        Content="REPORTS"
-                        GroupName="RibbonTabs"
-                        Style="{StaticResource RibbonTabBtn}" />
-                    <RadioButton
-                        x:Name="TabAiCopilot"
-                        Checked="Tab_Checked"
-                        Content="AI COPILOT"
+                        Content="ANALYSIS"
                         GroupName="RibbonTabs"
                         Style="{StaticResource RibbonTabBtn}" />
 
@@ -112,43 +97,62 @@
             </Border>
 
             <!--  â”€â”€ ROW 1: Tab content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-            <Grid Grid.Row="1">
+            <Grid
+                Grid.Row="1"
+                Height="{StaticResource RibbonCommandGroupHeight}"
+                VerticalAlignment="Top"
+                Grid.IsSharedSizeScope="True">
 
                 <!--  â”€â”€ HOME tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <project:HomeTabView x:Name="PanelHome" Visibility="Visible" />
+                <project:HomeTabView
+                    x:Name="PanelHome"
+                    VerticalAlignment="Stretch"
+                    Visibility="Visible" />
 
                 <!--  â”€â”€ IFC MODEL tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <IfcViews:IfcTabView x:Name="PanelIFC" Visibility="Collapsed" />
+                <IfcViews:IfcTabView
+                    x:Name="PanelIFC"
+                    VerticalAlignment="Stretch"
+                    Visibility="Collapsed" />
 
                 <!--  â”€â”€ DXF tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <DxfViews:DXFTabView x:Name="PanelDXF" Visibility="Collapsed" />
+                <DxfViews:DXFTabView
+                    x:Name="PanelDXF"
+                    VerticalAlignment="Stretch"
+                    Visibility="Collapsed" />
 
                 <!--  â”€â”€ CRANES tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <CraneViews:CranesTabView x:Name="PanelCranes" DataContext="{Binding}" Visibility="Collapsed" />
+                <CraneViews:CranesTabView
+                    x:Name="PanelCranes"
+                    DataContext="{Binding}"
+                    VerticalAlignment="Stretch"
+                    Visibility="Collapsed" />
 
                 <!--  â”€â”€ ZONES tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <ZonesViews:ZonesTabView x:Name="PanelZones" Visibility="Collapsed" />
+                <ZonesViews:ZonesTabView
+                    x:Name="PanelZones"
+                    VerticalAlignment="Stretch"
+                    Visibility="Collapsed" />
 
-                <!--  â”€â”€ ANALYZE tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
+                <!--  ANALYSIS tab  -->
                 <AnalyzeViews:AnalyzeTabView
                     x:Name="PanelAnalyze"
                     DataContext="{Binding CranePlacement}"
-                    Visibility="Collapsed" />
-
-                <!--  â”€â”€ REPORTS tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <ReportViews:ReportsTabView
-                    x:Name="PanelReports"
-                    DataContext="{Binding CranePlacement}"
-                    Visibility="Collapsed" />
-                <AiAdvisorViews:AiAdvisorTabView
-                    x:Name="PanelAiCopilot"
+                    VerticalAlignment="Stretch"
                     Visibility="Collapsed" />
 
                 <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
-                <F9Views:UserSettingsView x:Name="PanelSettings" Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowSettingsTab}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                <F9Views:UserSettingsView
+                    x:Name="PanelSettings"
+                    VerticalAlignment="Stretch"
+                    Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowSettingsTab}, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                 <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
-                <F18Views:CoordinateReferenceView x:Name="PanelCoordinateReference" DataContext="{Binding CoordinateReference}" Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowCoordinateReferenceUi}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                <F18Views:CoordinateReferenceView
+                    x:Name="PanelCoordinateReference"
+                    DataContext="{Binding CoordinateReference}"
+                    VerticalAlignment="Stretch"
+                    Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowCoordinateReferenceUi}, Converter={StaticResource BoolToVisibilityConverter}}" />
 
             </Grid>
         </Grid>

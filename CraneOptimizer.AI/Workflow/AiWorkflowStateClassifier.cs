@@ -5,7 +5,7 @@ namespace CraneOptimizer.AI.Workflow
 {
     /// <summary>
     /// Deterministic workflow-state classifier used by all AI surfaces. The purpose is
-    /// to keep Mission Control, the docked assistant, and the full Copilot from giving
+    /// to keep Mission Control, the docked assistant, and the full AI Studio from giving
     /// contradictory next actions such as recommending GA while pre-run eligibility is blocked.
     /// </summary>
     public enum AiWorkflowStateKind
@@ -168,8 +168,8 @@ namespace CraneOptimizer.AI.Workflow
                         ? $"The latest optimization covers {context.OptimizationResult.CoverageRatio:P2} of target elements; review assumptions before reporting."
                         : $"The latest optimization covers {context.OptimizationResult.CoverageRatio:P2}; unresolved elements and diagnostics should be reviewed before reporting.",
                     RecommendedAction = reportCandidate
-                        ? "REPORTS → Lifting Summary Report, then review AI report language before issue."
-                        : "ANALYZE → GA Diagnostics, then inspect unresolved elements and dominant failure modes.",
+                        ? "ANALYSIS → Lifting Summary Report, then review AI report language before issue."
+                        : "ANALYSIS → Lift Summary, then inspect unresolved elements and dominant failure modes.",
                     Risk = "AI wording is advisory and does not certify crane capacity, rigging design, or site safety.",
                     HasLoadedElements = true,
                     CanRunOptimizerNow = false,
@@ -183,7 +183,7 @@ namespace CraneOptimizer.AI.Workflow
                 Title = "AI Diagnosis: ready for controlled optimization",
                 Status = "Ready",
                 RootCause = "Core deterministic prerequisites are present and no zero-candidate blocker is currently exposed.",
-                RecommendedAction = "ANALYZE → Run Optimizer, then return to AI COPILOT for result diagnosis.",
+                RecommendedAction = "ANALYSIS → Run Optimizer, then open AI ASSIST → STUDIO for result diagnosis.",
                 Risk = "Low before run, but final crane planning still requires load-chart/source-data review and qualified engineering approval.",
                 HasLoadedElements = true,
                 CanRunOptimizerNow = true,

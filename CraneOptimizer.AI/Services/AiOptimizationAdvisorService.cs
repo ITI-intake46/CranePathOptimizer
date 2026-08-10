@@ -26,7 +26,7 @@ namespace CraneOptimizer.AI.Services
                             Severity = AiRecommendationSeverity.Info,
                             Title = "Run an optimization first",
                             Detail = "The advisor needs a completed optimization result before it can reason about coverage, failures, and crane setup positions.",
-                            SuggestedAction = "Open ANALYZE → Run Optimizer, then return to AI COPILOT."
+                            SuggestedAction = "Open ANALYSIS → Run Optimizer, then use AI ASSIST → STUDIO."
                         }
                     },
                     Evidence = Array.Empty<string>()

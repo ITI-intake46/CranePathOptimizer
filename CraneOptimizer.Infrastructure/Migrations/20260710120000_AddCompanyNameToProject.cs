@@ -1,3 +1,5 @@
+using CraneOptimizer.Infrastructure.Contexts;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CraneOptimizer.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(CraneDbContext))]
+    [Migration("20260710120000_AddCompanyNameToProject")]
     public partial class AddCompanyNameToProject : Migration
     {
         /// <inheritdoc />

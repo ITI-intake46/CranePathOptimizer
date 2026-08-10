@@ -1,5 +1,4 @@
 using CraneOptimizer.Domain.Schemas;
-using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
@@ -14,6 +13,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.Views
 {
@@ -35,6 +35,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private FilterScope _filterScope;
         private bool _isInitializing = true;
         private bool _isIsolated;
+        // 200ms debounce — prevents hierarchy rebuild on every keystroke
+        private DispatcherTimer? _searchDebounce;
         private static readonly string[] StructuralTypeKeywords =
         [
             "IfcColumn", "IfcBeam", "IfcSlab", "IfcWall", "IfcStair",
@@ -87,6 +89,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private void HookSelectionEvents()
         {
+
             if (_selectionService != null)
                 _selectionService.SelectionChanged += OnSelectionChanged;
 
@@ -98,6 +101,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             if (_selectionService != null)
                 _selectionService.SelectionChanged -= OnSelectionChanged;
 
+            _searchDebounce?.Stop();
+            _searchDebounce = null;
             Closed -= ElementFilterDialog_Closed;
         }
 
@@ -110,7 +115,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             try
             {
                 var gaElements = elements
-                    .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa)
+                    .Where(ElementFilterScopeRules.IsPlanningFilterable)
                     .ToList();
 
                 _allSceneElements = gaElements;
@@ -276,7 +281,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             // Hide / Show Checked toggle
             // Rule: all checked hidden → "Show Checked" (active/terracotta); otherwise → "Hide Checked" (secondary)
             var allCheckedHidden = hasCheckedElements
-                && checkedElements.All(e => _visibilityFilter?.IsElementHidden(e) == true);
+                && checkedElements.All(e => _visibilityFilter?.IsElementExplicitlyHidden(e) == true);
 
             if (BtnHideChecked != null)
             {
@@ -303,7 +308,45 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 TxtCheckedCount.Text = $"{_checkedElementIds.Count:N0} checked";
         }
 
-        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyHierarchyFilters();
+        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            // Toggle the clear-search button visibility
+            if (BtnClearSearch != null)
+                BtnClearSearch.Visibility = string.IsNullOrEmpty(TxtSearch?.Text)
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+
+            // Debounce: wait 200ms of idle typing before rebuilding the hierarchy.
+            // This keeps the UI thread free while the user is still typing.
+            if (_searchDebounce == null)
+            {
+                _searchDebounce = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(200)
+                };
+                _searchDebounce.Tick += (_, _) =>
+                {
+                    _searchDebounce.Stop();
+                    ApplyHierarchyFilters();
+                };
+            }
+
+            _searchDebounce.Stop();
+            _searchDebounce.Start();
+        }
+
+        private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
+        {
+            if (TxtSearch == null)
+                return;
+
+            _searchDebounce?.Stop();
+            TxtSearch.Text = string.Empty;
+            if (BtnClearSearch != null)
+                BtnClearSearch.Visibility = Visibility.Collapsed;
+            TxtSearch.Focus();
+            ApplyHierarchyFilters();
+        }
         private void FilterOption_Changed(object sender, RoutedEventArgs e) => ApplyHierarchyFilters();
         private void HierarchyOption_Changed(object sender, RoutedEventArgs e) => OnHierarchyOptionChanged(sender);
         private void OptionSearch_Changed(object sender, TextChangedEventArgs e) => RefreshOptionViews();
@@ -465,8 +508,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void BtnHideChecked_Click(object sender, RoutedEventArgs e)
         {
             var elements = GetCheckedElements();
+
             if (elements.Count == 0)
+            {
                 return;
+            }
 
             // Exit isolation cleanly before applying hide/show
             if (_isIsolated)
@@ -475,15 +521,21 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 _visibilityFilter?.ShowAll();
             }
 
-            // Toggle: all checked already hidden → show them; otherwise → hide them
-            var allCheckedHidden = elements.All(e => _visibilityFilter?.IsElementHidden(e) == true);
+            // Toggle: all checked already hidden → show them; otherwise → hide them.
+            // Uses the explicit-hide set, not general visibility: an element filtered out
+            // by search/weight/type is not "hidden by the user", and treating it as such
+            // made Hide Checked silently perform a Show instead.
+            var allCheckedHidden = elements.All(e => _visibilityFilter?.IsElementExplicitlyHidden(e) == true);
+
             if (allCheckedHidden)
                 _visibilityFilter?.ShowElements(elements);
             else
                 _visibilityFilter?.HideElements(elements);
 
+
             ApplyHierarchyFilters();
             UpdateVisibilityActionButtons();
+
         }
 
         private void BtnIsolateChecked_Click(object sender, RoutedEventArgs e)
@@ -558,6 +610,37 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             UpdatePreviewCount();
             UpdateVisibilityActionButtons();
             UpdateScopeButtons();
+            UpdateEmptyState();
+        }
+
+        /// <summary>
+        /// Shows/hides the empty-state overlay based on whether the hierarchy has any roots.
+        /// Also surfaces a "Clear Search" action when a search term is active.
+        /// Does not touch 3D visibility or engineering data.
+        /// </summary>
+        private void UpdateEmptyState()
+        {
+            if (BdrEmptyState == null)
+                return;
+
+            var hasItems = _hierarchyRoots.Count > 0;
+            BdrEmptyState.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
+
+            if (hasItems)
+                return;
+
+            var hasSearch = !string.IsNullOrWhiteSpace(TxtSearch?.Text);
+            var hasScopeElements = _allElements.Count > 0;
+
+            if (TxtEmptyStateMessage != null)
+            {
+                TxtEmptyStateMessage.Text = hasScopeElements
+                    ? "No IFC elements match the current search and filters."
+                    : "No IFC elements are available in the selected scope.";
+            }
+
+            if (BtnEmptyClearSearch != null)
+                BtnEmptyClearSearch.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void UpdateWeightControlsForCurrentScope()
@@ -677,7 +760,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 ? e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim()
                 : mode.StartsWith("Storey", StringComparison.OrdinalIgnoreCase)
                     ? e => _visibilityFilter?.GetStorey(e) ?? "Unassigned"
-                    : e => string.IsNullOrWhiteSpace(e.ElementType) ? "Unknown type" : e.ElementType.Trim();
+                    : ElementFilterScopeRules.GetTypeLabel;
             var elementSort = GetElementSortKey();
             var sortDescending = RbSortDescending?.IsChecked == true;
 
@@ -705,7 +788,10 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                                 element.ElementMaterial,
                                 !string.IsNullOrWhiteSpace(element.ElementID)
                                     && _checkedElementIds.Contains(element.ElementID),
-                                _visibilityFilter?.IsElementHidden(element) ?? false,
+                                // Explicit-hide only: the loose check reports "Hidden" for
+                                // anything merely filtered out, so the badge claimed elements
+                                // were hidden that the viewport was still (correctly) drawing.
+                                _visibilityFilter?.IsElementExplicitlyHidden(element) ?? false,
                                 parent));
                         }
 
@@ -790,7 +876,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void LoadTypeOptions(IEnumerable<PrecastElement> elements)
         {
             _allTypeOptions = elements
-                .Select(e => string.IsNullOrWhiteSpace(e.ElementType) ? "Unknown type" : e.ElementType.Trim())
+                .Select(ElementFilterScopeRules.GetTypeLabel)
                 .GroupBy(type => type, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(g => g.Key)
                 .Select(g => new FilterDialogOption(g.Key, g.Count(), IsTypeChecked(g.Key)))
@@ -869,6 +955,23 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             var total = _allElements.Count;
             var label = _filterScope == FilterScope.Selected ? "selected" : "elements";
             TxtPreviewCount.Text = $"Showing {CalculatePreviewCount()} of {total} {label}";
+
+            // Model-wide visibility. The line above is scoped to the current filter, so
+            // hiding a handful of elements out of a few thousand looks like nothing
+            // happened in the 3D view. This reports what the viewport is actually drawing.
+            if (TxtHiddenCount != null && _visibilityFilter != null)
+            {
+                var hidden = _visibilityFilter.TotalCount - _visibilityFilter.ShowingCount;
+                TxtHiddenCount.Text = hidden == 0
+                    ? $"All {_visibilityFilter.TotalCount:N0} elements visible in 3D"
+                    : $"{hidden:N0} hidden · {_visibilityFilter.ShowingCount:N0} of {_visibilityFilter.TotalCount:N0} visible in 3D";
+                // TryFindResource, not FindResource: this runs on every hierarchy
+                // rebuild (including straight after a hide) and a missing theme key
+                // must not throw out of the click handler.
+                var brushKey = hidden == 0 ? "TextSecondaryBrush" : "PrimaryBrush";
+                if (TryFindResource(brushKey) is System.Windows.Media.Brush brush)
+                    TxtHiddenCount.Foreground = brush;
+            }
         }
 
         private int CalculatePreviewCount()

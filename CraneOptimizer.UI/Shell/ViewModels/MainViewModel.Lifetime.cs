@@ -8,6 +8,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 return;
 
             _disposed = true;
+            Interlocked.Exchange(ref _projectStateSaveDebounce, null)?.Cancel();
+
+            if (_currentProjectSession != null)
+                CranePlacement.DeactivateProject(_currentProjectSession.ProjectGuid);
 
             _status.StatusChanged -= OnStatusChanged;
             _status.HistoryChanged -= OnHistoryChanged;
@@ -19,10 +23,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.PickingChanged -= OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged -= OnCraneInteractionStateChanged;
             _unitSettings.SettingsChanged -= OnUnitSettingsChanged;
-            Scene.ZoneAdded -= OnProjectStateZoneChanged;
-            Scene.ZoneRemoved -= OnProjectStateZoneChanged;
-            Scene.ZoneUpdated -= OnProjectStateZoneChanged;
-            Scene.ZonesCleared -= OnProjectStateChanged;
+            Scene.ZonesChanged -= OnProjectStateChanged;
             Scene.CraneAdded -= OnProjectStateCraneChanged;
             Scene.CraneRemoved -= OnProjectStateCraneChanged;
             Scene.CraneMoved -= OnProjectStateCraneChanged;

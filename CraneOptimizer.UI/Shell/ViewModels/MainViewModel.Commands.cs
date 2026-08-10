@@ -4,6 +4,8 @@ using CraneOptimizer.Domain.Entities.Enums;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using System.Diagnostics;
+using System.IO;
+using System.Windows;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
@@ -137,12 +139,36 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             if (selected == null)
                 return;
 
+            string? selectedCraneName = selected.CraneDefinition?.Name;
+            string craneName = string.IsNullOrWhiteSpace(selectedCraneName)
+                ? "the selected crane"
+                : $"\"{selectedCraneName}\"";
+            if (!_deleteConfirmation.ConfirmDelete(
+                    "Delete Crane",
+                    $"Are you sure you want to delete {craneName}?",
+                    "Remove"))
+            {
+                return;
+            }
+
             Scene.RemoveCrane(selected);
             StatusText = "Selected crane removed.";
         }
 
         private void RemoveAllCranes()
         {
+            int craneCount = Scene.GetCranes().Count;
+            if (craneCount == 0)
+                return;
+
+            if (!_deleteConfirmation.ConfirmDelete(
+                    "Remove All Cranes",
+                    $"Are you sure you want to remove all {craneCount} cranes? This action cannot be undone.",
+                    "Remove"))
+            {
+                return;
+            }
+
             Scene.ClearCranes();
             StatusText = "All cranes removed.";
         }
@@ -171,5 +197,46 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         }
 
         private Task LoadCranesAsync() => ReloadCranesAsync();
+
+        private bool CanOpenProjectFolder()
+        {
+            var path = CurrentProjectFolderPath;
+            return !string.IsNullOrWhiteSpace(path) && Directory.Exists(path);
+        }
+
+        private void OpenProjectFolder()
+        {
+            var path = CurrentProjectFolderPath;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+                {
+                    MessageBox.Show(
+                        "The project folder could not be found. Save the project first.",
+                        "Open Folder Location",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                var fullPath = Path.GetFullPath(path);
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    UseShellExecute = true
+                };
+                startInfo.ArgumentList.Add(fullPath);
+                Process.Start(startInfo);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OpenProjectFolder] {ex}");
+                MessageBox.Show(
+                    "The project folder could not be opened in File Explorer.",
+                    "Open Folder Location",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
     }
 }

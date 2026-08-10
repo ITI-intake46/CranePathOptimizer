@@ -16,6 +16,10 @@ namespace CraneOptimizer.UI.Core.Interfaces
 
         void SetGridSize(double widthMeters, double lengthMeters, double centerXMeters, double centerYMeters);
 
+        bool IsGridVisible { get; }
+
+        void SetGridVisible(bool isVisible);
+
 
         // NEW — needed for mouse coordinate conversion during drag
         HelixViewport3D? GetViewport();

@@ -11,8 +11,17 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             IReadOnlyList<(Point3D A, Point3D B)> segments)
         {
             ElementId = elementId;
-            Vertices = vertices;
-            Segments = segments;
+            var vertexSnapshot = new Point3D[vertices.Count];
+            for (int index = 0; index < vertices.Count; index++)
+                vertexSnapshot[index] = vertices[index];
+
+            var segmentSnapshot =
+                new (Point3D A, Point3D B)[segments.Count];
+            for (int index = 0; index < segments.Count; index++)
+                segmentSnapshot[index] = segments[index];
+
+            Vertices = vertexSnapshot;
+            Segments = segmentSnapshot;
         }
 
         public string ElementId { get; }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {
@@ -28,6 +29,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         GAResult BestResult,
         int StagesExecuted,
         IReadOnlyList<GAResult> AllStageResults,
-        string TerminationReason
+        string TerminationReason,
+        IReadOnlyList<GaStageExecutionResult>? StageExecutions = null
     );
 }

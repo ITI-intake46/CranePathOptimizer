@@ -2,6 +2,7 @@ using CraneOptimizer.UI.Core.Helpers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Resources;
 using Microsoft.Win32;
+using System;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -20,6 +21,16 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
         private const string ActiveTab   = "TopTabBtnActive";
         private const string InactiveTab = "TopTabBtn";
 
+        // ── Signed-in account ────────────────────────────────────────────
+        // Single source for the sidebar user card and the Session Information
+        // card, so the two can never drift apart. Replace these with values
+        // from a real account service once authentication exists.
+        private const string SessionUserName  = "CraneOpt Team";
+        private const string SessionUserEmail = "craneoptimization@gmail.com";
+        private const string SessionUserRole  = "Project Admin";
+
+        private readonly DateTime _sessionStartedAt = DateTime.Now;
+
         public ProjectManagementWindow(ProjectManagementViewModel viewModel)
         {
             InitializeComponent();
@@ -31,6 +42,9 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
 
             _guideVm = new ApplicationGuideViewModel();
             GuideCarouselControl.DataContext = _guideVm;
+
+            TxtSidebarUser.Text = SessionUserName;
+            TxtSidebarRole.Text = SessionUserRole;
 
             _createVm.CancelRequested         += (_, _) => ShowHome();
             _createVm.BrowseLocationRequested  += (_, _) => BrowseProjectLocation();
@@ -156,7 +170,7 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             HideAllContent();
             ContentHelp.Visibility = Visibility.Visible;
 
-            TxtHelpTitle.Text    = "HELP";
+            TxtHelpTitle.Text    = "Help";
             TxtHelpSubtitle.Text = "Frequently asked questions and support resources.";
             CardHelp.Visibility  = Visibility.Visible;
             CardAbout.Visibility = Visibility.Collapsed;
@@ -170,7 +184,7 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             HideAllContent();
             ContentHelp.Visibility = Visibility.Visible;
 
-            TxtHelpTitle.Text    = "ABOUT";
+            TxtHelpTitle.Text    = "About";
             TxtHelpSubtitle.Text = "Information about this application.";
             CardHelp.Visibility  = Visibility.Collapsed;
             CardAbout.Visibility = Visibility.Visible;
@@ -236,7 +250,31 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             var ver = Assembly.GetEntryAssembly()?.GetName().Version;
             TxtAppVersion.Text   = ver != null ? ver.ToString() : "N/A";
             TxtCurrentTheme.Text = ThemeService.Instance.CurrentTheme.ToString();
+
+            TxtSessionUser.Text  = SessionUserName;
+            TxtSessionEmail.Text = SessionUserEmail;
+            TxtSessionRole.Text  = SessionUserRole;
+            TxtSessionLogin.Text = _sessionStartedAt.ToString("d/M/yyyy HH:mm");
+
             UpdateThemeButtons();
+        }
+
+        /// <summary>
+        /// Signs the current user out. There is no authentication backend yet, so
+        /// this ends the session by closing the application after confirmation.
+        /// </summary>
+        private void BtnSignOut_Click(object sender, RoutedEventArgs e)
+        {
+            var answer = MessageBox.Show(
+                this,
+                "Sign out and close Crane Optimization?",
+                "Sign Out",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No);
+
+            if (answer == MessageBoxResult.Yes)
+                System.Windows.Application.Current.Shutdown();
         }
 
         // ════════════════════════════════════════════════════════════════

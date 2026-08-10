@@ -4,159 +4,27 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:helix="http://helix-toolkit.org/wpf"
-             xmlns:osnap="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.Views"
              mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="800">
+    <UserControl.Resources>
+        <Style x:Key="ViewportIconFocusVisual" TargetType="Control">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Control">
+                        <Rectangle Margin="-2"
+                                   Stroke="{DynamicResource PrimaryBrush}"
+                                   StrokeThickness="1"
+                                   SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
     <Border Background="{DynamicResource BackgroundBrush}">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <!--  Viewport header  -->
-            <Border
-                Grid.Row="0"
-                Height="30"
-                Padding="12,0"
-                Background="{DynamicResource SurfaceElevatedBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1">
-                <DockPanel LastChildFill="False">
-                    <StackPanel
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Left"
-                        Orientation="Horizontal">
-                        <TextBlock
-                            Margin="0,0,22,0"
-                            Style="{StaticResource PanelSectionHeader}"
-                            Text="3D MODEL VIEWER" />
-                        <Ellipse
-                            Width="8"
-                            Height="8"
-                            VerticalAlignment="Center"
-                            Fill="{StaticResource DestructiveBrush}" />
-                        <TextBlock
-                            Margin="3,0,14,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeSM}"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource DestructiveBrush}"
-                            Text=" &gt; 5000 kg" />
-                        <Ellipse
-                            Width="8"
-                            Height="8"
-                            VerticalAlignment="Center"
-                            Fill="{StaticResource WarningBrush}" />
-                        <TextBlock
-                            Margin="3,0,14,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeSM}"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource WarningBrush}"
-                            Text=" &gt; 3000 kg" />
-                        <Ellipse
-                            Width="8"
-                            Height="8"
-                            VerticalAlignment="Center"
-                            Fill="{DynamicResource TextSecondaryBrush}" />
-                        <TextBlock
-                            Margin="3,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeSM}"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text=" Normal" />
-                    </StackPanel>
-                    <Button
-                        Padding="8,4"
-                        VerticalAlignment="Center"
-                        Click="ResetCamera_Click"
-                        Content="⊙ Reset View"
-                        DockPanel.Dock="Right"
-                        FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeSM}"
-                        FontWeight="SemiBold"
-                        Style="{StaticResource ButtonSecondary}" />
-                    <StackPanel
-                        Margin="0,0,8,0"
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Right"
-                        Orientation="Horizontal">
-                        <TextBlock
-                            x:Name="GridUnitLabel"
-                            Margin="0,0,5,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="GRID m" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Foreground="{DynamicResource TextDisabledBrush}"
-                            Text="X" />
-                        <TextBox
-                            x:Name="GridSizeXTextBox"
-                            Width="44"
-                            Height="20"
-                            Margin="4,0,6,0"
-                            Padding="3,0"
-                            VerticalContentAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Text="50"
-                            ToolTip="Grid size on X axis in meters" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Foreground="{DynamicResource TextDisabledBrush}"
-                            Text="Y" />
-                        <TextBox
-                            x:Name="GridSizeYTextBox"
-                            Width="44"
-                            Height="20"
-                            Margin="4,0,6,0"
-                            Padding="3,0"
-                            VerticalContentAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Text="50"
-                            ToolTip="Grid size on Y axis in meters" />
-                        <Button
-                            Height="20"
-                            Padding="6,0"
-                            VerticalAlignment="Center"
-                            Click="ApplyGridSize_Click"
-                            Content="Apply"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Style="{StaticResource ToolbarButton}"
-                            ToolTip="Apply manual grid size" />
-                        <Button
-                            Height="20"
-                            Margin="3,0,0,0"
-                            Padding="6,0"
-                            VerticalAlignment="Center"
-                            Click="AutoGridSize_Click"
-                            Content="Auto"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Style="{StaticResource ToolbarButton}"
-                            ToolTip="Fit grid to current building" />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
             <!--  Viewport stack  -->
-            <Grid Grid.Row="1" ClipToBounds="True">
+            <Grid ClipToBounds="True">
 
                 <!--  3D VIEW  -->
                 <helix:HelixViewport3D
@@ -211,6 +79,48 @@
                     </ModelVisual3D>
                 </helix:HelixViewport3D>
 
+                <Grid
+                    Width="{Binding ViewCubeWidth, ElementName=IfcViewer}"
+                    Height="{Binding ViewCubeHeight, ElementName=IfcViewer}"
+                    Margin="0,0,8,8"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Panel.ZIndex="20"
+                    Background="{x:Null}">
+                    <Button Width="28"
+                            Height="28"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.HelpText="Restore the default viewport orientation and framing."
+                            AutomationProperties.Name="Reset View"
+                            Click="ResetCamera_Click"
+                            ToolTip="Reset View">
+                        <Button.Style>
+                            <Style BasedOn="{StaticResource ToolbarButton}" TargetType="Button">
+                                <Setter Property="FocusVisualStyle" Value="{StaticResource ViewportIconFocusVisual}" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Path Width="14"
+                                                  Height="14"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Data="M12,2 L2,10 L4,10 L4,22 L10,22 L10,15 L14,15 L14,22 L20,22 L20,10 L22,10 Z"
+                                                  Fill="{TemplateBinding Foreground}"
+                                                  Stretch="Uniform" />
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Opacity" Value="0.35" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+
                 <!--  ── SELECTION RUBBER-BAND OVERLAY ─────────────────
                       Sits between the viewport and the osnap indicator.
                       IsHitTestVisible=False lets all mouse events fall
@@ -228,6 +138,24 @@
                         IsHitTestVisible="False"
                         Background="Transparent"
                         ClipToBounds="True"/>
+
+                <Canvas x:Name="IfcMoveOverlayCanvas"
+                        IsHitTestVisible="False"
+                        Background="Transparent"
+                        ClipToBounds="True">
+                    <Line x:Name="IfcMovePreviewLine"
+                          Stroke="{DynamicResource PrimaryBrush}"
+                          StrokeDashArray="3,2"
+                          StrokeThickness="2"
+                          Visibility="Collapsed" />
+                    <Ellipse x:Name="IfcMoveBaseMarker"
+                             Width="12"
+                             Height="12"
+                             Fill="{DynamicResource SurfaceBrush}"
+                             Stroke="{DynamicResource PrimaryBrush}"
+                             StrokeThickness="2"
+                             Visibility="Collapsed" />
+                </Canvas>
 
                 <Canvas x:Name="OsnapOverlayCanvas"
                         IsHitTestVisible="False"
@@ -276,56 +204,6 @@
                 </Border>
 
             </Grid>
-
-            <Border
-                Grid.Row="2"
-                Padding="8,2"
-                Background="{DynamicResource SurfaceElevatedBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0">
-                <DockPanel LastChildFill="False">
-                    <StackPanel
-                        Margin="2,0,0,0"
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Left"
-                        Orientation="Horizontal">
-                        <TextBlock
-                            Margin="0,0,6,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Render Quality" />
-                        <ComboBox
-                            x:Name="RenderQualityCombo"
-                            Width="112"
-                            Height="24"
-                            VerticalAlignment="Center"
-                            ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                            SelectedIndex="1"
-                            SelectionChanged="RenderQualityCombo_SelectionChanged"
-                            Style="{StaticResource DarkComboBox}"
-                            ToolTip="High: detailed IFC meshes. Medium: simplified meshes. Low: batched boxes for large models.">
-                            <ComboBoxItem Content="High" Tag="High" ToolTip="Full detailed IFC meshes with best visual quality." />
-                            <ComboBoxItem Content="Medium" Tag="Medium" ToolTip="Simplified IFC meshes with reduced geometry complexity." />
-                            <ComboBoxItem Content="Low" Tag="Low" ToolTip="Lightweight batched bounding boxes for maximum performance." />
-                        </ComboBox>
-                    </StackPanel>
-
-                    <Rectangle
-                        Width="1"
-                        Height="12"
-                        Margin="8,0"
-                        DockPanel.Dock="Left"
-                        Fill="{DynamicResource BorderBrush}" />
-
-                    <osnap:OsnapStatusPanel
-                        x:Name="OsnapPanel"
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Left" />
-                </DockPanel>
-            </Border>
         </Grid>
     </Border>
 </UserControl>

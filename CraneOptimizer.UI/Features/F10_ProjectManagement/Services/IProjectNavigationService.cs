@@ -5,7 +5,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
     public interface IProjectNavigationService
     {
         /// <summary>Opens the main workspace window for the given project session.</summary>
-        void OpenMainWindow(ProjectSession session);
+        Task OpenMainWindowAsync(ProjectSession session);
 
         /// <summary>
         /// Returns to the project-management (startup) screen.

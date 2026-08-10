@@ -84,12 +84,6 @@ public sealed class ReportPreviewViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(report.Metadata.GaWarningText))
             return "No GA analysis is available for this project. Run GA optimization first to populate lift result columns.";
 
-        if (report.Metadata.ReportName.Equals("GA Readiness", StringComparison.OrdinalIgnoreCase)
-            && report.Metadata.ItemsIncluded.Equals("GA-Ready Elements", StringComparison.OrdinalIgnoreCase))
-        {
-            return "No elements match GA-Ready Elements. This scope only includes elements with valid verified weights that are included in crane optimization.";
-        }
-
         return "No rows match the selected report scope.";
     }
 
@@ -203,6 +197,7 @@ public sealed class ReportPreviewViewModel : ViewModelBase
                 ReportColumnValueKind.Percentage => $"{converted:0.0}%",
                 ReportColumnValueKind.Tons when column.Unit == "kg" => converted.ToString("0", CultureInfo.CurrentCulture),
                 ReportColumnValueKind.Meters when column.Unit == "mm" => converted.ToString("0", CultureInfo.CurrentCulture),
+                ReportColumnValueKind.Tons when converted is > 0 and < 0.01 => converted.ToString("0.0000", CultureInfo.CurrentCulture),
                 ReportColumnValueKind.Tons or ReportColumnValueKind.Meters or ReportColumnValueKind.Number => converted.ToString("0.00", CultureInfo.CurrentCulture),
                 _ => converted.ToString("0.##", CultureInfo.CurrentCulture)
             };

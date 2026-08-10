@@ -3,13 +3,17 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.DTOs;
 using CraneOptimizer.AI.Interfaces;
+using CraneOptimizer.AI.Runtime;
 
 namespace CraneOptimizer.AI.Providers.Ollama
 {
-    public sealed class OllamaChatService : IAiStreamingChatService, IDisposable
+    public sealed class OllamaChatService : IAiStreamingChatService, IAiChatProvider, IDisposable
     {
+        public const string ProviderId = "ollama";
+
         private static readonly Uri DefaultEndpoint = new("http://localhost:11434/");
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
         {
@@ -17,28 +21,54 @@ namespace CraneOptimizer.AI.Providers.Ollama
         };
 
         private readonly HttpClient _httpClient;
+        private readonly Uri _endpoint;
         private bool _disposed;
 
         public OllamaChatService()
+            : this(DefaultEndpoint)
         {
+        }
+
+        public OllamaChatService(IAiCopilotSettingsService settingsService)
+            : this(ResolveEndpoint(settingsService?.Current.OllamaEndpoint))
+        {
+        }
+
+        private OllamaChatService(Uri endpoint)
+        {
+            _endpoint = EnsureTrailingSlash(endpoint);
             _httpClient = new HttpClient
             {
-                BaseAddress = DefaultEndpoint,
+                BaseAddress = _endpoint,
                 Timeout = Timeout.InfiniteTimeSpan
             };
+
+            Descriptor = new AiProviderDescriptor(
+                Id: ProviderId,
+                DisplayName: "Local Ollama",
+                Capabilities: AiProviderCapabilities.Chat | AiProviderCapabilities.Streaming | AiProviderCapabilities.StructuredOutput,
+                IsLocal: true,
+                Endpoint: _endpoint.ToString().TrimEnd('/'));
         }
+
+        public AiProviderDescriptor Descriptor { get; }
 
         public async Task<AiChatResponseDto> AskAsync(AiChatRequestDto request, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(request);
+
             return await AskStreamingAsync(new AiChatRequestDto
             {
+                ProviderId = request.ProviderId,
+                CorrelationId = request.CorrelationId,
                 Model = request.Model,
                 SystemPrompt = request.SystemPrompt,
                 UserPrompt = request.UserPrompt,
                 ContextJson = request.ContextJson,
                 Temperature = request.Temperature,
                 TimeoutSeconds = request.TimeoutSeconds,
-                PreferStreaming = false
+                PreferStreaming = false,
+                Metadata = request.Metadata
             }, _ => { }, cancellationToken).ConfigureAwait(false);
         }
 
@@ -47,13 +77,14 @@ namespace CraneOptimizer.AI.Providers.Ollama
             Action<AiStreamingUpdateDto> onUpdate,
             CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentNullException.ThrowIfNull(onUpdate);
+
             if (string.IsNullOrWhiteSpace(request.Model))
             {
-                return new AiChatResponseDto
-                {
-                    Success = false,
-                    ErrorMessage = "No Ollama model was selected. Enter a local model name, for example llama3.2, mistral, or qwen2.5."
-                };
+                return Failure(
+                    request,
+                    "No Ollama model was selected. Enter a local model name, for example llama3.2, mistral, or qwen2.5.");
             }
 
             using var timeoutCts = request.TimeoutSeconds is > 0
@@ -93,45 +124,36 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 if (!response.IsSuccessStatusCode)
                 {
                     var responseJson = await response.Content.ReadAsStringAsync(effectiveToken).ConfigureAwait(false);
-                    return new AiChatResponseDto
-                    {
-                        Success = false,
-                        ErrorMessage = $"Ollama returned {(int)response.StatusCode} {response.ReasonPhrase}: {TrimForDisplay(responseJson)}"
-                    };
+                    return Failure(
+                        request,
+                        $"Ollama returned {(int)response.StatusCode} {response.ReasonPhrase}: {TrimForDisplay(responseJson)}");
                 }
 
                 return request.PreferStreaming
-                    ? await ReadStreamingResponseAsync(response, onUpdate, effectiveToken).ConfigureAwait(false)
-                    : await ReadBufferedResponseAsync(response, onUpdate, effectiveToken).ConfigureAwait(false);
+                    ? await ReadStreamingResponseAsync(response, request, onUpdate, effectiveToken).ConfigureAwait(false)
+                    : await ReadBufferedResponseAsync(response, request, onUpdate, effectiveToken).ConfigureAwait(false);
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                return new AiChatResponseDto
-                {
-                    Success = false,
-                    ErrorMessage = "Ollama timed out. The local model may still be loading; try again or choose a smaller model. " + ex.Message
-                };
+                return Failure(
+                    request,
+                    "Ollama timed out. The local model may still be loading; try again or choose a smaller model. " + ex.Message);
             }
             catch (HttpRequestException ex)
             {
-                return new AiChatResponseDto
-                {
-                    Success = false,
-                    ErrorMessage = "Could not connect to Ollama at http://localhost:11434. Start Ollama and ensure a model is installed. " + ex.Message
-                };
+                return Failure(
+                    request,
+                    $"Could not connect to Ollama at {_endpoint.ToString().TrimEnd('/')}. Start Ollama and ensure a model is installed. " + ex.Message);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return new AiChatResponseDto
-                {
-                    Success = false,
-                    ErrorMessage = "AI chat failed: " + ex.Message
-                };
+                return Failure(request, "AI chat failed: " + ex.Message);
             }
         }
 
         private static async Task<AiChatResponseDto> ReadBufferedResponseAsync(
             HttpResponseMessage response,
+            AiChatRequestDto request,
             Action<AiStreamingUpdateDto> onUpdate,
             CancellationToken cancellationToken)
         {
@@ -141,11 +163,9 @@ namespace CraneOptimizer.AI.Providers.Ollama
 
             if (string.IsNullOrWhiteSpace(text))
             {
-                return new AiChatResponseDto
-                {
-                    Success = false,
-                    ErrorMessage = "Ollama returned an empty response. Check that the selected model is installed and responding."
-                };
+                return Failure(
+                    request,
+                    "Ollama returned an empty response. Check that the selected model is installed and responding.");
             }
 
             onUpdate(new AiStreamingUpdateDto
@@ -155,15 +175,12 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 IsComplete = true
             });
 
-            return new AiChatResponseDto
-            {
-                Success = true,
-                Content = text
-            };
+            return Success(request, text);
         }
 
         private static async Task<AiChatResponseDto> ReadStreamingResponseAsync(
             HttpResponseMessage response,
+            AiChatRequestDto request,
             Action<AiStreamingUpdateDto> onUpdate,
             CancellationToken cancellationToken)
         {
@@ -207,11 +224,9 @@ namespace CraneOptimizer.AI.Providers.Ollama
             var text = builder.ToString().Trim();
             if (string.IsNullOrWhiteSpace(text))
             {
-                return new AiChatResponseDto
-                {
-                    Success = false,
-                    ErrorMessage = "Ollama returned an empty streaming response. Check that the selected model is installed and responding."
-                };
+                return Failure(
+                    request,
+                    "Ollama returned an empty streaming response. Check that the selected model is installed and responding.");
             }
 
             onUpdate(new AiStreamingUpdateDto
@@ -221,11 +236,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 IsComplete = true
             });
 
-            return new AiChatResponseDto
-            {
-                Success = true,
-                Content = text
-            };
+            return Success(request, text);
         }
 
         private static string BuildUserPrompt(AiChatRequestDto request)
@@ -237,6 +248,44 @@ namespace CraneOptimizer.AI.Providers.Ollama
             builder.AppendLine("Internal application and optimization context. Use it as reference material, but do not describe it as JSON or explain its schema in your answer:");
             builder.AppendLine(request.ContextJson);
             return builder.ToString();
+        }
+
+        private static AiChatResponseDto Success(AiChatRequestDto request, string content)
+        {
+            return new AiChatResponseDto
+            {
+                Success = true,
+                Content = content,
+                ProviderId = ProviderId,
+                CorrelationId = request.CorrelationId
+            };
+        }
+
+        private static AiChatResponseDto Failure(AiChatRequestDto request, string errorMessage)
+        {
+            return new AiChatResponseDto
+            {
+                Success = false,
+                ErrorMessage = errorMessage,
+                ProviderId = ProviderId,
+                CorrelationId = request.CorrelationId
+            };
+        }
+
+        private static Uri ResolveEndpoint(string? configuredEndpoint)
+        {
+            return Uri.TryCreate(configuredEndpoint, UriKind.Absolute, out var endpoint)
+                   && (endpoint.Scheme == Uri.UriSchemeHttp || endpoint.Scheme == Uri.UriSchemeHttps)
+                ? endpoint
+                : DefaultEndpoint;
+        }
+
+        private static Uri EnsureTrailingSlash(Uri endpoint)
+        {
+            var value = endpoint.ToString();
+            return value.EndsWith("/", StringComparison.Ordinal)
+                ? endpoint
+                : new Uri(value + "/", UriKind.Absolute);
         }
 
         private static string TrimForDisplay(string? value)

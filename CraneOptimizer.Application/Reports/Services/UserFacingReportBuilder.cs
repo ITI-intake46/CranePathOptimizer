@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 
@@ -25,9 +27,12 @@ public sealed class UserFacingReportBuilder : IReportBuilder
 
         var columns = request.SelectedColumns
             .Where(column => column.IsSelected)
+            .Where(column => !ReportTemplateCatalog.IsUserFacingForbiddenColumn(column.Key))
+            .Where(column => request.Family != ReportFamily.LiftingResult
+                || !column.Key.Equals("MaterialGrade", StringComparison.OrdinalIgnoreCase))
             .OrderBy(column => column.Order)
             .GroupBy(column => column.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+            .Select(group => NormalizeSelectedColumn(request.Family, group.First()))
             .ToList();
 
         if (request.TemplateName.Equals(ReportTemplateCatalog.ReportDataSourceAudit, StringComparison.OrdinalIgnoreCase))
@@ -38,21 +43,17 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             EnsureSelectedColumnValues(auditRows, columns);
             ApplySequentialNumbers(auditRows);
 
-            return Task.FromResult(new ReportDocumentDto
-            {
-                InternalFamily = request.Family,
-                Metadata = CloneMetadata(request, BuildAuditSummary(auditRows)),
-                Columns = columns,
-                Rows = auditRows,
-                CraneSetups = Array.Empty<CraneSetupReportRowDto>(),
-                PreferA3Landscape = columns.Count > 10,
-                TextAlignment = columns.FirstOrDefault()?.Alignment ?? "Left",
-                TextSizePt = ParseTextSize(columns.FirstOrDefault()?.TextSize)
-            });
+            return Task.FromResult(CreateDocument(
+                request.Family,
+                CloneMetadata(request, BuildAuditSummary(auditRows)),
+                columns,
+                auditRows,
+                Array.Empty<CraneSetupReportRowDto>()));
         }
 
         IReadOnlyList<ReportDataRowDto> rows;
         IReadOnlyList<ReportSummaryItemDto> summary;
+        IReadOnlyList<ReportSummaryItemDto> failureBreakdown = Array.Empty<ReportSummaryItemDto>();
         var effectiveItemsIncluded = request.ItemsIncluded;
 
         if (request.Family == ReportFamily.ElementList)
@@ -61,13 +62,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
                 request.TemplateName,
                 request.SourceElements);
 
-            var liftingRows = _liftingProvider.BuildRows(
-                request.TemplateName,
-                "Optimization Result",
-                request.LiftingResults);
-
             rows = elementRows.Select(ToReportRow).ToList();
-            EnrichElementRowsWithLiftingValues(rows, liftingRows);
             EnsureSelectedColumnValues(rows, columns);
             summary = BuildElementSummary(request.TemplateName, elementRows);
         }
@@ -82,11 +77,20 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             if (!request.Metadata.HasGaRun && rows.Count == 0)
                 rows = [BuildNoGaRunPlaceholderRow(columns)];
 
+            if (request.TemplateName.Equals(ReportTemplateCatalog.GaResultReport, StringComparison.OrdinalIgnoreCase))
+                RemoveForbiddenUserFacingValues(rows);
+
             EnsureSelectedColumnValues(rows, columns);
 
-            summary = request.Metadata.HasGaRun
-                ? BuildLiftingSummary(liftingRows)
-                : BuildNoGaRunSummary();
+            if (request.Metadata.HasGaRun)
+            {
+                summary = BuildLiftingSummary(liftingRows, request.CraneSetups);
+                failureBreakdown = BuildLiftingFailureBreakdown(liftingRows);
+            }
+            else
+            {
+                summary = BuildNoGaRunSummary();
+            }
         }
 
         ApplySequentialNumbers(rows);
@@ -108,22 +112,165 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             CraneInfo = request.Metadata.CraneInfo,
             LiftingAccessories = request.Metadata.LiftingAccessories,
             SummaryItems = summary,
+            FailureBreakdownItems = failureBreakdown,
             GeneralNotes = request.Metadata.GeneralNotes
         };
 
-        return Task.FromResult(new ReportDocumentDto
+        return Task.FromResult(CreateDocument(
+            request.Family,
+            metadata,
+            columns,
+            rows,
+            request.Family == ReportFamily.LiftingResult
+                ? request.CraneSetups
+                : Array.Empty<CraneSetupReportRowDto>()));
+    }
+
+    private static ReportDocumentDto CreateDocument(
+        ReportFamily family,
+        ReportMetadataDto metadata,
+        IReadOnlyList<ReportColumnDefinition> columns,
+        IReadOnlyList<ReportDataRowDto> rows,
+        IReadOnlyList<CraneSetupReportRowDto> craneSetups)
+    {
+        var generatedAtUtc = metadata.ReportDate.Kind == DateTimeKind.Utc
+            ? new DateTimeOffset(metadata.ReportDate)
+            : new DateTimeOffset(metadata.ReportDate.ToUniversalTime(), TimeSpan.Zero);
+        var sourceSignature = ComputeSourceSignature(metadata, columns, rows, craneSetups);
+
+        return new ReportDocumentDto
         {
-            InternalFamily = request.Family,
+            DocumentId = Guid.NewGuid().ToString("N"),
+            ReportBuildSessionId = Guid.NewGuid().ToString("N"),
+            ReportReference = BuildReportReference(family, metadata, generatedAtUtc, sourceSignature),
+            GeneratedAtUtc = generatedAtUtc,
+            InputSignature = ComputeHash($"input|{family}|{metadata.ReportName}|{metadata.ItemsIncluded}|{metadata.ProjectName}|{metadata.GaRunStatusText}|{columns.Count}|{rows.Count}|{craneSetups.Count}"),
+            SourceSignature = sourceSignature,
+            InternalFamily = family,
             Metadata = metadata,
             Columns = columns,
             Rows = rows,
-            CraneSetups = request.Family == ReportFamily.LiftingResult
-                ? request.CraneSetups
-                : Array.Empty<CraneSetupReportRowDto>(),
+            CraneSetups = craneSetups,
             PreferA3Landscape = columns.Count > 10,
             TextAlignment = columns.FirstOrDefault()?.Alignment ?? "Left",
             TextSizePt = ParseTextSize(columns.FirstOrDefault()?.TextSize)
-        });
+        };
+    }
+
+    private static ReportColumnDefinition NormalizeSelectedColumn(
+        ReportFamily family,
+        ReportColumnDefinition selectedColumn)
+    {
+        var catalogColumn = ReportTemplateCatalog.GetAvailableColumns(family)
+            .Concat(ReportTemplateCatalog.GetBuiltInTemplates(family).SelectMany(template => template.Columns))
+            .FirstOrDefault(column => column.Key.Equals(selectedColumn.Key, StringComparison.OrdinalIgnoreCase));
+
+        if (catalogColumn == null)
+            return selectedColumn;
+
+        return new ReportColumnDefinition
+        {
+            Key = catalogColumn.Key,
+            Header = catalogColumn.Header,
+            ValueKind = catalogColumn.ValueKind,
+            EvidenceScope = catalogColumn.EvidenceScope,
+            SupportedFamilies = catalogColumn.SupportedFamilies,
+            RequiredCapabilities = catalogColumn.RequiredCapabilities,
+            ShowInPreview = catalogColumn.ShowInPreview,
+            ShowInPdf = catalogColumn.ShowInPdf,
+            ShowInExcel = catalogColumn.ShowInExcel,
+            IsSelected = true,
+            Order = selectedColumn.Order,
+            Format = selectedColumn.Format ?? catalogColumn.Format,
+            Alignment = selectedColumn.Alignment ?? catalogColumn.Alignment,
+            TextSize = selectedColumn.TextSize ?? catalogColumn.TextSize,
+            Category = catalogColumn.Category,
+            Unit = selectedColumn.Unit ?? catalogColumn.Unit
+        };
+    }
+
+    private static string ComputeSourceSignature(
+        ReportMetadataDto metadata,
+        IReadOnlyList<ReportColumnDefinition> columns,
+        IReadOnlyList<ReportDataRowDto> rows,
+        IReadOnlyList<CraneSetupReportRowDto> craneSetups)
+    {
+        var builder = new StringBuilder();
+        builder.Append(metadata.ReportName).Append('|')
+            .Append(metadata.ItemsIncluded).Append('|')
+            .Append(metadata.ProjectName).Append('|')
+            .Append(metadata.GaRunStatusText).Append('|')
+            .Append(metadata.GaWarningText).Append('|')
+            .AppendJoin(',', columns.Select(column => column.Key));
+
+        foreach (var row in rows)
+        {
+            builder.AppendLine();
+            foreach (var column in columns)
+            {
+                row.Values.TryGetValue(column.Key, out var value);
+                builder.Append(column.Key).Append('=').Append(Convert.ToString(value, CultureInfo.InvariantCulture)).Append(';');
+            }
+        }
+
+        foreach (var setup in craneSetups)
+        {
+            builder.AppendLine()
+                .Append("setup=").Append(setup.SetupNo).Append(',')
+                .Append(setup.CraneX.ToString("R", CultureInfo.InvariantCulture)).Append(',')
+                .Append(setup.CraneY.ToString("R", CultureInfo.InvariantCulture)).Append(',')
+                .Append(setup.CraneZ.ToString("R", CultureInfo.InvariantCulture)).Append(',')
+                .Append(setup.LiftedItemsCount);
+        }
+
+        return ComputeHash(builder.ToString());
+    }
+
+    private static string ComputeHash(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string BuildReportReference(
+        ReportFamily family,
+        ReportMetadataDto metadata,
+        DateTimeOffset generatedAtUtc,
+        string sourceSignature)
+    {
+        var prefix = family == ReportFamily.LiftingResult ? "GAR" : "ELR";
+        var timestamp = generatedAtUtc.ToString("yyyyMMdd-HHmm", CultureInfo.InvariantCulture);
+        var identityToken = family == ReportFamily.LiftingResult
+            ? ExtractRunToken(metadata.GaRunStatusText)
+            : ShortToken(sourceSignature, 8);
+        var suffix = ShortToken(sourceSignature, 4);
+
+        return $"{prefix}-{timestamp}-{identityToken}-{suffix}";
+    }
+
+    private static string ExtractRunToken(string? gaRunStatusText)
+    {
+        if (string.IsNullOrWhiteSpace(gaRunStatusText))
+            return "NORUN000";
+
+        var runIndex = gaRunStatusText.IndexOf("Run ", StringComparison.OrdinalIgnoreCase);
+        var runText = runIndex >= 0
+            ? gaRunStatusText[(runIndex + 4)..]
+            : gaRunStatusText;
+
+        return ShortToken(runText, 8);
+    }
+
+    private static string ShortToken(string? value, int length)
+    {
+        var token = new string((value ?? string.Empty)
+            .Where(char.IsLetterOrDigit)
+            .Take(length)
+            .ToArray());
+
+        return string.IsNullOrWhiteSpace(token)
+            ? new string('0', length)
+            : token.ToUpperInvariant().PadRight(length, '0')[..length];
     }
 
     private static double ParseTextSize(string? value)
@@ -155,11 +302,19 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             ["ElementRevitId"] = row.SourceRevitId,
             ["StoreyLevel"] = row.StoreyLevel,
             ["Material"] = row.Material,
+            ["MaterialType"] = row.MaterialType,
+            ["MaterialGrade"] = row.MaterialGrade,
+            ["RawMaterialValue"] = row.RawMaterialValue,
+            ["MaterialSource"] = row.MaterialSource,
             ["Length"] = row.Length,
             ["Width"] = row.Width,
             ["Height"] = row.Height,
             ["VolumeM3"] = row.VolumeM3,
             ["VolumeSource"] = row.VolumeSource,
+            ["CogX"] = row.CogX,
+            ["CogY"] = row.CogY,
+            ["CogZ"] = row.CogZ,
+            ["AssemblyMemberCount"] = row.AssemblyMemberCount,
             ["TopLevelElevation"] = row.TopLevelElevation,
             ["BottomLevelElevation"] = row.BottomLevelElevation,
             ["WeightTons"] = row.WeightTons,
@@ -168,13 +323,12 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             ["WeightStatus"] = row.WeightStatus,
             ["WeightWarning"] = row.WeightWarning,
             ["IncludedInCraneOptimization"] = row.IncludedInCraneOptimization,
-            ["ReadyForGa"] = row.ReadyForGa,
-            ["MissingReadinessReason"] = row.MissingReadinessReason,
+            ["IncludedInAnalysis"] = row.IncludedInAnalysis,
+            ["AnalysisExclusionReason"] = row.AnalysisExclusionReason,
             ["MarkConfidence"] = row.MarkConfidence,
             ["ValidationStatus"] = row.ValidationStatus,
             ["ValidationWarnings"] = row.ValidationWarnings,
             ["WeightTrustLevel"] = row.WeightTrustLevel,
-            ["ReadinessStatus"] = row.ReadinessStatus,
             ["BlockingReasons"] = row.BlockingReasons
         }
     };
@@ -201,59 +355,6 @@ public sealed class UserFacingReportBuilder : IReportBuilder
 
         return new ReportDataRowDto { Values = values };
     }
-
-    private static void EnrichElementRowsWithLiftingValues(
-        IReadOnlyList<ReportDataRowDto> elementRows,
-        IReadOnlyList<LiftingResultReportRowDto> liftingRows)
-    {
-        if (elementRows.Count == 0 || liftingRows.Count == 0)
-            return;
-
-        var liftingValues = liftingRows
-            .Select(row => row.Values)
-            .Where(values => values.Count > 0)
-            .ToList();
-
-        foreach (var elementRow in elementRows)
-        {
-            var keys = GetElementMatchKeys(elementRow.Values);
-            var liftValues = liftingValues.FirstOrDefault(values =>
-                keys.Any(key =>
-                    Matches(values, "ElementId", key)
-                    || Matches(values, "ElementID", key)
-                    || Matches(values, "SourceRevitId", key)
-                    || Matches(values, "ElementRevitId", key)));
-
-            if (liftValues == null)
-                continue;
-
-            foreach (var (columnKey, value) in liftValues)
-            {
-                if (columnKey.Equals("No", StringComparison.OrdinalIgnoreCase)
-                    || columnKey.Equals("ElementMark", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (!elementRow.Values.ContainsKey(columnKey) || IsMissingValue(elementRow.Values[columnKey]))
-                    elementRow.Values[columnKey] = value;
-            }
-        }
-    }
-
-    private static IReadOnlyList<string> GetElementMatchKeys(IReadOnlyDictionary<string, object?> values) =>
-    [
-        .. new[]
-        {
-            GetStringValue(values, "ElementId"),
-            GetStringValue(values, "ElementID"),
-            GetStringValue(values, "SourceRevitId"),
-            GetStringValue(values, "ElementRevitId"),
-            GetStringValue(values, "ElementRevitId")
-        }
-        .Where(value => !string.IsNullOrWhiteSpace(value))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-    ];
 
     private static ReportDataRowDto ToReportRow(ReportDataSourceAuditRowDto row) => new()
     {
@@ -292,6 +393,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         CraneInfo = request.Metadata.CraneInfo,
         LiftingAccessories = request.Metadata.LiftingAccessories,
         SummaryItems = summary,
+        FailureBreakdownItems = request.Metadata.FailureBreakdownItems,
         GeneralNotes = request.Metadata.GeneralNotes
     };
 
@@ -327,27 +429,21 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         }
     }
 
-    private static string GetStringValue(IReadOnlyDictionary<string, object?> values, string key) =>
-        values.TryGetValue(key, out var value) ? value?.ToString() ?? string.Empty : string.Empty;
-
-    private static bool Matches(IReadOnlyDictionary<string, object?> values, string key, string expected) =>
-        !string.IsNullOrWhiteSpace(expected)
-        && values.TryGetValue(key, out var value)
-        && IsSameElementToken(value?.ToString(), expected);
-
-    private static bool IsSameElementToken(string? actual, string expected)
-    {
-        if (string.IsNullOrWhiteSpace(actual) || string.IsNullOrWhiteSpace(expected))
-            return false;
-
-        var actualText = actual.Trim();
-        var expectedText = expected.Trim();
-        return string.Equals(actualText, expectedText, StringComparison.Ordinal);
-    }
-
     private static bool IsMissingValue(object? value) =>
         value == null
         || value is string text && string.IsNullOrWhiteSpace(text);
+
+    private static void RemoveForbiddenUserFacingValues(IReadOnlyList<ReportDataRowDto> rows)
+    {
+        foreach (var row in rows)
+        {
+            foreach (var key in row.Values.Keys.ToList())
+            {
+                if (ReportTemplateCatalog.IsUserFacingForbiddenColumn(key))
+                    row.Values.Remove(key);
+            }
+        }
+    }
 
     private static ReportDataRowDto BuildNoGaRunPlaceholderRow(IReadOnlyList<ReportColumnDefinition> columns)
     {
@@ -370,27 +466,24 @@ public sealed class UserFacingReportBuilder : IReportBuilder
     {
         int total = rows.Count;
         int verified = rows.Count(row => row.WeightVerified == "Yes");
-        int estimated = rows.Count(row => row.WeightStatus == "Estimated");
         int missing = rows.Count(row => row.WeightStatus == "Missing");
-        int gaReady = rows.Count(row => row.IncludedInCraneOptimization == "Yes");
-
         var summary = new List<ReportSummaryItemDto>
         {
             Summary("Total Items", total.ToString(CultureInfo.InvariantCulture)),
             Summary("Verified Weights", CountPercent(verified, total)),
-            Summary("Estimated Weights", CountPercent(estimated, total)),
             Summary("Missing Weights", CountPercent(missing, total))
         };
-
-        if (templateName.Equals(ReportTemplateCatalog.GaReadiness, StringComparison.OrdinalIgnoreCase))
-            summary.Add(Summary("GA-Ready Items", CountPercent(gaReady, total)));
 
         return summary;
     }
 
-    private static IReadOnlyList<ReportSummaryItemDto> BuildLiftingSummary(IReadOnlyList<LiftingResultReportRowDto> rows)
+    private static IReadOnlyList<ReportSummaryItemDto> BuildLiftingSummary(
+        IReadOnlyList<LiftingResultReportRowDto> rows,
+        IReadOnlyList<CraneSetupReportRowDto> craneSetups)
     {
         int total = rows.Count;
+        int liftable = rows.Count(row => IsLiftedStatus(row.LiftStatus));
+        int notLifted = Math.Max(0, total - liftable);
         var utilizationValues = rows
             .Select(row => row.CapacityUtilizationPercent)
             .Where(value => value.HasValue)
@@ -400,11 +493,9 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         var items = new List<ReportSummaryItemDto>
         {
             Summary("Total Items", total.ToString(CultureInfo.InvariantCulture)),
-            Summary("Liftable", CountPercent(rows.Count(row => row.LiftStatus == "Liftable"), total)),
-            Summary("Out Of Radius", CountPercent(rows.Count(row => row.LiftStatus == "Out Of Radius"), total)),
-            Summary("Overweight", CountPercent(rows.Count(row => row.LiftStatus == "Overweight"), total)),
-            Summary("Height Fail", CountPercent(rows.Count(row => row.LiftStatus == "Height Fail"), total)),
-            Summary("No Chart Data", CountPercent(rows.Count(row => row.LiftStatus == "No Chart Data"), total))
+            Summary("Liftable", CountPercent(liftable, total)),
+            Summary("Not Lifted", CountPercent(notLifted, total)),
+            Summary("Final Setup Count", craneSetups.Count.ToString(CultureInfo.InvariantCulture))
         };
 
         if (utilizationValues.Count > 0)
@@ -416,13 +507,59 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         return items;
     }
 
+    private static IReadOnlyList<ReportSummaryItemDto> BuildLiftingFailureBreakdown(
+        IReadOnlyList<LiftingResultReportRowDto> rows)
+    {
+        var failures = new (string Label, Func<LiftingResultReportRowDto, bool> Predicate)[]
+        {
+            ("Out of Radius", row => IsFailureCategory(row, "Out of Radius")),
+            ("Overweight", row => IsFailureCategory(row, "Overweight")),
+            ("Height Failure", row => IsFailureCategory(row, "Height Failure")),
+            ("Missing Load Chart Coverage", row => IsFailureCategory(row, "Missing Load Chart Coverage"))
+        };
+
+        var total = rows.Count;
+        var items = new List<ReportSummaryItemDto>();
+        foreach (var failure in failures)
+        {
+            var count = rows.Count(failure.Predicate);
+            if (count <= 0)
+                continue;
+
+            items.Add(Summary(failure.Label, CountPercent(count, total)));
+        }
+
+        return items;
+    }
+
+    private static bool IsFailureCategory(LiftingResultReportRowDto row, string category)
+    {
+        if (row.Values.TryGetValue("FailureCategory", out var value)
+            && string.Equals(value?.ToString(), category, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return category switch
+        {
+            "Out of Radius" => row.LiftStatus.Equals("Out Of Radius", StringComparison.OrdinalIgnoreCase),
+            "Overweight" => row.LiftStatus.Equals("Overweight", StringComparison.OrdinalIgnoreCase),
+            "Height Failure" => row.LiftStatus.Equals("Height Fail", StringComparison.OrdinalIgnoreCase),
+            "Missing Load Chart Coverage" => row.LiftStatus.Equals("Missing Load Chart Coverage", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
+
+    private static bool IsLiftedStatus(string status) =>
+        status.Equals("Liftable", StringComparison.OrdinalIgnoreCase)
+        || status.Equals("Lifted", StringComparison.OrdinalIgnoreCase);
+
     private static IReadOnlyList<ReportSummaryItemDto> BuildNoGaRunSummary() =>
     [
-        Summary("GA Run", "No GA run"),
-        Summary("Crane", "\u2014"),
-        Summary("Coverage", "\u2014"),
-        Summary("Setup Count", "\u2014"),
-        Summary("Runtime", "\u2014")
+        Summary("Total Items", "0"),
+        Summary("Liftable", "0"),
+        Summary("Not Lifted", "0"),
+        Summary("Final Setup Count", "0")
     ];
 
     private static ReportSummaryItemDto Summary(string label, string value) => new()

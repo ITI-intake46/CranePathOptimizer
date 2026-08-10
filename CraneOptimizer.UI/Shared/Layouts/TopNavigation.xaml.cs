@@ -44,12 +44,23 @@ namespace CraneOptimizer.UI.Shared.Layouts
             else if (normalized.Contains("DXF")) TabDXF.IsChecked = true;
             else if (normalized.Contains("CRANE")) TabCranes.IsChecked = true;
             else if (normalized.Contains("ZONE")) TabZones.IsChecked = true;
-            else if (normalized.Contains("ANALYZE")) TabAnalyze.IsChecked = true;
-            else if (normalized.Contains("REPORT")) TabReports.IsChecked = true;
-            else if (normalized.Contains("AI")) TabAiCopilot.IsChecked = true;
+            else if (normalized.Contains("ANALY")) TabAnalyze.IsChecked = true;
+            else if (normalized.Contains("REPORT")) TabAnalyze.IsChecked = true;
+            else if (IsLegacyAiWorkspaceTarget(normalized)) return;
             else if (normalized.Contains("SETTING")) TabSettings.IsChecked = true;
             else if (normalized.Contains("COORDINATE")) TabCoordinateReference.IsChecked = true;
             else TabHome.IsChecked = true;
+        }
+
+
+        private static bool IsLegacyAiWorkspaceTarget(string normalizedTarget)
+        {
+            return normalizedTarget.Contains("COPILOT", StringComparison.Ordinal)
+                || normalizedTarget.Contains("AI STUDIO", StringComparison.Ordinal)
+                || normalizedTarget.Contains("AI ASSIST", StringComparison.Ordinal)
+                || normalizedTarget.Contains("AIADVISOR", StringComparison.Ordinal)
+                || normalizedTarget.Equals("AI", StringComparison.Ordinal)
+                || normalizedTarget.Equals("STUDIO", StringComparison.Ordinal);
         }
 
         private void Tab_Checked(object sender, RoutedEventArgs e)
@@ -64,8 +75,6 @@ namespace CraneOptimizer.UI.Shared.Layouts
             PanelCranes.Visibility  = Visibility.Collapsed;
             PanelZones.Visibility   = Visibility.Collapsed;
             PanelAnalyze.Visibility = Visibility.Collapsed;
-            PanelReports.Visibility  = Visibility.Collapsed;
-            PanelAiCopilot.Visibility = Visibility.Collapsed;
             PanelSettings.Visibility = Visibility.Collapsed;
             PanelCoordinateReference.Visibility = Visibility.Collapsed;
 
@@ -98,17 +107,7 @@ namespace CraneOptimizer.UI.Shared.Layouts
             if (sender == TabAnalyze)
             {
                 PanelAnalyze.Visibility = Visibility.Visible;
-                _uiContext?.SetActiveTab("ANALYZE", "AnalyzeTabView");
-            }
-            if (sender == TabReports)
-            {
-                PanelReports.Visibility = Visibility.Visible;
-                _uiContext?.SetActiveTab("REPORTS", "ReportsTabView");
-            }
-            if (sender == TabAiCopilot)
-            {
-                PanelAiCopilot.Visibility = Visibility.Visible;
-                _uiContext?.SetActiveTab("AI COPILOT", "AiAdvisorTabView");
+                _uiContext?.SetActiveTab("ANALYSIS", "AnalyzeTabView");
             }
             if (sender == TabSettings)
             {

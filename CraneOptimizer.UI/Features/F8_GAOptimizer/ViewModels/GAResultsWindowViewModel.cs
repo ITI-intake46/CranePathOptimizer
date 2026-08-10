@@ -6,9 +6,9 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
@@ -43,7 +43,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 var mode = _getViewMode();
                 if (mode == GAViewMode.FinalAssignment)
                 {
-                    int assignedCount = _underlying.ElementResults.Count(r => r.IsFinalAssignedToPoint);
+                    int assignedCount = _underlying.FinalAssignedCount > 0
+                        ? _underlying.FinalAssignedCount
+                        : _underlying.ElementResults.Count(r => r.IsFinalAssignedToPoint);
                     return $"{assignedCount} lifted";
                 }
                 else
@@ -168,7 +170,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly Action<GAViewMode> _viewModeChanged;
         private readonly CranePlacementResult _result = null!;
         private readonly IProjectCoordinateTransformService _transformService;
+        private readonly IOptimizationViewportHighlightService _viewportHighlightService;
         private readonly List<CranePositionPresentationDto> _positions = new();
+        private IReadOnlyList<ElementLiftResultRowDto> _assignedElements =
+            Array.Empty<ElementLiftResultRowDto>();
         private CranePositionPresentationDto? _selectedPoint;
         private ElementLiftResultRowDto? _selectedElement;
         private GAViewMode _currentGAViewMode;
@@ -183,7 +188,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             Action<CranePositionResult?> selectedPointChanged,
             Action<GAViewMode> viewModeChanged,
             GAViewMode initialViewMode,
-            IProjectCoordinateTransformService transformService)
+            IProjectCoordinateTransformService transformService,
+            IOptimizationViewportHighlightService? viewportHighlightService = null)
         {
             _result = result ?? throw new ArgumentNullException(nameof(result));
             _renderingService = renderingService;
@@ -192,9 +198,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             _viewModeChanged = viewModeChanged;
             _currentGAViewMode = initialViewMode;
             _transformService = transformService;
+            _viewportHighlightService = viewportHighlightService
+                ?? new OptimizationViewportHighlightService();
+            _viewportHighlightService.LoadResult(_result);
 
             _transformService.ReferenceChanged += OnReferenceChanged;
             _sceneService.ElementsSelectionChanged += OnSceneSelectionChanged;
+            _viewportHighlightService.StateChanged += OnViewportHighlightStateChanged;
 
             if (_result?.Positions != null)
             {
@@ -240,6 +250,27 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public double FitnessScore => _result.FitnessScore;
         public double CoverageRatio => _result.CoverageRatio;
         public string TotalLiftedText => $"Total Lifted: {_result.LiftedElementCount} / {_result.TotalElementCount}";
+        public string ResultSourceText => _result.ResultSourceBanner ?? _result.PersistenceMessage ?? string.Empty;
+        public bool HasResultSourceText => !string.IsNullOrWhiteSpace(ResultSourceText);
+
+        public bool ShowOverallLiftStatus
+        {
+            get => _viewportHighlightService.ShowOverallLiftStatus;
+            set => _viewportHighlightService.SetShowOverallLiftStatus(value);
+        }
+
+        public IReadOnlySet<string> SelectedPositionLiftableIds =>
+            _viewportHighlightService.SelectedPositionLiftableIds;
+
+        public IReadOnlySet<string> OverallLiftableIds =>
+            _viewportHighlightService.OverallLiftableIds;
+
+        public IReadOnlySet<string> OverallNotLiftableIds =>
+            _viewportHighlightService.OverallNotLiftableIds;
+
+        public string LiftStatusSummaryText => ShowOverallLiftStatus
+            ? $"Liftable from final positions: {OverallLiftableIds.Count}  |  Not liftable from final positions: {OverallNotLiftableIds.Count}  |  Total eligible: {_viewportHighlightService.EligibleLiftUnitIds.Count}"
+            : $"Liftable from selected position: {SelectedPositionLiftableIds.Count} / {_viewportHighlightService.EligibleLiftUnitIds.Count}";
 
         public string GroupingBreakdownText
         {
@@ -260,7 +291,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public string CounterWeightDisplay => _result.CounterWeight > 0 ? _result.CounterWeight.ToString("F1") + " t" : "-";
 
         // ── Assigned elements collection (DataGrid items source) ─────────────
-        public ObservableCollection<ElementLiftResultRowDto> AssignedElements { get; } = new();
+        public IReadOnlyList<ElementLiftResultRowDto> AssignedElements
+        {
+            get => _assignedElements;
+            private set
+            {
+                _assignedElements = value;
+                OnPropertyChanged();
+            }
+        }
 
         /// <summary>
         /// Currently selected element in the DataGrid.
@@ -313,6 +352,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                     return;
 
                 RenderSelectedPoint();
+                _viewportHighlightService.SelectPosition(SelectedPoint?.Underlying);
             }
         }
 
@@ -506,10 +546,25 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (_isLoaded)
                 return;
 
-            _isLoaded = true;
-
             if (SelectedPoint == null && _positions.Any())
-                SelectedPoint = _positions[0];
+            {
+                SelectedPoint = _positions.FirstOrDefault(position =>
+                        ReferenceEquals(
+                            position.Underlying,
+                            _viewportHighlightService.SelectedPosition))
+                    ?? _positions.FirstOrDefault(position =>
+                        !string.IsNullOrWhiteSpace(_viewportHighlightService.SelectedPositionId) &&
+                        string.Equals(
+                            position.Underlying.PositionId,
+                            _viewportHighlightService.SelectedPositionId,
+                            StringComparison.Ordinal))
+                    ?? _positions[0];
+            }
+
+            // Material-only result highlighting avoids rebuilding IFC geometry
+            // while WPF paints the initial window state.
+            _isLoaded = true;
+            _viewportHighlightService.SelectPosition(SelectedPoint?.Underlying);
         }
 
         /// <summary>
@@ -517,12 +572,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         /// </summary>
         private void RebuildAssignedElements()
         {
-            AssignedElements.Clear();
             _selectedElement = null;
             OnPropertyChanged(nameof(SelectedElement));
 
             if (SelectedPoint == null)
+            {
+                AssignedElements = Array.Empty<ElementLiftResultRowDto>();
                 return;
+            }
 
             IEnumerable<ElementLiftResult> filtered;
             if (CurrentGAViewMode == GAViewMode.FinalAssignment)
@@ -536,8 +593,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                     .Where(er => er.Status == LiftStatus.Liftable);
             }
 
-            foreach (var er in filtered.OrderBy(e => e.ElementMark))
-                AssignedElements.Add(new ElementLiftResultRowDto(er));
+            AssignedElements = filtered
+                .OrderBy(element => element.ElementMark, StringComparer.CurrentCulture)
+                .Select(element => new ElementLiftResultRowDto(element))
+                .ToArray();
         }
 
         public void OnClosing()
@@ -545,18 +604,35 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             _isClosing = true;
             _transformService.ReferenceChanged -= OnReferenceChanged;
             _sceneService.ElementsSelectionChanged -= OnSceneSelectionChanged;
+            _viewportHighlightService.StateChanged -= OnViewportHighlightStateChanged;
             SelectedPointRenderer.Clear(_renderingService);
+        }
+
+        private void OnViewportHighlightStateChanged()
+        {
+            if (_isClosing)
+                return;
+
+            OnPropertyChanged(nameof(ShowOverallLiftStatus));
+            OnPropertyChanged(nameof(SelectedPositionLiftableIds));
+            OnPropertyChanged(nameof(OverallLiftableIds));
+            OnPropertyChanged(nameof(OverallNotLiftableIds));
+            OnPropertyChanged(nameof(LiftStatusSummaryText));
         }
 
         private void RenderSelectedPoint()
         {
             SelectedPointRenderer.Clear(_renderingService);
-            _selectedPointChanged(SelectedPoint?.Underlying);
 
             if (SelectedPoint != null)
                 SelectedPointRenderer.RenderPlacementPoint(
                     _renderingService,
                     new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, SelectedPoint.Z));
+
+            if (_result.IsReadOnlyRestoredResult)
+                return;
+
+            _selectedPointChanged(SelectedPoint?.Underlying);
 
             // Move the existing crane to the selected GA point
             if (SelectedPoint != null)

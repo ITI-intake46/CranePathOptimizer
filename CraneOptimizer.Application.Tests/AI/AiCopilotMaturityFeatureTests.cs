@@ -53,17 +53,24 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
-        public void UiContracts_ExposeDockedAssistantAndFullCopilotActions()
+        public void UiContracts_ExposeAiAssistStudioWithoutTopLevelCopilotTab()
         {
             var root = FindRepositoryRoot();
             Assert.NotNull(root);
 
             var mainWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml"));
+            var topNavigationXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shared", "Layouts", "TopNavigation.xaml"));
             var assistantXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
             var fullWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Views", "AiAdvisorWindow.xaml"));
 
             Assert.Contains("AI ASSIST", mainWindowXaml);
-            Assert.Contains("Confirmable action proposals", assistantXaml);
+            Assert.DoesNotContain("Content=\"AI COPILOT\"", topNavigationXaml, StringComparison.Ordinal);
+            Assert.DoesNotContain("PanelAiCopilot", topNavigationXaml, StringComparison.Ordinal);
+            Assert.Contains("Open Full Studio", assistantXaml);
+            Assert.Contains("Analyze result", assistantXaml);
+            Assert.Contains("Ask AI model", assistantXaml);
+            Assert.Contains("Confirmable actions", assistantXaml);
+            Assert.Contains("AI Optimization Studio", fullWindowXaml);
             Assert.Contains("Report Appendix", fullWindowXaml);
             Assert.Contains("Context Cards", fullWindowXaml);
         }

@@ -6,6 +6,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.Application.Reports.Services;
@@ -51,7 +52,10 @@ public sealed class ReportBuilderViewModelFlowTests
             new TestReportBuilderDialogService(),
             new TestViewportInteractionService(),
             new TestViewportHitTestService(),
-            liftState);
+            liftState,
+            new NoGaResultSnapshotProvider(),
+            new GaSnapshotToUiResultMapper(),
+            new GaCurrentResultStore());
         var position = new UiCranePositionResult
         {
             X = 10,
@@ -131,14 +135,17 @@ public sealed class ReportBuilderViewModelFlowTests
                 previewDialogs,
                 diagnosticsReader,
                 new FakeProjectOutputPathService(),
-                new ImportReadinessService());
-            viewModel.Initialize(ReportFamily.LiftingResult, ReportTemplateCatalog.BasicLiftingResult, "Optimization Result");
+                new ImportReadinessService(),
+                new NoGaResultSnapshotProvider(),
+                new GaSnapshotReportAdapter());
+            await viewModel.InitializeAsync(ReportFamily.LiftingResult, ReportTemplateCatalog.GaResultReport, "All Submitted Lift Units");
 
             Assert.True(viewModel.PreviewCommand.CanExecute(null));
             viewModel.PreviewCommand.Execute(null);
 
-            var completed = await Task.WhenAny(previewDialogs.ReportShown.Task, Task.Delay(TimeSpan.FromSeconds(10)));
-            Assert.Same(previewDialogs.ReportShown.Task, completed);
+            Assert.True(await WaitUntilAsync(
+                () => viewModel.StatusMessage.Contains("Select a saved GA run", StringComparison.OrdinalIgnoreCase),
+                TimeSpan.FromSeconds(2)));
         }
         finally
         {
@@ -148,35 +155,502 @@ public sealed class ReportBuilderViewModelFlowTests
             elementManagement.Dispose();
         }
 
-        Assert.NotNull(reportBuilder.LastRequest);
-        var request = reportBuilder.LastRequest;
-        Assert.Equal(ReportFamily.LiftingResult, request.Family);
-        Assert.Equal(ReportTemplateCatalog.BasicLiftingResult, request.TemplateName);
-        var liftingResult = Assert.Single(request.LiftingResults);
-        Assert.Equal("PlacementResult / ElementLiftResult", liftingResult.SourceType);
+        Assert.Null(reportBuilder.LastRequest);
+        Assert.Equal(0, reportBuilder.BuildCount);
+        Assert.False(previewDialogs.ReportShown.Task.IsCompleted);
         Assert.Equal(0, diagnosticsReader.DetailedDiagnosticsReadCount);
 
-        var report = await previewDialogs.ReportShown.Task;
-        var row = Assert.Single(report.Rows);
-        Assert.Equal("Liftable", row.Values["LiftStatus"]);
-        Assert.Equal(12.0, Assert.IsType<double>(row.Values["BestRadius"]), precision: 3);
-        Assert.Equal(24.0, Assert.IsType<double>(row.Values["RequiredBoomLength"]), precision: 3);
-        Assert.Equal(4.00, Assert.IsType<double>(row.Values["RequiredCapacity"]), precision: 3);
-        Assert.Equal(10.00, Assert.IsType<double>(row.Values["RawChartCapacity"]), precision: 3);
-        Assert.Equal(8.55, Assert.IsType<double>(row.Values["AvailableCapacity"]), precision: 3);
-        Assert.Equal(46.78, Assert.IsType<double>(row.Values["CapacityUtilizationPercent"]), precision: 2);
-        Assert.Equal("Point_1", row.Values["AssignedGaPoint"]);
-
         var debugLine = traceCapture.ToString();
-        Assert.Contains("SelectedTemplateName=Basic Lifting Result", debugLine);
-        Assert.Contains("ReportFamily=LiftingResult", debugLine);
-        Assert.Contains("UsesGaData=True", debugLine);
-        Assert.Contains("SelectedColumnKeys=No,ElementMark,Weight,HookRiggingWeight,RequiredCapacity,RawChartCapacity,AvailableCapacity,AssignedGaPoint,LiftStatus,BestRadius,RequiredBoomLength,CapacityUtilizationPercent,SafetyMargin,FailureReason,MainPartGlobalId,ParentAssemblyGlobalId,AssemblyLiftWeight,AssemblyLiftCOG,AssemblyMemberIds,SuggestedAction", debugLine);
-        Assert.Contains("CurrentPlacementResultPresent=True", debugLine);
-        Assert.Contains("CurrentPlacementResultPositionsCount=1", debugLine);
-        Assert.Contains("CurrentPlacementResultElementRowsCount=1", debugLine);
-        Assert.Contains("ReportBuildRequestDto.LiftingResultsCount=1", debugLine);
-        Assert.Contains("DiagnosticsFallbackRowsCount=0", debugLine);
+        Assert.DoesNotContain("CurrentPlacementResultPresent=True", debugLine);
+        Assert.DoesNotContain("ReportBuildRequestDto.LiftingResultsCount=1", debugLine);
+    }
+
+    [Fact]
+    public async Task PreviewExportCommands_UseSameImmutablePreviewDocument()
+    {
+        var scene = new TestSceneService();
+        scene.SetElements([BuildElement()]);
+        var liftState = new TestElementLiftStateService();
+        var cranePlacement = new CranePlacementViewModel(
+            new TestRenderingService(),
+            new TestCraneOptimizerDialogService(),
+            new TestGaResultsWindowService(),
+            new TestGaDiagnosticsWindowService(),
+            new TestReportBuilderDialogService(),
+            new TestViewportInteractionService(),
+            new TestViewportHitTestService(),
+            liftState,
+            new NoGaResultSnapshotProvider(),
+            new GaSnapshotToUiResultMapper(),
+            new GaCurrentResultStore());
+
+        var position = new UiCranePositionResult
+        {
+            X = 10,
+            Y = 20,
+            Z = 0,
+            ElementResults =
+            [
+                new UiElementLiftResult
+                {
+                    ElementId = "E1",
+                    ElementMark = "MARK-001",
+                    Weight = 3.30,
+                    Status = LiftStatus.Liftable,
+                    ReachStatus = ReachStatus.Reachable,
+                    ChartStatus = ChartStatus.ListedCapacityFound,
+                    Radius = 12.0,
+                    BoomLength = 24.0,
+                    RequiredCapacity = 4.00,
+                    RawChartCapacity = 10.00,
+                    AvailableCapacity = 8.55,
+                    SafetyMargin = 4.55,
+                    IsFinalAssignedToPoint = true,
+                    IsFinalAssigned = true
+                }
+            ]
+        };
+        cranePlacement.Result = new UiCranePlacementResult
+        {
+            CraneName = "Crane A",
+            TotalElementCount = 1,
+            LiftedElementCount = 1,
+            CoverageRatio = 1,
+            AdditionalWeight = 0.70,
+            Positions = [position]
+        };
+        cranePlacement.SelectedPosition = position;
+
+        var elementManagement = new ElementManagementViewModel(
+            scene,
+            liftState,
+            new TestSceneGridSizingService(),
+            new TestElementVisibilityFilterService(),
+            new TestUnitSettingsService(),
+            new TestProjectCoordinateTransformService(),
+            new TestCoordinateReadoutFormatter(),
+            new TestProjectMaterialSettingsService(),
+            new TestProjectWorkspaceService());
+        var reportBuilder = new CapturingReportBuilder();
+        var previewDialogs = new CapturingReportPreviewDialogService();
+        var pdfExporter = new TestReportPdfExporter();
+        var excelExporter = new TestReportExcelExporter();
+        var dialogs = new TestReportFileDialogService
+        {
+            PdfPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ga-preview-parity.pdf"),
+            ExcelPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ga-preview-parity.xlsx")
+        };
+
+        try
+        {
+            var viewModel = new ReportBuilderViewModel(
+                scene,
+                new TestProjectWorkspaceService(),
+                cranePlacement,
+                elementManagement,
+                new GASettings(),
+                reportBuilder,
+                pdfExporter,
+                excelExporter,
+                new TestReportTemplateStore(),
+                dialogs,
+                previewDialogs,
+                new TestGaDiagnosticsReaderService(),
+                new FakeProjectOutputPathService(),
+                new ImportReadinessService(),
+                new NoGaResultSnapshotProvider(),
+                new GaSnapshotReportAdapter());
+            await viewModel.InitializeAsync(ReportFamily.LiftingResult, ReportTemplateCatalog.GaResultReport, "All Submitted Lift Units");
+
+            viewModel.PreviewCommand.Execute(null);
+            Assert.True(await WaitUntilAsync(
+                () => viewModel.StatusMessage.Contains("Select a saved GA run", StringComparison.OrdinalIgnoreCase),
+                TimeSpan.FromSeconds(2)));
+
+            Assert.Equal(0, reportBuilder.BuildCount);
+            Assert.False(previewDialogs.ReportShown.Task.IsCompleted);
+            Assert.Null(previewDialogs.ExportPdfAsync);
+            Assert.Null(previewDialogs.ExportExcelAsync);
+            Assert.Null(pdfExporter.LastReport);
+            Assert.Null(excelExporter.LastReport);
+        }
+        finally
+        {
+            elementManagement.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task LiftingSummaryCommand_UsesPersistedDescriptorWithoutOpeningResultsWindow()
+    {
+        var descriptor = new GaRunDescriptorDto
+        {
+            OptimizationRunId = "run-persisted-1",
+            CompletedAtUtc = DateTimeOffset.UtcNow,
+            Status = "Completed",
+            ProjectGuid = "project-1",
+            CoverageRatio = 0.75,
+            LiftedLiftUnitCount = 3,
+            TotalTargetLiftUnitCount = 4,
+            SetupCount = 2,
+            CraneName = "Crane A",
+            EffectiveLiftMode = "Individual",
+            Classification = "CurrentProjectUnverified",
+            SourceKind = "ProductionJson",
+            Capabilities = GaSnapshotCapabilitiesDto.Production(false, false, false)
+        };
+        var provider = new SingleRunSnapshotProvider(descriptor);
+        var resultsWindow = new TestGaResultsWindowService();
+        var reportDialog = new TestReportBuilderDialogService();
+        var viewModel = new CranePlacementViewModel(
+            new TestRenderingService(),
+            new TestCraneOptimizerDialogService(),
+            resultsWindow,
+            new TestGaDiagnosticsWindowService(),
+            reportDialog,
+            new TestViewportInteractionService(),
+            new TestViewportHitTestService(),
+            new TestElementLiftStateService(),
+            provider,
+            new GaSnapshotToUiResultMapper(),
+            new GaCurrentResultStore());
+
+        await viewModel.ActivateProjectAsync(new GaProjectActivationContext(
+            @"C:\ProjectA",
+            "project-1",
+            "Project A",
+            null,
+            null,
+            null,
+            null));
+
+        Assert.True(viewModel.OpenLiftingSummaryReportCommand.CanExecute(null));
+        viewModel.OpenLiftingSummaryReportCommand.Execute(null);
+
+        var opened = await Task.WhenAny(reportDialog.ReportOpened.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(reportDialog.ReportOpened.Task, opened);
+        Assert.Equal(0, provider.ResolveSelectedCount);
+        Assert.Equal(0, resultsWindow.ShowCount);
+        Assert.Equal(ReportFamily.LiftingResult, reportDialog.LastFamily);
+        Assert.Equal(ReportTemplateCatalog.GaResultReport, reportDialog.LastTemplateName);
+        Assert.Equal("All Submitted Lift Units", reportDialog.LastItemsIncluded);
+        Assert.NotNull(reportDialog.LastRunSelection);
+        Assert.Equal(descriptor.OptimizationRunId, reportDialog.LastRunSelection.OptimizationRunId);
+        Assert.Equal(descriptor.ProjectGuid, reportDialog.LastRunSelection.ProjectGuid);
+        Assert.Equal(descriptor.SourceKind, reportDialog.LastRunSelection.SourceKind);
+    }
+
+    [Fact]
+    public void RestoredResultsWindow_DoesNotMoveLiveSceneCraneWhenSelectingSavedSetup()
+    {
+        var scene = new TestSceneService();
+        var sceneCrane = new SceneCrane
+        {
+            Position = new DomainPoint3D(1, 2, 3)
+        };
+        scene.AddCrane(sceneCrane);
+
+        var result = new UiCranePlacementResult
+        {
+            IsReadOnlyRestoredResult = true,
+            Positions =
+            [
+                new UiCranePositionResult { X = 10, Y = 20, Z = 0 },
+                new UiCranePositionResult { X = 30, Y = 40, Z = 0 }
+            ]
+        };
+        var viewModel = new GAResultsWindowViewModel(
+            result,
+                new TestRenderingService(),
+                scene,
+                _ => throw new InvalidOperationException("Read-only restored setup selection must not notify the live placement view model."),
+                _ => { },
+                GAViewMode.FinalAssignment,
+                new TestProjectCoordinateTransformService());
+
+        viewModel.OnLoaded();
+        viewModel.SelectedPoint = viewModel.Positions[1];
+
+        Assert.Equal(1, sceneCrane.Position.X);
+        Assert.Equal(2, sceneCrane.Position.Y);
+        Assert.Equal(3, sceneCrane.Position.Z);
+        Assert.Equal(0, scene.UpdateCraneCount);
+    }
+
+    [Fact]
+    public void ResultsWindow_InitialPaint_DoesNotRebuildOrMoveLiveScene()
+    {
+        var scene = new TestSceneService();
+        var sceneCrane = new SceneCrane
+        {
+            Position = new DomainPoint3D(1, 2, 3)
+        };
+        scene.AddCrane(sceneCrane);
+        var result = new UiCranePlacementResult
+        {
+            Positions =
+            [
+                new UiCranePositionResult
+                {
+                    X = 10,
+                    Y = 20,
+                    Z = 0,
+                    ElementResults =
+                    [
+                        new UiElementLiftResult
+                        {
+                            ElementId = "E-1",
+                            ElementMark = "M-1",
+                            Status = LiftStatus.Liftable,
+                            IsFinalAssignedToPoint = true
+                        }
+                    ]
+                },
+                new UiCranePositionResult { X = 30, Y = 40, Z = 0 }
+            ]
+        };
+        var liveSelectionNotifications = 0;
+        var viewModel = new GAResultsWindowViewModel(
+            result,
+            new TestRenderingService(),
+            scene,
+            _ => liveSelectionNotifications++,
+            _ => { },
+            GAViewMode.FinalAssignment,
+            new TestProjectCoordinateTransformService());
+
+        viewModel.OnLoaded();
+
+        Assert.Equal(0, liveSelectionNotifications);
+        Assert.Equal(0, scene.UpdateCraneCount);
+        Assert.Equal(1, sceneCrane.Position.X);
+        Assert.Single(viewModel.AssignedElements);
+
+        viewModel.SelectedPoint = viewModel.Positions[1];
+
+        Assert.Equal(1, liveSelectionNotifications);
+        Assert.Equal(1, scene.UpdateCraneCount);
+        Assert.Equal(30, sceneCrane.Position.X);
+    }
+
+    [Fact]
+    public void AnalyzeTab_ProductionSavedRunsPanel_DoesNotExposeRefreshButton()
+    {
+        var xamlPath = FindRepositoryFile(
+        [
+            "CraneOptimizer.UI",
+            "Features",
+            "F8_GAOptimizer",
+            "Views",
+            "AnalyzeTabView.xaml"
+        ]);
+        var xaml = File.ReadAllText(xamlPath);
+
+        Assert.DoesNotContain("RefreshSavedRunsCommand", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Refresh\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SavedRunStatusText", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OptimizeCommand_RefreshesSavedRunsAfterSuccessfulSnapshotSave()
+    {
+        var descriptor = new GaRunDescriptorDto
+        {
+            OptimizationRunId = "run-newly-saved",
+            CompletedAtUtc = DateTimeOffset.UtcNow,
+            Status = "Completed",
+            ProjectGuid = "project-1",
+            CoverageRatio = 1,
+            LiftedLiftUnitCount = 1,
+            TotalTargetLiftUnitCount = 1,
+            SetupCount = 1,
+            CraneName = "Crane A",
+            EffectiveLiftMode = "Individual",
+            Classification = "CurrentProjectUnverified",
+            SourceKind = "ProductionJson",
+            Capabilities = GaSnapshotCapabilitiesDto.Production(false, false, false)
+        };
+        var provider = new MutableRunSnapshotProvider();
+        var position = new UiCranePositionResult { X = 1, Y = 2, Z = 0 };
+        var optimizerDialog = new TestCraneOptimizerDialogService
+        {
+            Outcome = new CraneOptimizerDialogOutcome(
+                new UiCranePlacementResult
+                {
+                    OptimizationRunId = descriptor.OptimizationRunId,
+                    SnapshotSourceKind = "CurrentSession",
+                    Positions = [position],
+                    TotalElementCount = 1,
+                    LiftedElementCount = 1
+                },
+                position,
+                null)
+        };
+        var viewModel = new CranePlacementViewModel(
+            new TestRenderingService(),
+            optimizerDialog,
+            new TestGaResultsWindowService(),
+            new TestGaDiagnosticsWindowService(),
+            new TestReportBuilderDialogService(),
+            new TestViewportInteractionService(),
+            new TestViewportHitTestService(),
+            new TestElementLiftStateService(),
+            provider,
+            new GaSnapshotToUiResultMapper(),
+            new GaCurrentResultStore());
+
+        await viewModel.ActivateProjectAsync(new GaProjectActivationContext(
+            @"C:\ProjectA",
+            "project-1",
+            "Project A",
+            null,
+            null,
+            null,
+            null));
+        Assert.Empty(viewModel.SavedRuns);
+
+        provider.Runs = [descriptor];
+        viewModel.OptimizeCommand.Execute(null);
+
+        var refreshed = await WaitUntilAsync(
+            () => viewModel.SavedRuns.Any(run => run.OptimizationRunId == descriptor.OptimizationRunId)
+                && viewModel.SelectedSavedRun?.OptimizationRunId == descriptor.OptimizationRunId,
+            TimeSpan.FromSeconds(10));
+
+        Assert.True(refreshed);
+        Assert.Equal(descriptor.OptimizationRunId, viewModel.SelectedSavedRun?.OptimizationRunId);
+        Assert.Equal(descriptor.OptimizationRunId, viewModel.ActiveOptimizationRunId);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_NormalDropdown_HidesLegacyReadinessAndSwitchesFamilyByTemplate()
+    {
+        var scene = new TestSceneService();
+        scene.SetElements([BuildElement()]);
+        var liftState = new TestElementLiftStateService();
+        var cranePlacement = new CranePlacementViewModel(
+            new TestRenderingService(),
+            new TestCraneOptimizerDialogService(),
+            new TestGaResultsWindowService(),
+            new TestGaDiagnosticsWindowService(),
+            new TestReportBuilderDialogService(),
+            new TestViewportInteractionService(),
+            new TestViewportHitTestService(),
+            liftState,
+            new NoGaResultSnapshotProvider(),
+            new GaSnapshotToUiResultMapper(),
+            new GaCurrentResultStore());
+        var elementManagement = new ElementManagementViewModel(
+            scene,
+            liftState,
+            new TestSceneGridSizingService(),
+            new TestElementVisibilityFilterService(),
+            new TestUnitSettingsService(),
+            new TestProjectCoordinateTransformService(),
+            new TestCoordinateReadoutFormatter(),
+            new TestProjectMaterialSettingsService(),
+            new TestProjectWorkspaceService());
+        var templateStore = new TestReportTemplateStore
+        {
+            Templates =
+            [
+                new ReportTemplateDto
+                {
+                    TemplateName = "Legacy GA Readiness Copy",
+                    InternalFamily = ReportFamily.ElementList,
+                    ItemsIncluded = "All Elements",
+                    Columns =
+                    [
+                        new ReportColumnDefinition { Key = "ElementMark", Header = "Element Mark", IsSelected = true, Order = 0 },
+                        new ReportColumnDefinition { Key = "LiftStatus", Header = "Lift Status", IsSelected = true, Order = 1 },
+                        new ReportColumnDefinition { Key = "RequiredCapacity", Header = "Required Capacity", IsSelected = true, Order = 2 }
+                    ]
+                }
+            ]
+        };
+
+        try
+        {
+            var viewModel = new ReportBuilderViewModel(
+                scene,
+                new TestProjectWorkspaceService(),
+                cranePlacement,
+                elementManagement,
+                new GASettings(),
+                new CapturingReportBuilder(),
+                new TestReportPdfExporter(),
+                new TestReportExcelExporter(),
+                templateStore,
+                new TestReportFileDialogService(),
+                new CapturingReportPreviewDialogService(),
+                new TestGaDiagnosticsReaderService(),
+                new FakeProjectOutputPathService(),
+                new ImportReadinessService(),
+                new NoGaResultSnapshotProvider(),
+                new GaSnapshotReportAdapter());
+
+            await viewModel.InitializeAsync(ReportFamily.ElementList, "Legacy GA Readiness Copy", "All Elements");
+
+            Assert.Equal(
+                [ReportTemplateCatalog.BasicElementList, ReportTemplateCatalog.GaResultReport],
+                viewModel.ReportNames);
+            Assert.DoesNotContain(viewModel.ReportNames, name => name.Contains("GA Readiness", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(ReportTemplateCatalog.BasicElementList, viewModel.SelectedReportName);
+            Assert.Contains(viewModel.SelectedColumns, column => column.Key == "ElementMark");
+            Assert.DoesNotContain(viewModel.SelectedColumns, column => column.Key == "LiftStatus");
+
+            viewModel.SelectedReportName = ReportTemplateCatalog.GaResultReport;
+
+            Assert.Equal(["All Submitted Lift Units"], viewModel.ItemsIncludedOptions);
+            Assert.Equal("All Submitted Lift Units", viewModel.ItemsIncluded);
+            Assert.DoesNotContain(viewModel.SelectedColumns, column => column.Key == "LiftStatus");
+            Assert.Contains(viewModel.SelectedColumns, column => column.Key == "FailureCategory");
+            Assert.Contains(viewModel.SelectedColumns, column => column.Header == "Adjusted Allowable Capacity (t)");
+            Assert.Contains(viewModel.SelectedColumns, column => column.Header == "Manufacturer Chart Capacity (t)");
+            Assert.DoesNotContain(viewModel.SelectedColumns, column => column.Header == "Assigned Setup");
+            Assert.DoesNotContain(viewModel.SelectedColumns, column => column.Header == "Setup X (m)");
+            Assert.DoesNotContain(viewModel.SelectedColumns, column => column.Header == "Safety Margin (t)");
+            Assert.DoesNotContain(viewModel.SelectedColumns, column => column.Header == "Chart Status");
+            Assert.DoesNotContain(viewModel.AvailableColumns, column => column.Key == "AssignmentReason");
+            Assert.DoesNotContain(viewModel.AvailableColumns, column => column.Key == "AssignmentScore");
+            Assert.DoesNotContain(viewModel.AvailableColumns, column => column.Key == "FinalEvaluationId");
+            Assert.DoesNotContain(viewModel.AvailableColumns, column => column.Key == "BestFailedEvaluationId");
+        }
+        finally
+        {
+            elementManagement.Dispose();
+        }
+    }
+
+    private static async Task<bool> WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var stopAt = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < stopAt)
+        {
+            if (condition())
+                return true;
+
+            await Task.Delay(25);
+        }
+
+        return condition();
+    }
+
+    private static string FindRepositoryFile(
+        string[] pathSegments,
+        [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "")
+    {
+        var directory = new DirectoryInfo(Path.GetDirectoryName(sourceFilePath)!);
+        while (directory != null)
+        {
+            var candidate = Path.Combine(new[] { directory.FullName }.Concat(pathSegments).ToArray());
+            if (File.Exists(candidate))
+                return candidate;
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("Could not locate repository file.", Path.Combine(pathSegments));
     }
 
     private static PrecastElement BuildElement() => new()
@@ -199,10 +673,12 @@ public sealed class ReportBuilderViewModelFlowTests
             new LiftingResultReportDataProvider());
 
         public ReportBuildRequestDto? LastRequest { get; private set; }
+        public int BuildCount { get; private set; }
 
         public Task<ReportDocumentDto> BuildAsync(ReportBuildRequestDto request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            BuildCount++;
             return _inner.BuildAsync(request, cancellationToken);
         }
     }
@@ -211,6 +687,8 @@ public sealed class ReportBuilderViewModelFlowTests
     {
         public TaskCompletionSource<ReportDocumentDto> ReportShown { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Func<Task>? ExportPdfAsync { get; private set; }
+        public Func<Task>? ExportExcelAsync { get; private set; }
 
         public void ShowPreview(
             ReportDocumentDto report,
@@ -219,6 +697,8 @@ public sealed class ReportBuilderViewModelFlowTests
             Func<Task> exportPdfAsync,
             Func<Task> exportExcelAsync)
         {
+            ExportPdfAsync = exportPdfAsync;
+            ExportExcelAsync = exportExcelAsync;
             ReportShown.TrySetResult(report);
         }
     }
@@ -240,16 +720,19 @@ public sealed class ReportBuilderViewModelFlowTests
 
     private sealed class TestReportTemplateStore : IReportTemplateStore
     {
+        public IReadOnlyList<ReportTemplateDto> Templates { get; init; } = [];
         public Task SaveAsync(ReportTemplateDto template, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<ReportTemplateDto>> LoadAsync(ReportFamily family, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ReportTemplateDto>>([]);
+        public Task<IReadOnlyList<ReportTemplateDto>> LoadAsync(ReportFamily family, CancellationToken cancellationToken = default) => Task.FromResult(Templates);
         public Task DeleteAsync(ReportFamily family, string templateName, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class TestReportFileDialogService : IReportFileDialogService
     {
+        public string? PdfPath { get; init; }
+        public string? ExcelPath { get; init; }
         public string? BrowseLogo() => null;
-        public string? SavePdf(string suggestedFileName, string initialDirectory) => null;
-        public string? SaveExcel(string suggestedFileName, string initialDirectory) => null;
+        public string? SavePdf(string suggestedFileName, string initialDirectory) => PdfPath;
+        public string? SaveExcel(string suggestedFileName, string initialDirectory) => ExcelPath;
         public string? PromptForTemplateName(string defaultName, IEnumerable<string> existingNames) => null;
         public void ShowInfo(string message, string title) { }
         public bool Confirm(string message, string title) => true;
@@ -257,12 +740,127 @@ public sealed class ReportBuilderViewModelFlowTests
 
     private sealed class TestReportPdfExporter : IReportPdfExporter
     {
-        public Task ExportAsync(ReportDocumentDto report, string outputPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public ReportDocumentDto? LastReport { get; private set; }
+        public string? LastOutputPath { get; private set; }
+
+        public Task ExportAsync(ReportDocumentDto report, string outputPath, CancellationToken cancellationToken = default)
+        {
+            LastReport = report;
+            LastOutputPath = outputPath;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestReportExcelExporter : IReportExcelExporter
     {
-        public Task ExportAsync(ReportDocumentDto report, string outputPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public ReportDocumentDto? LastReport { get; private set; }
+        public string? LastOutputPath { get; private set; }
+
+        public Task ExportAsync(ReportDocumentDto report, string outputPath, CancellationToken cancellationToken = default)
+        {
+            LastReport = report;
+            LastOutputPath = outputPath;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NoGaResultSnapshotProvider : IGaResultSnapshotProvider
+    {
+        public Task<ResolvedGaResultSnapshot> ResolveAsync(
+            string projectRoot,
+            string projectGuid,
+            string? modelFingerprint,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResolvedGaResultSnapshot());
+
+        public Task<IReadOnlyList<GaRunDescriptorDto>> ListRunsAsync(
+            GaProjectActivationContext context,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<GaRunDescriptorDto>>(Array.Empty<GaRunDescriptorDto>());
+
+        public Task<ResolvedGaResultSnapshot> ResolveSelectedAsync(
+            GaProjectActivationContext context,
+            GaRunDescriptorDto selectedRun,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResolvedGaResultSnapshot());
+    }
+
+    private sealed class SingleRunSnapshotProvider(GaRunDescriptorDto descriptor) : IGaResultSnapshotProvider
+    {
+        public int ResolveSelectedCount { get; private set; }
+
+        public Task<ResolvedGaResultSnapshot> ResolveAsync(
+            string projectRoot,
+            string projectGuid,
+            string? modelFingerprint,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResolvedGaResultSnapshot
+            {
+                SourceKind = descriptor.SourceKind,
+                Classification = descriptor.Classification,
+                Capabilities = descriptor.Capabilities,
+                SelectedRun = descriptor
+            });
+
+        public Task<IReadOnlyList<GaRunDescriptorDto>> ListRunsAsync(
+            GaProjectActivationContext context,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<GaRunDescriptorDto>>([descriptor]);
+
+        public Task<ResolvedGaResultSnapshot> ResolveSelectedAsync(
+            GaProjectActivationContext context,
+            GaRunDescriptorDto selectedRun,
+            CancellationToken cancellationToken = default)
+        {
+            ResolveSelectedCount++;
+            return Task.FromResult(new ResolvedGaResultSnapshot
+            {
+                SourceKind = descriptor.SourceKind,
+                Classification = descriptor.Classification,
+                Capabilities = descriptor.Capabilities,
+                SelectedRun = descriptor
+            });
+        }
+    }
+
+    private sealed class MutableRunSnapshotProvider : IGaResultSnapshotProvider
+    {
+        public IReadOnlyList<GaRunDescriptorDto> Runs { get; set; } = [];
+
+        public Task<ResolvedGaResultSnapshot> ResolveAsync(
+            string projectRoot,
+            string projectGuid,
+            string? modelFingerprint,
+            CancellationToken cancellationToken = default)
+        {
+            var descriptor = Runs.FirstOrDefault();
+            return Task.FromResult(descriptor == null
+                ? new ResolvedGaResultSnapshot()
+                : new ResolvedGaResultSnapshot
+                {
+                    SourceKind = descriptor.SourceKind,
+                    Classification = descriptor.Classification,
+                    Capabilities = descriptor.Capabilities,
+                    SelectedRun = descriptor
+                });
+        }
+
+        public Task<IReadOnlyList<GaRunDescriptorDto>> ListRunsAsync(
+            GaProjectActivationContext context,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Runs);
+
+        public Task<ResolvedGaResultSnapshot> ResolveSelectedAsync(
+            GaProjectActivationContext context,
+            GaRunDescriptorDto selectedRun,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResolvedGaResultSnapshot
+            {
+                SourceKind = selectedRun.SourceKind,
+                Classification = selectedRun.Classification,
+                Capabilities = selectedRun.Capabilities,
+                SelectedRun = selectedRun
+            });
     }
 
     private sealed class TestProjectWorkspaceService : IProjectWorkspaceService
@@ -287,6 +885,8 @@ public sealed class ReportBuilderViewModelFlowTests
     {
         private List<PrecastElement> _elements = [];
         private List<PrecastElement> _selectedElements = [];
+        private readonly List<SceneCrane> _cranes = [];
+        public int UpdateCraneCount { get; private set; }
 
         public List<PrecastElement> GetElements() => _elements;
         public void SetElements(List<PrecastElement> elements) { _elements = elements; ElementsChanged?.Invoke(elements); }
@@ -310,13 +910,13 @@ public sealed class ReportBuilderViewModelFlowTests
         public event Action<GreenAreaZone>? ZoneUpdated;
         public event Action? ZonesCleared;
         public event Action<GreenAreaZone?>? ZoneSelected;
-        public List<SceneCrane> GetCranes() => [];
-        public void AddCrane(SceneCrane crane) => CraneAdded?.Invoke(crane);
-        public void RemoveCrane(SceneCrane crane) => CraneRemoved?.Invoke(crane);
-        public void ClearCranes() => CranesCleared?.Invoke();
+        public List<SceneCrane> GetCranes() => _cranes;
+        public void AddCrane(SceneCrane crane) { _cranes.Add(crane); CraneAdded?.Invoke(crane); }
+        public void RemoveCrane(SceneCrane crane) { _cranes.Remove(crane); CraneRemoved?.Invoke(crane); }
+        public void ClearCranes() { _cranes.Clear(); CranesCleared?.Invoke(); }
         public void MoveCrane(SceneCrane crane, double x, double y, double z) => CraneMoved?.Invoke(crane);
         public void RotateCrane(SceneCrane crane, double angle) => CraneRotated?.Invoke(crane);
-        public void UpdateCrane(SceneCrane crane) => CraneUpdated?.Invoke(crane);
+        public void UpdateCrane(SceneCrane crane) { UpdateCraneCount++; CraneUpdated?.Invoke(crane); }
         public SceneCrane? SelectedCrane => null;
         public void SetSelectedCrane(SceneCrane? crane) => CraneSelected?.Invoke(crane);
         public void ClearCraneSelection() => CraneSelected?.Invoke(null);
@@ -403,6 +1003,7 @@ public sealed class ReportBuilderViewModelFlowTests
         public bool IsStoreyEnabled(string storey) => true;
         public bool IsElementIncluded(PrecastElement element) => true;
         public bool IsElementHidden(PrecastElement element) => false;
+        public bool IsElementExplicitlyHidden(PrecastElement element) => false;
     }
 
     private sealed class TestUnitSettingsService : IUnitSettingsService
@@ -448,6 +1049,8 @@ public sealed class ReportBuilderViewModelFlowTests
         public void Render<T>(IEnumerable<T> items, IVisualBuilder<T> builder, string layerName) { }
         public void Clear() { }
         public void ClearLayer(string layerKey) { }
+        public bool IsGridVisible { get; private set; } = true;
+        public void SetGridVisible(bool isVisible) => IsGridVisible = isVisible;
         public void SetGridSize(double widthMeters, double lengthMeters) { }
         public void SetGridSize(double widthMeters, double lengthMeters, double centerXMeters, double centerYMeters) { }
         public HelixViewport3D? GetViewport() => null;
@@ -456,12 +1059,18 @@ public sealed class ReportBuilderViewModelFlowTests
 
     private sealed class TestCraneOptimizerDialogService : ICraneOptimizerDialogService
     {
-        public CraneOptimizerDialogOutcome? ShowDialog() => null;
+        public CraneOptimizerDialogOutcome? Outcome { get; init; }
+        public CraneOptimizerDialogOutcome? ShowDialog() => Outcome;
     }
 
     private sealed class TestGaResultsWindowService : IGAResultsWindowService
     {
-        public void Show(UiCranePlacementResult result, Action<UiCranePositionResult?> selectedPointChanged, Action<GAViewMode> viewModeChanged, GAViewMode initialViewMode) { }
+        public int ShowCount { get; private set; }
+
+        public void Show(UiCranePlacementResult result, Action<UiCranePositionResult?> selectedPointChanged, Action<GAViewMode> viewModeChanged, GAViewMode initialViewMode)
+        {
+            ShowCount++;
+        }
     }
 
     private sealed class TestGaDiagnosticsWindowService : IGADiagnosticsWindowService
@@ -471,7 +1080,26 @@ public sealed class ReportBuilderViewModelFlowTests
 
     private sealed class TestReportBuilderDialogService : IReportBuilderDialogService
     {
-        public void ShowReportBuilder(ReportFamily family, string templateName, string itemsIncluded) { }
+        public TaskCompletionSource<object?> ReportOpened { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ReportFamily LastFamily { get; private set; }
+        public string? LastTemplateName { get; private set; }
+        public string? LastItemsIncluded { get; private set; }
+        public GaReportRunSelection? LastRunSelection { get; private set; }
+
+        public Task ShowReportBuilderAsync(
+            ReportFamily family,
+            string templateName,
+            string itemsIncluded,
+            GaReportRunSelection? runSelection = null)
+        {
+            LastFamily = family;
+            LastTemplateName = templateName;
+            LastItemsIncluded = itemsIncluded;
+            LastRunSelection = runSelection;
+            ReportOpened.TrySetResult(null);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestViewportInteractionService : IViewportInteractionService

@@ -1,64 +1,104 @@
-<UserControl
+﻿<UserControl
+    x:Name="Root"
     x:Class="CraneOptimizer.AI.Companion.Views.AiCompanionPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
-    MinWidth="400">
+    MinWidth="330">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
         <Style x:Key="AiAssistSectionLabel" TargetType="TextBlock" BasedOn="{StaticResource PropertyLabel}">
             <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         </Style>
-        <Style x:Key="AiAssistCard" TargetType="Border">
-            <Setter Property="Padding" Value="12" />
+
+        <Style x:Key="AiAssistSectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="AiAssistBodyText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="LineHeight" Value="19" />
+            <Setter Property="TextAlignment" Value="Left" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="AiAssistSecondaryText" TargetType="TextBlock" BasedOn="{StaticResource AiAssistBodyText}">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="LineHeight" Value="16.5" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="AiAssistSurface" TargetType="Border">
+            <Setter Property="Padding" Value="11" />
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="CornerRadius" Value="6" />
         </Style>
-        <Style x:Key="AiAssistSubtleCard" TargetType="Border" BasedOn="{StaticResource AiAssistCard}">
-            <Setter Property="Padding" Value="10" />
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-            <Setter Property="CornerRadius" Value="10" />
-        </Style>
+
         <Style x:Key="AiAssistMicroButton" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="FontSize" Value="11" />
         </Style>
-        <Style x:Key="AiAssistSectionButton" TargetType="Button">
-            <Setter Property="Padding" Value="0" />
+
+        <Style x:Key="AiAssistFlatButton" TargetType="Button" BasedOn="{StaticResource ToolbarButton}">
             <Setter Property="MinWidth" Value="0" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="AiAssistContextToggle" TargetType="ToggleButton">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Margin" Value="0,0,0,7" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Chrome"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="11">
-                            <ContentPresenter Margin="0"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                              RecognizesAccessKey="True" />
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource PrimaryMutedBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Opacity" Value="0.86" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter Property="Opacity" Value="0.82" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -66,16 +106,11 @@
             </Setter>
         </Style>
 
-        <DropShadowEffect x:Key="AiAssistRailActiveGlowEffect"
-                          BlurRadius="11"
-                          Color="#D68A56"
-                          Opacity="0.42"
-                          ShadowDepth="0" />
 
-        <Style x:Key="AiAssistRailButton" TargetType="Button">
+        <Style x:Key="AiAssistRailButton" TargetType="RadioButton">
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinWidth" Value="0" />
-            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="MinHeight" Value="40" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -83,40 +118,37 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Margin" Value="0,3,0,3" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
+                    <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="Chrome"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="10"
+                                CornerRadius="3"
                                 SnapsToDevicePixels="True">
                             <Grid ClipToBounds="True">
-                                <!-- The active section is intentionally much stronger than hover: a muted
-                                     primary wash, a bright spine, and a small glow echo the app's terracotta
-                                     ribbon/primary action theme while keeping the rail compact. -->
                                 <Border x:Name="ActiveWash"
-                                        Margin="1"
+                                        Margin="0"
                                         Background="{StaticResource PrimaryMutedBrush}"
-                                        CornerRadius="9"
+                                        CornerRadius="2"
                                         Opacity="0" />
                                 <Border x:Name="SelectionRail"
-                                        Width="4"
+                                        Width="2"
                                         Margin="0,8,0,8"
                                         HorizontalAlignment="Left"
                                         Background="Transparent"
-                                        CornerRadius="3" />
-                                <Border x:Name="SelectionSpark"
-                                        Width="3"
-                                        Height="18"
-                                        Margin="0,0,2,0"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center"
-                                        Background="Transparent"
-                                        CornerRadius="3" />
-                                <ContentPresenter Margin="0"
+                                        CornerRadius="1" />
+                                <Border x:Name="FocusRing"
+                                        Margin="2"
+                                        BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="2"
+                                        IsHitTestVisible="False"
+                                        Opacity="0" />
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
                                                   HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                                   RecognizesAccessKey="True" />
@@ -126,37 +158,136 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.45" />
+                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.18" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             </Trigger>
-                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Tag}" Value="True">
+                            <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
-                                <Setter TargetName="Chrome" Property="Effect" Value="{StaticResource AiAssistRailActiveGlowEffect}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="1" />
+                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.42" />
                                 <Setter TargetName="SelectionRail" Property="Background" Value="{StaticResource PrimaryBrush}" />
-                                <Setter TargetName="SelectionSpark" Property="Background" Value="{StaticResource PrimaryBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
-                            </DataTrigger>
+                            </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryHoverBrush}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.72" />
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryHoverBrush}" />
+                                <Setter TargetName="FocusRing" Property="Opacity" Value="0.72" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Opacity" Value="0.85" />
+                                <Setter Property="Opacity" Value="0.82" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
+                    <Setter Property="Margin" Value="0,2" />
+                    <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AiAssistRailToggleButton" TargetType="Button">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.8" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="AiAssistRailVerticalLabel" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="8.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <RotateTransform Angle="90" />
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AiAssistRailCollapsedMarker" TargetType="Border">
+            <Setter Property="Width" Value="2" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="Opacity" Value="0.72" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AiAssistMessageBubble" TargetType="Border">
+            <Setter Property="MaxWidth" Value="620" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Sender}" Value="You">
+                    <Setter Property="HorizontalAlignment" Value="Right" />
+                    <Setter Property="Background" Value="{StaticResource PrimaryMutedBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AiAssistInlineExpander" TargetType="Expander">
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
     </UserControl.Resources>
 
     <Grid Background="{DynamicResource SurfaceBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="34" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -167,345 +298,652 @@
         </Grid.RowDefinitions>
 
         <!-- Minimal AI Assist header: calm state, no control cloud. -->
-        <Border Grid.Row="0" Grid.ColumnSpan="2" Padding="13,10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Grid.ColumnSpan="2" Padding="13,10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                Visibility="{Binding ShowHeader, ElementName=Root, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Border Width="32" Height="32" Margin="0,0,10,0" Background="{StaticResource PrimaryBrush}" CornerRadius="16">
-                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="White" Text="AI" />
-                </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Text="AI Assist" />
-                    <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="{StaticResource PrimaryBrush}" Text="{Binding CommandCenterStateLabel}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding CommandCenterModelLabel}" TextTrimming="CharacterEllipsis" />
+
+                <Border Width="7" Height="7" Margin="0,4,8,0" VerticalAlignment="Top" Background="{StaticResource PrimaryBrush}" CornerRadius="4" />
+
+                <StackPanel Grid.Column="1" ToolTip="{Binding CommandCenterStateLabel}">
+                    <TextBlock FontSize="11.5"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Text="{Binding CommandCenterStatusTitle}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Margin="0,2,0,0"
+                               FontSize="9.5"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="{Binding CommandCenterProjectLabel}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding CommandCenterModelLabel}" />
                 </StackPanel>
-                <Button Grid.Column="2" Width="24" Height="24" Padding="0" VerticalAlignment="Top" Click="CloseButton_Click" Content="×" FontSize="14" FontWeight="Bold" Style="{StaticResource ToolbarButton}" ToolTip="Close AI Assist and return to Properties" />
+
+                <Button Grid.Column="2"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="Open full AI Studio"
+                        Command="{Binding OpenFullStudioCommand}"
+                        Content="Studio"
+                        Style="{StaticResource AiAssistFlatButton}"
+                        ToolTip="Open the full AI Optimization Studio." />
             </Grid>
         </Border>
 
-        <!-- One prominent recommendation instead of many equal-weight buttons. -->
-        <Border Grid.Row="1" Grid.Column="0" Padding="12,10" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-            <Border Style="{StaticResource AiAssistCard}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="PRIMARY RECOMMENDATION" />
-                        <TextBlock Margin="0,4,0,0" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding CommandCenterNextLabel}" TextWrapping="Wrap" />
-                        <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding CurrentHint}" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <Button Grid.Column="1" Margin="10,0,0,0" Padding="11,6" VerticalAlignment="Center" Command="{Binding ExecutePrimaryActionCommand}" Content="{Binding PrimaryActionLabel}" Style="{StaticResource ButtonPrimary}" Visibility="{Binding PrimaryActionVisibility}" />
-                </Grid>
-            </Border>
+
+        <!-- A single concise recommendation; details remain available in Mission. -->
+        <Border Grid.Row="1"
+                Grid.Column="0"
+                Padding="12,8"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Background="{StaticResource PrimaryBrush}" CornerRadius="2" />
+
+                <StackPanel Grid.Column="1" Margin="10,0,10,0" ToolTip="{Binding NextActionToolTip}">
+                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="NEXT STEP" />
+                    <TextBlock Margin="0,3,0,0"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Text="{Binding NextActionTitle}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <Button Grid.Column="2"
+                        Padding="10,5"
+                        VerticalAlignment="Center"
+                        Command="{Binding ExecutePrimaryActionCommand}"
+                        Content="{Binding PrimaryActionLabel}"
+                        Style="{StaticResource ButtonPrimary}"
+                        Visibility="{Binding PrimaryActionVisibility}" />
+            </Grid>
         </Border>
 
-        <!-- Focused section content with a permanent right-side section rail. The rail replaces the visual scrollbar as the main navigation spine. -->
-        <Grid Grid.Row="2" Grid.Column="0" Background="{DynamicResource SurfaceBrush}">
-            <ScrollViewer x:Name="BodyScrollViewer"
-                          CanContentScroll="False"
-                          PanningMode="VerticalOnly"
-                          PreviewMouseWheel="BodyScrollViewer_PreviewMouseWheel"
-                          VerticalScrollBarVisibility="Hidden">
-                <Grid Margin="12,10,12,10">
-                    <!-- Chat section -->
-                    <StackPanel Visibility="{Binding ChatTabVisibility}">
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="CHAT" />
-                        <TextBlock Margin="0,4,0,10" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Text="Conversation with captured project context" TextWrapping="Wrap" />
-                        <Border Margin="0,0,0,10" Padding="9" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Visibility="{Binding PinnedReadinessVisibility}">
-                            <StackPanel>
-                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Text="PINNED MISSION STATUS" />
-                                <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="16" Text="{Binding PinnedReadinessBody}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-                        <ItemsControl ItemsSource="{Binding ConversationMessages}">
+        <ScrollViewer x:Name="BodyScrollViewer"
+                      Grid.Row="2"
+                      Grid.Column="0"
+                      CanContentScroll="False"
+                      PanningMode="VerticalOnly"
+                      PreviewMouseWheel="BodyScrollViewer_PreviewMouseWheel"
+                      ScrollChanged="BodyScrollViewer_ScrollChanged"
+                      VerticalScrollBarVisibility="Auto">
+            <Grid Margin="12,12,9,16">
+                <!-- Chat -->
+                <StackPanel Visibility="{Binding ChatTabVisibility}">
+                    <Border Margin="0,0,0,12"
+                            Padding="10,8"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontSize="9.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="VERIFIED" />
+                            <TextBlock Grid.Column="1"
+                                       Margin="9,0,0,0"
+                                       FontSize="10.5"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="{Binding CommandCenterStatusTitle}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding MissionRootCause}" />
+                        </Grid>
+                    </Border>
+
+                    <ItemsControl x:Name="ConversationItemsControl" ItemsSource="{Binding ConversationMessages}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,12">
+                                    <Grid Margin="2,0,2,4" HorizontalAlignment="{Binding MessageAlignment}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock VerticalAlignment="Center" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SenderLabel}" />
+                                            <Border Margin="7,0,0,0"
+                                                    MaxWidth="190"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center"
+                                                    Background="{StaticResource PrimaryMutedBrush}"
+                                                    CornerRadius="4"
+                                                    Visibility="{Binding ResponseSourceVisibility}">
+                                                <TextBlock FontSize="8.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryBrush}"
+                                                           Text="{Binding ResponseSourceLabel}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding ResponseSourceLabel}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding TimestampLabel}" />
+                                    </Grid>
+                                    <TextBlock Margin="2,0,2,4"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{Binding StaleContextLabel}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding StaleVisibility}" />
+                                    <Border Style="{StaticResource AiAssistMessageBubble}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource AiAssistBodyText}"
+                                                       Text="{Binding DisplayBody}" />
+                                            <Button Margin="0,8,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    AutomationProperties.Name="Toggle full AI message"
+                                                    Command="{Binding ToggleDetailsCommand}"
+                                                    Content="{Binding DetailsToggleLabel}"
+                                                    Style="{StaticResource AiAssistFlatButton}"
+                                                    Visibility="{Binding DetailsToggleVisibility}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Expander Header="{Binding Advisor.AgentExecutionLabel}"
+                              IsExpanded="False"
+                              Style="{StaticResource AiAssistInlineExpander}"
+                              Visibility="{Binding Advisor.AgentExecutionVisibility}">
+                        <StackPanel Margin="0,8,0,0">
+                            <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="READ-ONLY AGENT" />
+                                    <TextBlock Margin="0,5,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding Advisor.AgentConclusion}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,5,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Advisor.AgentGovernanceSummary}" />
+                                </StackPanel>
+                            </Border>
+                            <ItemsControl ItemsSource="{Binding Advisor.AgentExecutionTrace}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="2,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="22" Height="22" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="11">
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="{Binding Sequence}" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ToolName}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Summary}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" FontSize="11" Foreground="{StaticResource PrimaryBrush}" Text="{Binding StatusLabel}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander Header="{Binding Advisor.AgentActionsLabel}"
+                              IsExpanded="False"
+                              Style="{StaticResource AiAssistInlineExpander}"
+                              Visibility="{Binding Advisor.AgentActionsVisibility}">
+                        <StackPanel Margin="0,8,0,0">
+                            <ItemsControl ItemsSource="{Binding Advisor.AgentActionProposals}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
+                                            <StackPanel>
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="0,3,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Description}" />
+                                                <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding EvidenceLabel}" TextWrapping="Wrap" />
+                                                <Expander Margin="0,5,0,0"
+                                                          Header="Review details"
+                                                          Visibility="{Binding RequiresExplicitApproval, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <StackPanel Margin="0,5,0,0">
+                                                        <TextBlock FontSize="10" FontWeight="SemiBold" Text="Impact" />
+                                                        <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Impact}" TextWrapping="Wrap" />
+                                                        <TextBlock Margin="0,5,0,0" FontSize="10" FontWeight="SemiBold" Text="Reversibility" />
+                                                        <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Reversibility}" TextWrapping="Wrap" />
+                                                        <TextBlock Margin="0,5,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ApprovalScope}" TextWrapping="Wrap" />
+                                                        <TextBlock Margin="0,5,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ToolArgumentsLabel}" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Expander>
+                                                <WrapPanel Margin="0,8,0,0">
+                                                    <Button Margin="0,0,7,0"
+                                                            Padding="9,5"
+                                                            Command="{Binding DataContext.Advisor.ExecuteAgentActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="{Binding ApprovalLabel}"
+                                                            Style="{StaticResource ButtonPrimary}" />
+                                                    <Button Padding="9,5"
+                                                            Command="{Binding DataContext.Advisor.RejectAgentActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="Reject"
+                                                            Style="{StaticResource ButtonSecondary}"
+                                                            Visibility="{Binding RequiresExplicitApproval, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                </WrapPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="2,2,0,0"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="{Binding Advisor.AgentActionStatus}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding Advisor.AgentActionAuditVisibility}" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander Header="{Binding Advisor.GroundingEvidenceLabel}"
+                              IsExpanded="False"
+                              Style="{StaticResource AiAssistInlineExpander}"
+                              Visibility="{Binding Advisor.GroundingEvidenceVisibility}">
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Advisor.GroundingCitations}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Margin="0,0,0,9">
-                                        <Grid Margin="0,0,0,4">
+                                    <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
+                                        <StackPanel>
+                                            <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding Id}" />
+                                            <TextBlock Margin="0,3,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding SourceLabel}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Snippet}" />
+                                            <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ScoreLabel}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+                </StackPanel>
+
+                <!-- Mission -->
+                <StackPanel Visibility="{Binding MissionTabVisibility}">
+                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="MISSION" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSectionTitle}" Text="{Binding MissionDiagnosisTitle}" />
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="VERIFIED ROOT CAUSE" />
+                        <Border Grid.Column="1" Padding="7,3" Background="{StaticResource PrimaryMutedBrush}" CornerRadius="5">
+                            <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding MissionDiagnosisStatus}" />
+                        </Border>
+                    </Grid>
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource AiAssistBodyText}" Text="{Binding MissionRootCause}" />
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding MissionEvidence}" />
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What should I do next from this screen? Give evidence, next click, risk, and confidence." Content="Ask next step" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Why is the optimizer blocked, and what should I fix first?" Content="Blocker" />
+                        <Button Margin="0,0,0,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyContextCommand}" Content="Copy evidence" />
+                    </WrapPanel>
+                    <Expander Header="Readiness checklist" IsExpanded="False" Style="{StaticResource AiAssistInlineExpander}">
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding WorkflowChecklist}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="5" Height="5" Margin="0,6,0,0" VerticalAlignment="Top" Background="{DynamicResource TextSecondaryBrush}" CornerRadius="3" />
+                                        <TextBlock Grid.Column="1" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" TextWrapping="Wrap">
+                                            <Run FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding Name}" />
+                                            <Run Text=" · " />
+                                            <Run Text="{Binding Severity}" />
+                                            <Run Text=" — " />
+                                            <Run Text="{Binding Evidence}" />
+                                        </TextBlock>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+                </StackPanel>
+
+                <!-- BIM -->
+                <StackPanel Visibility="{Binding BimTabVisibility}">
+                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="BIM" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSectionTitle}" Text="Model facts and evidence" />
+                    <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ModelSessionLabel}" />
+                    <TextBlock Margin="0,12,0,0" Style="{StaticResource AiAssistBodyText}" Text="{Binding DataInsight}" />
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="How many slabs are there, and how does the planning/filter count compare with the complete IFC scene count?" Content="Count slabs" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="How many beams are there, and how does the planning/filter count compare with the complete IFC scene count?" Content="Count beams" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Show the BIM category counts for the planning/filter scope and the complete IFC scene." Content="Categories" />
+                        <Button Margin="0,0,0,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What does Unknown mean in the BIM category breakdown?" Content="Explain unknown" />
+                    </WrapPanel>
+                    <Expander Header="Evidence cards" IsExpanded="False" Style="{StaticResource AiAssistInlineExpander}">
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding StructuredCards}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
+                                        <StackPanel>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Evidence}" />
+                                            <TextBlock Margin="0,5,0,0" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding NextClick}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+                </StackPanel>
+
+                <!-- GA -->
+                <StackPanel Visibility="{Binding OptimizeTabVisibility}">
+                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="GA READINESS" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSectionTitle}" Text="Optimization blockers and scenario order" />
+                    <TextBlock Margin="0,12,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding MissionDiagnosisTitle}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,7,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding MissionRisk}" />
+                    <TextBlock Margin="0,9,0,0" Style="{StaticResource AiAssistBodyText}" Text="{Binding WhatIfAdvisorPreview}" />
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Why is the optimizer blocked, and what should I fix first?" Content="Explain blocker" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What-if advisor: should I fix BIM data, zones, crane setup, load chart, or optimizer parameters first?" Content="Ask what-if" />
+                        <Button Margin="0,0,0,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyWhatIfAdvisorCommand}" Content="Copy assessment" />
+                    </WrapPanel>
+                    <Expander Header="Confirmable actions" IsExpanded="False" Style="{StaticResource AiAssistInlineExpander}">
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding ActionProposals}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
+                                        <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding Sender}" />
-                                            <TextBlock Grid.Column="1" Margin="8,0,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding TimestampLabel}" />
+                                            <StackPanel>
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Description}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center" Command="{Binding ConfirmCommand}" CommandParameter="{Binding}" Content="{Binding ConfirmLabel}" Style="{StaticResource ButtonSecondary}" />
                                         </Grid>
-                                        <TextBlock Margin="0,0,0,4" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StaleContextLabel}" TextWrapping="Wrap" Visibility="{Binding StaleVisibility}" />
-                                        <Border Padding="9" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9">
-                                            <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="17" Text="{Binding BodyPreview}" TextWrapping="Wrap" />
-                                        </Border>
-                                    </StackPanel>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </StackPanel>
+                    </Expander>
+                </StackPanel>
 
-                    <!-- Mission section -->
-                    <StackPanel Visibility="{Binding MissionTabVisibility}">
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="AI MISSION CONTROL" />
-                        <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="{Binding MissionDiagnosisTitle}" TextWrapping="Wrap" />
-                        <Border Margin="0,10,0,0" Style="{StaticResource AiAssistCard}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="ROOT CAUSE" />
-                                    <Border Grid.Column="1" Padding="7,3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
-                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding MissionDiagnosisStatus}" />
+                <!-- Report -->
+                <StackPanel Visibility="{Binding ReportTabVisibility}">
+                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="REPORT &amp; QA" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSectionTitle}" Text="Evidence-grounded stakeholder wording" />
+                    <TextBlock Margin="0,12,0,0" Style="{StaticResource AiAssistBodyText}" Text="{Binding ReportNarrativePreview}" />
+                    <TextBlock Margin="0,9,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="Draft language only. Review and approve it before issuing an engineering report." />
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyReportNarrativeCommand}" Content="Copy report note" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyQaEvidencePackCommand}" Content="Copy QA pack" />
+                        <Button Margin="0,0,0,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyRecoveryPlanCommand}" Content="Copy recovery plan" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- Studio -->
+                <StackPanel Visibility="{Binding AiStudioTabVisibility}">
+                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="AI STUDIO" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSectionTitle}" Foreground="{StaticResource PrimaryBrush}" Text="{Binding ShowcaseHeroHeadline}" />
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding ShowcaseHeroSubheadline}" />
+                    <Button Margin="0,14,0,0"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="Open full AI Studio"
+                            Command="{Binding OpenFullStudioCommand}"
+                            Content="Open Full Studio"
+                            Style="{StaticResource ButtonPrimary}" />
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" HorizontalAlignment="Stretch" AutomationProperties.Name="Analyze current optimization result" Command="{Binding AnalyzeHereCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Run deterministic advisor rules against the current optimization result.">
+                            <TextBlock Text="Analyze result" TextAlignment="Center" TextWrapping="Wrap" />
+                        </Button>
+                        <Button Grid.Column="2" HorizontalAlignment="Stretch" AutomationProperties.Name="Ask AI model" Command="{Binding PrepareLocalOllamaQuestionCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Open Chat and focus the private prompt composer.">
+                            <TextBlock Text="Ask AI model" TextAlignment="Center" TextWrapping="Wrap" />
+                        </Button>
+                    </Grid>
+                    <Border Margin="0,14,0,0" Padding="0,12,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="LIVE AI STACK" />
+                                <Button Grid.Column="1" Margin="10,0,0,0" Style="{StaticResource AiAssistFlatButton}" Command="{Binding CopyAiShowcaseBriefCommand}" Content="Copy brief" />
+                            </Grid>
+                            <TextBlock Margin="0,6,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding ShowcasePowerScoreLabel}" TextWrapping="Wrap" />
+                            <TextBlock Margin="0,6,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding ShowcaseAgentStackSummary}" />
+                        </StackPanel>
+                    </Border>
+                    <Expander Header="Capabilities" IsExpanded="False" Style="{StaticResource AiAssistInlineExpander}">
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AiShowcaseCapabilities}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
+                                        <StackPanel>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,5,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Purpose}" />
+                                            <Button Margin="0,8,0,0" HorizontalAlignment="Left" Padding="8,4" Command="{Binding DataContext.SetQuestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding DemoPrompt}" Content="Try prompt" Style="{StaticResource AiAssistMicroButton}" />
+                                        </StackPanel>
                                     </Border>
-                                </Grid>
-                                <TextBlock Margin="0,7,0,0" FontSize="12" LineHeight="17" Text="{Binding MissionRootCause}" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,8,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding MissionEvidence}" TextWrapping="Wrap" />
-                                <WrapPanel Margin="0,9,0,0">
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What should I do next from this screen? Give evidence, next click, risk, and confidence." Content="Ask next step" />
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Why is the optimizer blocked, and what should I fix first?" Content="Explain blocker" />
-                                    <Button Margin="0,0,0,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyContextCommand}" Content="Copy evidence" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-                        <Expander Margin="0,8,0,0" Header="Readiness checklist" IsExpanded="False">
-                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding WorkflowChecklist}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,6" Padding="8" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="7">
-                                            <TextBlock FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="15" TextWrapping="Wrap">
-                                                <Run Text="• " />
-                                                <Run FontWeight="SemiBold" Text="{Binding Name}" />
-                                                <Run Text=": " />
-                                                <Run Text="{Binding Severity}" />
-                                                <Run Text=" — " />
-                                                <Run Text="{Binding Evidence}" />
-                                            </TextBlock>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Expander>
-                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+                    <Expander Header="Decision trace" IsExpanded="False" Style="{StaticResource AiAssistInlineExpander}">
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AiDecisionTrace}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,0,0,7" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="15" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
 
-                    <!-- BIM section -->
-                    <StackPanel Visibility="{Binding BimTabVisibility}">
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="BIM INTELLIGENCE" />
-                        <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="Live model facts, counts, metadata, and category evidence" TextWrapping="Wrap" />
-                        <Border Margin="0,10,0,0" Style="{StaticResource AiAssistCard}">
-                            <StackPanel>
-                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ModelSessionLabel}" />
-                                <TextBlock Margin="0,6,0,0" FontSize="11" LineHeight="16" Text="{Binding DataInsight}" TextWrapping="Wrap" />
-                                <WrapPanel Margin="0,10,0,0">
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="How many slabs are there?" Content="Count slabs" />
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="How many beams are there?" Content="Count beams" />
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Show the BIM category breakdown." Content="Category summary" />
-                                    <Button Margin="0,0,0,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What is building type or usage?" Content="Building type" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-                        <Expander Margin="0,8,0,0" Header="BIM evidence cards" IsExpanded="False">
-                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding StructuredCards}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9">
-                                            <StackPanel>
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
-                                                <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding Evidence}" TextWrapping="Wrap" />
-                                                <TextBlock Margin="0,5,0,0" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding NextClick}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Expander>
-                    </StackPanel>
+        <Button x:Name="JumpToLatestButton"
+                Grid.Row="2"
+                Grid.Column="0"
+                Margin="0,0,16,12"
+                Padding="9,5"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                AutomationProperties.Name="Jump to latest AI message"
+                Click="JumpToLatestButton_Click"
+                Content="Latest ↓"
+                Style="{StaticResource AiAssistMicroButton}"
+                ToolTip="Jump to the latest message without changing automatic reading position."
+                Visibility="Collapsed" />
 
-                    <!-- Optimization section -->
-                    <StackPanel Visibility="{Binding OptimizeTabVisibility}">
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="OPTIMIZATION READINESS" />
-                        <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="GA blockers, lift-unit trust, and scenario order" TextWrapping="Wrap" />
-                        <Border Margin="0,10,0,0" Style="{StaticResource AiAssistCard}">
-                            <StackPanel>
-                                <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding MissionDiagnosisTitle}" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,7,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding MissionRisk}" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,7,0,0" FontSize="11" LineHeight="16" Text="{Binding WhatIfAdvisorPreview}" TextWrapping="Wrap" />
-                                <WrapPanel Margin="0,9,0,0">
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Why is the optimizer blocked, and what should I fix first?" Content="Blocker" />
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What-if advisor: should I fix BIM data, zones, crane setup, load chart, or optimizer parameters first?" Content="What-if" />
-                                    <Button Margin="0,0,0,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyWhatIfAdvisorCommand}" Content="Copy what-if" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-                        <Expander Margin="0,8,0,0" Header="Confirmable action proposals" IsExpanded="False">
-                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding ActionProposals}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel>
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
-                                                    <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding Description}" TextWrapping="Wrap" />
-                                                </StackPanel>
-                                                <Button Grid.Column="1" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center" Command="{Binding ConfirmCommand}" CommandParameter="{Binding}" Content="{Binding ConfirmLabel}" Style="{StaticResource ButtonSecondary}" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Expander>
-                    </StackPanel>
 
-                    <!-- Report section -->
-                    <StackPanel Visibility="{Binding ReportTabVisibility}">
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="REPORT &amp; QA" />
-                        <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="Stakeholder wording and evidence packs" TextWrapping="Wrap" />
-                        <Border Margin="0,10,0,0" Style="{StaticResource AiAssistCard}">
-                            <StackPanel>
-                                <TextBlock FontSize="13" FontWeight="SemiBold" Text="Report-ready language from deterministic evidence" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,7,0,0" FontSize="11" LineHeight="16" Text="{Binding ReportNarrativePreview}" TextWrapping="Wrap" />
-                                <WrapPanel Margin="0,9,0,0">
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyReportNarrativeCommand}" Content="Copy report note" />
-                                    <Button Margin="0,0,6,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyQaEvidencePackCommand}" Content="Copy QA pack" />
-                                    <Button Margin="0,0,0,6" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyRecoveryPlanCommand}" Content="Copy recovery" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-
-                    <!-- AI Studio section -->
-                    <StackPanel Visibility="{Binding AiStudioTabVisibility}">
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="AI STUDIO" />
-                        <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding ShowcaseHeroHeadline}" TextWrapping="Wrap" />
-                        <Border Margin="0,10,0,0" Style="{StaticResource AiAssistCard}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="LIVE AI STACK" />
-                                    <Button Grid.Column="1" Margin="10,0,0,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyAiShowcaseBriefCommand}" Content="Copy brief" />
-                                </Grid>
-                                <TextBlock Margin="0,6,0,0" FontSize="12" FontWeight="SemiBold" Text="{Binding ShowcasePowerScoreLabel}" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding ShowcaseAgentStackSummary}" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,7,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" Text="{Binding ShowcaseHeroSubheadline}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-                        <Expander Margin="0,8,0,0" Header="Capabilities" IsExpanded="False">
-                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AiShowcaseCapabilities}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9">
-                                            <StackPanel>
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
-                                                <TextBlock Margin="0,5,0,0" FontSize="11" LineHeight="16" Text="{Binding Purpose}" TextWrapping="Wrap" />
-                                                <Button Margin="0,7,0,0" HorizontalAlignment="Left" Padding="8,4" Command="{Binding DataContext.SetQuestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding DemoPrompt}" Content="Try prompt" Style="{StaticResource AiAssistMicroButton}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Expander>
-                        <Expander Margin="0,8,0,0" Header="Decision trace" IsExpanded="False">
-                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AiDecisionTrace}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Margin="0,0,0,6" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="15" Text="{Binding}" TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Expander>
-                    </StackPanel>
-                </Grid>
-            </ScrollViewer>
-
-        </Grid>
-
-        <!-- Slim full-height section rail: scrollbar-sized vertical navigation spine. Mouse wheel over the rail switches sections. -->
-        <Border Grid.Row="1" Grid.Column="1" Grid.RowSpan="3"
+        <!-- Slim vertical section rail: the distinctive navigation spine remains available
+             without making the AI dock wider than Crane Properties. -->
+        <Border x:Name="SectionRail"
+                Grid.Row="1"
+                Grid.Column="1"
+                Grid.RowSpan="3"
+                Width="30"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0"
+                KeyboardNavigation.DirectionalNavigation="Contained"
+                PreviewKeyDown="SectionRail_PreviewKeyDown"
                 PreviewMouseWheel="SectionRail_PreviewMouseWheel"
-                ToolTip="Section rail: click a label or use the mouse wheel here to switch AI sections.">
-            <Grid Margin="3,6">
-                <primitives:UniformGrid Rows="6" VerticalAlignment="Stretch">
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsChatSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Chat" ToolTip="Chat with private live project context">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="CHAT">
-                            <TextBlock.LayoutTransform>
-                                <RotateTransform Angle="-90" />
-                            </TextBlock.LayoutTransform>
-                        </TextBlock>
-                    </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsMissionSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Mission" ToolTip="Mission Control readiness and root cause">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="MISSION">
-                            <TextBlock.LayoutTransform>
-                                <RotateTransform Angle="-90" />
-                            </TextBlock.LayoutTransform>
-                        </TextBlock>
-                    </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsBimSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="BIM" ToolTip="BIM counts, categories, and IFC metadata">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="BIM">
-                            <TextBlock.LayoutTransform>
-                                <RotateTransform Angle="-90" />
-                            </TextBlock.LayoutTransform>
-                        </TextBlock>
-                    </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsOptimizeSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Optimize" ToolTip="Optimization readiness and what-if advisor">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="GA">
-                            <TextBlock.LayoutTransform>
-                                <RotateTransform Angle="-90" />
-                            </TextBlock.LayoutTransform>
-                        </TextBlock>
-                    </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsReportSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Report" ToolTip="Report wording and QA evidence packs">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="REPORT">
-                            <TextBlock.LayoutTransform>
-                                <RotateTransform Angle="-90" />
-                            </TextBlock.LayoutTransform>
-                        </TextBlock>
-                    </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsAiStudioSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="AI Studio" ToolTip="AI Studio capabilities, RAG, ModelOps, and decision trace">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="STUDIO">
-                            <TextBlock.LayoutTransform>
-                                <RotateTransform Angle="-90" />
-                            </TextBlock.LayoutTransform>
-                        </TextBlock>
-                    </Button>
+                ToolTip="AI sections: use the labels, Up/Down keys, or mouse wheel to switch views.">
+            <Grid x:Name="SectionRailLayout" Margin="1,5">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Margin" Value="1,5" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
+                                <Setter Property="Margin" Value="0,5" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Button x:Name="SectionRailToggleButton"
+                        Grid.Row="0"
+                        AutomationProperties.HelpText="Retracts or expands the AI Assist section rail without changing the selected section."
+                        AutomationProperties.Name="Collapse AI section rail"
+                        Click="SectionRailToggleButton_Click"
+                        Style="{StaticResource AiAssistRailToggleButton}"
+                        ToolTip="Collapse to the slim section spine">
+                    <TextBlock x:Name="SectionRailToggleGlyph" Text="›" />
+                </Button>
+
+                <primitives:UniformGrid x:Name="SectionRailNavigation"
+                                        Grid.Row="1"
+                                        Margin="0,4,0,0"
+                                        Rows="6"
+                                        VerticalAlignment="Stretch">
+                    <RadioButton x:Name="ChatSectionButton"
+                                 AutomationProperties.Name="Open Chat section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Chat"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsChatSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Conversation with private live project context">
+                        <Grid>
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="CHAT" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton x:Name="MissionSectionButton"
+                                 AutomationProperties.Name="Open Mission section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Mission"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsMissionSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Readiness, root cause, and evidence">
+                        <Grid>
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="MISSION" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton x:Name="BimSectionButton"
+                                 AutomationProperties.Name="Open BIM section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="BIM"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsBimSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="BIM counts, categories, and IFC metadata">
+                        <Grid>
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="BIM" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton x:Name="OptimizeSectionButton"
+                                 AutomationProperties.Name="Open GA optimization section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Optimize"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsOptimizeSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Optimization readiness and what-if guidance">
+                        <Grid>
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="GA" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton x:Name="ReportSectionButton"
+                                 AutomationProperties.Name="Open Report section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Report"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsReportSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Report wording and QA evidence">
+                        <Grid>
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="REPORT" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
+                        </Grid>
+                    </RadioButton>
+                    <RadioButton x:Name="AiStudioSectionButton"
+                                 AutomationProperties.Name="Open AI Studio section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="AI Studio"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsAiStudioSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="AI capabilities, RAG, ModelOps, and decision trace">
+                        <Grid>
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="STUDIO" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
+                        </Grid>
+                    </RadioButton>
                 </primitives:UniformGrid>
             </Grid>
         </Border>
 
-        <!-- Sticky compact composer. -->
-        <Border Grid.Row="3" Grid.Column="0" Padding="12,7,12,9" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,1">
+        <!-- Sticky composer. -->
+        <Border Grid.Row="3"
+                Grid.Column="0"
+                Padding="12,8,12,10"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
             <StackPanel>
-                <primitives:Thumb x:Name="ComposerResizeThumb" Height="6" Cursor="SizeNS" DragDelta="ComposerResizeThumb_DragDelta" ToolTip="Drag to resize the prompt box.">
+                <primitives:Thumb x:Name="ComposerResizeThumb"
+                                  Height="6"
+                                  Cursor="SizeNS"
+                                  DragDelta="ComposerResizeThumb_DragDelta"
+                                  ToolTip="Drag to resize the prompt box.">
                     <primitives:Thumb.Template>
                         <ControlTemplate TargetType="primitives:Thumb">
                             <Border Background="Transparent">
-                                <Border Width="38" Height="3" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource BorderBrush}" CornerRadius="2" />
+                                <Border Width="34" Height="2" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource BorderBrush}" CornerRadius="1" />
                             </Border>
                         </ControlTemplate>
                     </primitives:Thumb.Template>
                 </primitives:Thumb>
+
                 <Grid Margin="0,2,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="ASK CURRENT MODEL" />
-                        <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Advisor.SelectedModelLabel}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="Private context" />
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="10"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="{Binding Advisor.SelectedModelLabel}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Advisor.SelectedModelLabel}" />
+                    <ToggleButton x:Name="ContextToggle"
+                                  Grid.Column="1"
+                                  Margin="10,0,0,0"
+                                  AutomationProperties.Name="Inspect AI context"
+                                  Content="Context"
+                                  Style="{StaticResource AiAssistContextToggle}"
+                                  ToolTip="Inspect the live project context sent with your question." />
                 </Grid>
-                <Border Margin="0,7,0,0" Padding="10,7" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="14">
+
+                <Border Margin="0,7,0,0"
+                        Padding="9,7"
+                        Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -513,38 +951,102 @@
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="QuestionTextBox"
                                  Height="{Binding ComposerHeight, Mode=TwoWay}"
-                                 MinHeight="32"
+                                 MinHeight="34"
                                  MaxHeight="120"
                                  AcceptsReturn="True"
                                  Background="Transparent"
                                  BorderThickness="0"
-                                 FontSize="12"
+                                 FontSize="11"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  PreviewKeyDown="QuestionTextBox_PreviewKeyDown"
                                  Text="{Binding QuestionText, UpdateSourceTrigger=PropertyChanged}"
+                                 HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.PanningMode="VerticalOnly"
                                  TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 ToolTip="Only this visible question is shown here. Live project context is sent privately." />
-                        <Button Grid.Column="1" MinWidth="58" Margin="9,0,0,0" Padding="10,5" VerticalAlignment="Bottom" Command="{Binding AskToggleCommand}" Content="{Binding AskToggleLabel}" Style="{StaticResource ButtonPrimary}" ToolTip="{Binding AskToggleToolTip}" />
+                                 VerticalScrollBarVisibility="Hidden"
+                                 ToolTip="Ask about the current project. Live context is included privately." />
+                        <Button Grid.Column="1"
+                                MinWidth="62"
+                                Margin="10,0,0,0"
+                                Padding="11,6"
+                                VerticalAlignment="Bottom"
+                                Command="{Binding AskToggleCommand}"
+                                Content="{Binding AskToggleLabel}"
+                                Style="{StaticResource ButtonPrimary}"
+                                ToolTip="{Binding AskToggleToolTip}" />
                     </Grid>
                 </Border>
-                <TextBlock Margin="2,5,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enter sends · Shift+Enter new line · open a section above for focused tools" />
+
+                <Grid Margin="2,5,2,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enter to send · Shift+Enter for a new line" />
+                    <TextBlock Grid.Column="1"
+                               Margin="10,0,0,0"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource PrimaryBrush}"
+                               Text="Read-only tools · approval gated"
+                               Visibility="{Binding IsProjectReadinessAgentQuestion, Converter={StaticResource BoolToVisibilityConverter}}" />
+                </Grid>
+
+                <Popup AllowsTransparency="True"
+                       IsOpen="{Binding IsChecked, ElementName=ContextToggle, Mode=TwoWay}"
+                       Placement="Top"
+                       PlacementTarget="{Binding ElementName=ContextToggle}"
+                       PopupAnimation="Fade"
+                       StaysOpen="False">
+                    <Border Width="360"
+                            MaxHeight="360"
+                            Margin="0,0,0,7"
+                            Padding="12"
+                            Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="Live context" />
+                                <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource PrimaryBrush}" Text="PRIVATE CONTEXT" />
+                            </Grid>
+                            <TextBlock Margin="0,7,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="Project and screen facts are captured when you send. The summary below is the current payload." TextWrapping="Wrap" />
+                            <ScrollViewer Margin="0,9,0,0" MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                                <TextBlock FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource TextPrimaryBrush}" LineHeight="15" Text="{Binding ContextSummary}" TextWrapping="Wrap" />
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+                </Popup>
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="4" Grid.ColumnSpan="2" Padding="12,7" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="4"
+                Grid.Column="0"
+                Padding="10,6"
+                Background="{DynamicResource SurfaceElevatedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Advisor.StatusText}" TextTrimming="CharacterEllipsis" />
-                <WrapPanel Grid.Column="1" Margin="8,0,0,0" HorizontalAlignment="Right">
-                    <Button Margin="0,0,6,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding AnalyzeHereCommand}" Content="↻" ToolTip="Refresh readiness and deterministic analysis." />
-                    <Button Margin="0,0,6,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding OpenFullCopilotCommand}" Content="Full" ToolTip="Open the full AI Copilot window." />
-                    <Button Margin="0,0,6,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyContextCommand}" Content="Ctx" ToolTip="Copy the AI context payload." />
-                    <Button Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyAnswerCommand}" Content="Copy" ToolTip="Copy the latest AI answer." />
-                </WrapPanel>
+                <TextBlock VerticalAlignment="Center"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Text="{Binding CompactStatusLabel}"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Advisor.StatusText}" />
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" Orientation="Horizontal">
+                    <Button Margin="0,0,4,0" AutomationProperties.Name="Refresh AI context" Command="{Binding AnalyzeHereCommand}" Content="Refresh" Style="{StaticResource AiAssistFlatButton}" ToolTip="Refresh readiness and deterministic analysis." />
+                    <Button Margin="0,0,4,0" AutomationProperties.Name="Copy AI context" Command="{Binding CopyContextCommand}" Content="Context" Style="{StaticResource AiAssistFlatButton}" ToolTip="Copy the live AI context payload." />
+                    <Button AutomationProperties.Name="Copy latest AI answer" Command="{Binding CopyAnswerCommand}" Content="Copy" Style="{StaticResource AiAssistFlatButton}" ToolTip="Copy the latest AI answer." />
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

@@ -1,6 +1,7 @@
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,14 +11,33 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
     public sealed class ProjectNavigationService : IProjectNavigationService
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly IOptimizationViewportHighlightService _viewportHighlightService;
+        private string? _activeProjectIdentity;
 
-        public ProjectNavigationService(IServiceProvider serviceProvider)
+        public ProjectNavigationService(
+            IServiceProvider serviceProvider,
+            IOptimizationViewportHighlightService viewportHighlightService)
         {
             _serviceProvider = serviceProvider;
+            _viewportHighlightService = viewportHighlightService;
         }
 
-        public void OpenMainWindow(ProjectSession session)
+        public async Task OpenMainWindowAsync(ProjectSession session)
         {
+            string projectIdentity = !string.IsNullOrWhiteSpace(session.ProjectGuid)
+                ? session.ProjectGuid
+                : session.ProjectId.ToString("N");
+            if (!string.IsNullOrWhiteSpace(_activeProjectIdentity) &&
+                !string.Equals(
+                    _activeProjectIdentity,
+                    projectIdentity,
+                    StringComparison.Ordinal))
+            {
+                _viewportHighlightService.Clear();
+            }
+
+            _activeProjectIdentity = projectIdentity;
+
             // Reuse an existing (hidden or visible) MainWindow if one is already in the application
             MainWindow? existing = null;
             foreach (System.Windows.Window w in System.Windows.Application.Current.Windows)
@@ -29,7 +49,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             {
                 // Always switch to the requested project — do not silently ignore it
                 if (existing.DataContext is MainViewModel viewModel)
-                    viewModel.OpenProject(session);
+                    await viewModel.OpenProjectAsync(session);
 
                 System.Windows.Application.Current.MainWindow = existing;
                 existing.Show();
@@ -41,7 +61,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
 
             if (mainWindow.DataContext is MainViewModel vm)
-                vm.OpenProject(session);
+                await vm.OpenProjectAsync(session);
 
             System.Windows.Application.Current.MainWindow = mainWindow;
             mainWindow.Show();

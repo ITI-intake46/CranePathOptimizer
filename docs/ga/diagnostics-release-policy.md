@@ -5,6 +5,18 @@
 Control which GA diagnostics artifacts are produced in each build configuration.  
 Prevents developer-only / research-level CSV output from leaking into a Release build.
 
+Production GA result persistence is separate from diagnostics. Every normal successful GA run writes a versioned JSON result snapshot regardless of `DiagnosticsLevel`, profiling, or research diagnostics:
+
+```text
+<ProjectRoot>/Reports/GA/<OptimizationRunId>/
+  ga_result_snapshot.json
+  ga_result_snapshot.sha256
+  ga_result_manifest.json
+  ga_audit_*.csv / legacy diagnostic CSV files when enabled
+```
+
+The JSON snapshot is the durable source for reopening GA results and post-GA reports. CSV files remain human-readable audit evidence, research/debug output, and compatibility fallback for old projects.
+
 ## Diagnostics Level
 
 Three levels defined in `CraneOptimizer.Application/Optimization/GeneticAlgorithms/Settings/DiagnosticsLevel.cs`:
@@ -51,6 +63,24 @@ Three levels defined in `CraneOptimizer.Application/Optimization/GeneticAlgorith
 - `GAProfiler.Enabled` defaults to `false`.
 - Profiling is activated only when both `GASettings.EnableProfiling == true` **and** `DiagnosticsLevel >= DiagnosticsLevel.Research`.
 - See `CranePlacementEngine.cs:67`.
+
+Profiler and diagnostics settings do not control `ga_result_snapshot.json`. Performance fields in the JSON are nullable and are only populated when they can be safely associated with the current `OptimizationRunId`.
+
+## Result Snapshot Contract
+
+`ga_result_snapshot.json` uses schema version `1` and canonical units: metres, square metres, metric tons, degrees, coverage ratio `0..1`, utilization percent `0..100`, and UTC timestamps.
+
+The snapshot stores:
+
+- Run identity: shared `OptimizationRunId`, selected `FinalStageRunId`, `FinalStageIndex`, status, timings, requested settings, effective final settings, and compact stage summaries.
+- Project/model identity: stable project GUID, project-relative snapshot path, IFC/model fingerprint, optimization input fingerprint, and load-chart fingerprint.
+- Crane/load-chart evidence: crane configuration used at run time plus per-evaluation selected chart radius/boom/capacity, visual column, number-of-lines, operating-condition label, duplicate-column evidence, and lookup mode.
+- Static lift-unit data once in `LiftUnits`: `LiftUnitId`, true `SourceElementGlobalId`, grouped/synthetic assembly identity, member IDs, rollup weight/COG, validation status, and display marks.
+- Dynamic selected setup matrix in `Positions[].Evaluations`: every submitted lift unit evaluated from every final selected setup position, including selected-point feasibility, final assignment flags, failure classification, and best-failed evidence.
+- One `FinalOutcomes` row per submitted lift unit. Lifted outcomes reference one final evaluation and one final owner position; unlifted outcomes retain best-failed evidence.
+- Capability flags so legacy CSV and partial sources do not pretend to support unavailable screens/reports.
+
+`ga_result_snapshot.sha256` contains the external SHA-256 for `ga_result_snapshot.json`; the hash is not embedded in the JSON. Missing checksum loads with a warning when JSON validates. Mismatch is classified corrupt and is not auto-selected. `ga_result_manifest.json` is a small rebuildable discovery sidecar and is not an engineering source of truth.
 
 ## Gate Chain (Code Flow)
 

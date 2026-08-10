@@ -1,25 +1,102 @@
+using CraneOptimizer.AI.Host;
 using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.Core.Helpers;
+using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
+using HelixToolkit.Wpf;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Shell.Views
 {
     public partial class MainWindow : Window
     {
         private readonly IProjectNavigationService _nav;
+        private readonly IUiInteractionContextService _uiContext;
+        private readonly IProjectHistoryService _history;
 
-        public MainWindow(MainViewModel vm, IProjectNavigationService nav, AiHostContextBridge aiContextBridge)
+        public MainWindow(
+            MainViewModel vm,
+            IProjectNavigationService nav,
+            AiHostContextBridge aiContextBridge,
+            IUiInteractionContextService uiContext,
+            OsnapPanelViewModel osnapViewModel,
+            IProjectHistoryService history)
         {
             InitializeComponent();
             DataContext = vm;
+            ShellOsnapPanel.DataContext = osnapViewModel;
             _nav = nav;
+            _uiContext = uiContext ?? throw new ArgumentNullException(nameof(uiContext));
+            _history = history ?? throw new ArgumentNullException(nameof(history));
+            _uiContext.ActionRequested += OnAiActionRequested;
+            _history.StateChanged += OnHistoryStateChanged;
+            Closed += OnClosed;
             aiContextBridge.Attach(vm);
+            AddHandler(
+                HomeTabView.ProjectSettingsRequestedEvent,
+                new RoutedEventHandler(OnProjectSettingsRequested));
             MaximizeTaskbarHelper.Attach(this, MaximizeButton);
+            OnHistoryStateChanged();
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
+            PreviewMouseDown += MainWindow_PreviewMouseDown;
             // Apply initial maximize after source is initialized
             Loaded += (_, _) => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
+        }
+
+        private void OnClosed(object? sender, EventArgs e)
+        {
+            _uiContext.ActionRequested -= OnAiActionRequested;
+            _history.StateChanged -= OnHistoryStateChanged;
+            PreviewKeyDown -= MainWindow_PreviewKeyDown;
+            PreviewMouseDown -= MainWindow_PreviewMouseDown;
+        }
+
+        private void OnAiActionRequested(object? sender, AiUiActionRequestedEventArgs e)
+        {
+            _ = Dispatcher.InvokeAsync(StopMeasurementIfActive);
+
+            if (!string.Equals(e.ActionType, "NavigateTab", StringComparison.OrdinalIgnoreCase)
+                || !IsLegacyAiWorkspaceTarget(e.Target))
+            {
+                return;
+            }
+
+            _ = Dispatcher.InvokeAsync(OpenAiAssistStudio);
+        }
+
+        private static bool IsLegacyAiWorkspaceTarget(string? target)
+        {
+            var normalized = (target ?? string.Empty)
+                .Trim()
+                .Replace('_', ' ')
+                .Replace('-', ' ')
+                .ToUpperInvariant();
+
+            return normalized.Contains("COPILOT", StringComparison.Ordinal)
+                || normalized.Contains("AI STUDIO", StringComparison.Ordinal)
+                || normalized.Contains("AI ASSIST", StringComparison.Ordinal)
+                || normalized.Contains("AIADVISOR", StringComparison.Ordinal)
+                || normalized.Equals("AI", StringComparison.Ordinal)
+                || normalized.Equals("STUDIO", StringComparison.Ordinal);
+        }
+
+        private void OpenAiAssistTab()
+        {
+            if (DataContext is MainViewModel viewModel)
+                viewModel.SelectedRightWorkspaceTab = RightWorkspaceTab.AiAssistant;
+        }
+
+        private void OpenAiAssistStudio()
+        {
+            OpenAiAssistTab();
+            AiAssistPanel.OpenSection("AI Studio");
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
@@ -29,6 +106,21 @@ namespace CraneOptimizer.UI.Shell.Views
             => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
 
         private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void OnProjectSettingsRequested(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+
+            if (DataContext is not MainViewModel viewModel)
+                return;
+
+            var settingsWindow = new ProjectSettingsWindow(viewModel, IfcViewerHost)
+            {
+                Owner = this
+            };
+
+            settingsWindow.ShowDialog();
+        }
 
         // â”€â”€ Back to startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -62,45 +154,77 @@ namespace CraneOptimizer.UI.Shell.Views
         // â”€â”€ Stub handlers (wired in XAML) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private void SaveProject_Click(object sender, RoutedEventArgs e) { }
-        private void UndoBtn_Click(object sender, RoutedEventArgs e) { }
-        private void RedoBtn_Click(object sender, RoutedEventArgs e) { }
-        private void ClearHistory_Click(object sender, RoutedEventArgs e) { }
-        private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
-        private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
-        private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
-        private void OpenAiAssistTab()
+        private void UndoBtn_Click(object sender, RoutedEventArgs e) => _history.Undo();
+        private void RedoBtn_Click(object sender, RoutedEventArgs e) => _history.Redo();
+        private void ClearHistory_Click(object sender, RoutedEventArgs e) => _history.Clear();
+
+        private void OnHistoryStateChanged()
         {
-            AiAssistTab.Visibility = Visibility.Visible;
-            RightWorkspaceTabs.SelectedItem = AiAssistTab;
-            ShowAiCompanionButton.Visibility = Visibility.Collapsed;
+            UndoButton.IsEnabled = _history.CanUndo;
+            RedoButton.IsEnabled = _history.CanRedo;
+            if (DataContext is MainViewModel viewModel)
+                viewModel.HistoryBreadcrumb = _history.Breadcrumb;
         }
 
-        private void CloseAiAssistTab_Click(object sender, RoutedEventArgs e)
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            AiAssistTab.Visibility = Visibility.Collapsed;
-            RightWorkspaceTabs.SelectedIndex = 0;
+            StopMeasurementIfActive();
+
+            if (Keyboard.Modifiers != ModifierKeys.Control)
+                return;
+
+            if (e.Key == Key.Z && _history.CanUndo)
+            {
+                _history.Undo();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Y && _history.CanRedo)
+            {
+                _history.Redo();
+                e.Handled = true;
+            }
         }
 
-        private void AiCompanionPanel_CloseRequested(object sender, RoutedEventArgs e)
+        private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            CloseAiAssistTab_Click(sender, e);
+            if (DataContext is not MainViewModel { Drawing.IsMeasuring: true })
+                return;
+
+            bool isMeasurementPointPlacement =
+                e.ChangedButton == MouseButton.Left &&
+                FindVisualAncestor<HelixViewport3D>(
+                    e.OriginalSource as DependencyObject) != null;
+            if (!isMeasurementPointPlacement)
+                StopMeasurementIfActive();
         }
 
-        private void AiCompanionStatusStrip_AssistRequested(object sender, RoutedEventArgs e)
+        private void StopMeasurementIfActive()
         {
-            OpenAiAssistTab();
+            if (DataContext is MainViewModel { Drawing.IsMeasuring: true } viewModel)
+                viewModel.Drawing.StopMeasureMode();
         }
 
-        private void AiCompanionStatusStrip_HideRequested(object sender, RoutedEventArgs e)
+        private static T? FindVisualAncestor<T>(DependencyObject? current)
+            where T : DependencyObject
         {
-            AiCompanionStrip.Visibility = Visibility.Collapsed;
-            ShowAiCompanionButton.Visibility = Visibility.Visible;
+            while (current != null)
+            {
+                if (current is T match)
+                    return match;
+
+                current = current is Visual || current is Visual3D
+                    ? VisualTreeHelper.GetParent(current)
+                    : LogicalTreeHelper.GetParent(current);
+            }
+
+            return null;
         }
 
-        private void ShowAiCompanionButton_Click(object sender, RoutedEventArgs e)
+        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            AiCompanionStrip.Visibility = Visibility.Visible;
-            OpenAiAssistTab();
+            if (sender is ComboBox { SelectedItem: ComboBoxItem item })
+                IfcViewerHost.ApplyRenderQualitySelection(item.Tag?.ToString());
         }
+
     }
 }

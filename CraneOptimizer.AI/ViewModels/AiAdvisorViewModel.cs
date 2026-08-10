@@ -6,14 +6,18 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using CraneOptimizer.AI.DTOs;
+using CraneOptimizer.AI.Agents.Contracts;
 using CraneOptimizer.AI.Interfaces;
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Core.Base;
 using CraneOptimizer.AI.Core.Commands;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Knowledge;
+using CraneOptimizer.AI.Knowledge.Rag;
 using CraneOptimizer.AI.Services;
 using CraneOptimizer.AI.Workflow;
+using CraneOptimizer.AI.Runtime;
+using CraneOptimizer.AI.Views;
 using Microsoft.Win32;
 
 namespace CraneOptimizer.AI.ViewModels
@@ -29,8 +33,13 @@ namespace CraneOptimizer.AI.ViewModels
         private readonly IAiChatService _chatService;
         private readonly IAiSoftwareContextService _softwareContextService;
         private readonly IAiModelManagementService _modelManagementService;
+        private readonly IAiProviderManagementService _providerManagementService;
+        private readonly IAiProviderRegistry _providerRegistry;
         private readonly IAiCopilotSettingsService _settingsService;
         private readonly IAiLocalDocumentSearchService _documentSearchService;
+        private readonly IAiProjectGroundingService _projectGroundingService;
+        private readonly IProjectReadinessAgentService _projectReadinessAgent;
+        private readonly IAiAgentActionService _agentActionService;
         private readonly IAiSoftwareInventoryService _softwareInventoryService;
         private readonly IAiPromptTemplateService _promptTemplateService;
         private readonly IAiReportAppendixService _reportAppendixService;
@@ -42,13 +51,15 @@ namespace CraneOptimizer.AI.ViewModels
         private string _pendingLiveUiContext = string.Empty;
         private string _pendingDeterministicNextAction = string.Empty;
         private bool _pendingStrictWorkflowBlockerMode;
+        private bool _isRefreshingInstalledModels;
         private string _modelName;
+        private string _selectedProviderId;
         private string _userQuestion = "Explain the current crane optimization result and recommend the next practical action.";
         private string _advisorSummary = "Run an optimization, then click Analyze Current Result.";
         private string _healthLabel = "Waiting";
-        private string _aiAnswer = "No Ollama answer yet. Select or type a model, enter a question, then click Ask Ollama.";
+        private string _aiAnswer = "No model answer yet. Select a provider and model, enter a question, then click Send.";
         private string _lastError = string.Empty;
-        private string _statusText = "Local Ollama mode. No cloud API is required.";
+        private string _statusText = "Select Local Ollama or a configured BYOK cloud provider.";
         private string _contextPreview = string.Empty;
         private string _softwareGuideText = string.Empty;
         private string _ollamaStatusText = "Ollama status not checked.";
@@ -63,14 +74,22 @@ namespace CraneOptimizer.AI.ViewModels
         private AiOptimizationContextDto? _lastContext;
         private AiWorkflowContextSnapshot? _lastWorkflowContext;
         private AiAdvisorResponseDto? _lastAdvisorResponse;
+        private AiGroundingPacket _lastGroundingPacket = AiGroundingPacket.Empty;
+        private AiAgentRunSnapshot _lastAgentRun = AiAgentRunSnapshot.Empty;
+        private AiAgentActionExecutionSnapshot? _lastAgentActionExecution;
 
         public AiAdvisorViewModel(
             IAiOptimizationAdvisorService advisorService,
             IAiChatService chatService,
             IAiSoftwareContextService softwareContextService,
             IAiModelManagementService modelManagementService,
+            IAiProviderManagementService providerManagementService,
+            IAiProviderRegistry providerRegistry,
             IAiCopilotSettingsService settingsService,
             IAiLocalDocumentSearchService documentSearchService,
+            IAiProjectGroundingService projectGroundingService,
+            IProjectReadinessAgentService projectReadinessAgent,
+            IAiAgentActionService agentActionService,
             IAiSoftwareInventoryService softwareInventoryService,
             IAiPromptTemplateService promptTemplateService,
             IAiReportAppendixService reportAppendixService,
@@ -81,22 +100,38 @@ namespace CraneOptimizer.AI.ViewModels
             _chatService = chatService;
             _softwareContextService = softwareContextService;
             _modelManagementService = modelManagementService;
+            _providerManagementService = providerManagementService ?? throw new ArgumentNullException(nameof(providerManagementService));
+            _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
             _settingsService = settingsService;
             _documentSearchService = documentSearchService;
+            _projectGroundingService = projectGroundingService ?? throw new ArgumentNullException(nameof(projectGroundingService));
+            _projectReadinessAgent = projectReadinessAgent ?? throw new ArgumentNullException(nameof(projectReadinessAgent));
+            _agentActionService = agentActionService ?? throw new ArgumentNullException(nameof(agentActionService));
             _softwareInventoryService = softwareInventoryService;
             _promptTemplateService = promptTemplateService;
             _reportAppendixService = reportAppendixService;
             _optimizationContextProvider = optimizationContextProvider ?? throw new ArgumentNullException(nameof(optimizationContextProvider));
             _workflowContextProvider = workflowContextProvider;
             _softwareContext = _softwareContextService.GetSoftwareContext();
-            _modelName = _settingsService.Current.DefaultModelName;
+            _selectedProviderId = ResolveInitialProviderId();
+            _modelName = ResolveProviderDefaultModel(_selectedProviderId);
+            var initialProfile = GetSelectedProfile();
+            _ollamaStatusText = $"{initialProfile.DisplayName} status not checked.";
+            _statusText = initialProfile.IsLocal
+                ? "Local AI provider selected. Project context stays on this computer."
+                : $"Cloud AI provider selected: {initialProfile.DisplayName}. Configure your own protected API key before sending.";
 
             Recommendations = new ObservableCollection<AiRecommendationItemViewModel>();
             Evidence = new ObservableCollection<string>();
             InstalledModels = new ObservableCollection<string>();
+            Providers = new ObservableCollection<AiProviderDescriptor>(_providerManagementService.GetProviders());
             ResponseHistory = new ObservableCollection<AiResponseHistoryItemViewModel>();
             ModelBenchmarks = new ObservableCollection<AiModelBenchmarkResultViewModel>();
             ContextCards = new ObservableCollection<AiContextCardViewModel>();
+            GroundingCitations = new ObservableCollection<AiKnowledgeCitation>();
+            AgentExecutionTrace = new ObservableCollection<AiAgentTraceEntry>();
+            AgentActionProposals = new ObservableCollection<AiAgentActionProposal>();
+            AgentActionAudit = new ObservableCollection<AiAgentActionExecutionSnapshot>();
             PromptTemplates = new ObservableCollection<AiPromptTemplate>(_promptTemplateService.GetAllTemplates());
             SoftwareGuideText = BuildSoftwareGuideText(_softwareContext);
             LoadPersistentHistory();
@@ -112,18 +147,26 @@ namespace CraneOptimizer.AI.ViewModels
             ClearHistoryCommand = new RelayCommand(ClearHistory, () => ResponseHistory.Count > 0);
             SelectHistoryCommand = new RelayCommand<AiResponseHistoryItemViewModel>(SelectHistory);
             CheckOllamaCommand = new AsyncRelayCommand(CheckOllamaAsync, () => !IsBusy);
-            PullModelCommand = new AsyncRelayCommand(PullModelAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(ModelName));
+            ConfigureProviderCommand = new RelayCommand(ConfigureProvider, () => !IsBusy);
+            PullModelCommand = new AsyncRelayCommand(PullModelAsync, () => CanPullModel);
             BenchmarkModelsCommand = new AsyncRelayCommand(BenchmarkModelsAsync, () => !IsBusy);
             SetQuickQuestionCommand = new RelayCommand<string>(SetQuickQuestion);
             SelectModelCommand = new RelayCommand<string>(SelectModel);
+            ExecuteAgentActionCommand = new RelayCommand<AiAgentActionProposal>(ExecuteAgentAction);
+            RejectAgentActionCommand = new RelayCommand<AiAgentActionProposal>(RejectAgentAction);
         }
 
         public ObservableCollection<AiRecommendationItemViewModel> Recommendations { get; }
         public ObservableCollection<string> Evidence { get; }
         public ObservableCollection<string> InstalledModels { get; }
+        public ObservableCollection<AiProviderDescriptor> Providers { get; }
         public ObservableCollection<AiResponseHistoryItemViewModel> ResponseHistory { get; }
         public ObservableCollection<AiModelBenchmarkResultViewModel> ModelBenchmarks { get; }
         public ObservableCollection<AiContextCardViewModel> ContextCards { get; }
+        public ObservableCollection<AiKnowledgeCitation> GroundingCitations { get; }
+        public ObservableCollection<AiAgentTraceEntry> AgentExecutionTrace { get; }
+        public ObservableCollection<AiAgentActionProposal> AgentActionProposals { get; }
+        public ObservableCollection<AiAgentActionExecutionSnapshot> AgentActionAudit { get; }
         public ObservableCollection<AiPromptTemplate> PromptTemplates { get; }
 
         public ICommand AnalyzeCurrentResultCommand { get; }
@@ -137,30 +180,117 @@ namespace CraneOptimizer.AI.ViewModels
         public ICommand ClearHistoryCommand { get; }
         public ICommand SelectHistoryCommand { get; }
         public ICommand CheckOllamaCommand { get; }
+        public ICommand ConfigureProviderCommand { get; }
         public ICommand PullModelCommand { get; }
         public ICommand BenchmarkModelsCommand { get; }
         public ICommand SetQuickQuestionCommand { get; }
         public ICommand SelectModelCommand { get; }
+        public ICommand ExecuteAgentActionCommand { get; }
+        public ICommand RejectAgentActionCommand { get; }
+
+        public string SelectedProviderId
+        {
+            get => _selectedProviderId;
+            set
+            {
+                var requested = string.IsNullOrWhiteSpace(value)
+                    ? _selectedProviderId
+                    : value.Trim();
+                if (!_providerRegistry.TryResolve(requested, out var provider))
+                {
+                    LastError = $"AI provider '{requested}' is disabled or unavailable. The current provider was not changed.";
+                    StatusText = "AI provider selection was not changed.";
+                    return;
+                }
+
+                var normalized = provider.Descriptor.Id;
+                if (string.Equals(_selectedProviderId, normalized, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                _selectedProviderId = normalized;
+                var profile = GetSelectedProfile();
+                var providerModel = profile.DefaultModel;
+                _settingsService.Update(settings => settings.DefaultProviderId = _selectedProviderId);
+                ReplaceInstalledModels(Array.Empty<string>());
+                _modelName = providerModel;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedProvider));
+                OnPropertyChanged(nameof(SelectedProviderDisplayName));
+                OnPropertyChanged(nameof(IsOllamaSelected));
+                OnPropertyChanged(nameof(CanPullModel));
+                OnPropertyChanged(nameof(ProviderModeLabel));
+                OnPropertyChanged(nameof(ProviderPrivacyLabel));
+                OnPropertyChanged(nameof(SelectedModelLabel));
+                OnPropertyChanged(nameof(ModelName));
+                OnPropertyChanged(nameof(SelectedDiscoveredModel));
+                OnPropertyChanged(nameof(ComposerActionToolTip));
+                OnPropertyChanged(nameof(ComposerStateText));
+                OllamaStatusText = $"{profile.DisplayName} not checked.";
+                StatusText = profile.IsLocal
+                    ? "Local provider selected. Project context stays on this computer."
+                    : $"Cloud provider selected: {profile.DisplayName}. Configure a protected API key before sending.";
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public AiProviderDescriptor? SelectedProvider => Providers.FirstOrDefault(provider =>
+            string.Equals(provider.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase));
+        public string SelectedProviderDisplayName => SelectedProvider?.DisplayName ?? GetSelectedProfile().DisplayName;
+        public bool IsOllamaSelected => string.Equals(SelectedProviderId, AiProviderProfileSettings.OllamaId, StringComparison.OrdinalIgnoreCase);
+        public bool CanPullModel => IsOllamaSelected && !IsBusy && !string.IsNullOrWhiteSpace(ModelName);
+        public string ProviderModeLabel => GetSelectedProfile().IsLocal
+            ? $"Local · {SelectedProviderDisplayName}"
+            : $"Cloud · {SelectedProviderDisplayName}";
+        public string ProviderPrivacyLabel => GetSelectedProfile().IsLocal
+            ? "Project context stays on this computer"
+            : "Selected project context is sent to the configured external provider";
 
         public string ModelName
         {
             get => _modelName;
             set
             {
+                if (_isRefreshingInstalledModels)
+                    return;
+
                 var normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
                 if (_modelName == normalized) return;
                 _modelName = normalized;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedModelLabel));
+                OnPropertyChanged(nameof(SelectedDiscoveredModel));
                 OnPropertyChanged(nameof(CanUseComposerAction));
-                _settingsService.Update(settings => settings.DefaultModelName = _modelName);
+                OnPropertyChanged(nameof(CanPullModel));
+                _settingsService.Update(settings =>
+                {
+                    if (string.Equals(SelectedProviderId, AiProviderProfileSettings.OllamaId, StringComparison.OrdinalIgnoreCase))
+                        settings.DefaultModelName = _modelName;
+                    var profile = settings.ProviderProfiles.FirstOrDefault(item =>
+                        string.Equals(item.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase));
+                    if (profile != null)
+                        profile.DefaultModel = _modelName;
+                });
                 CommandManager.InvalidateRequerySuggested();
             }
         }
 
         public string SelectedModelLabel => string.IsNullOrWhiteSpace(ModelName)
-            ? "No Ollama model selected"
-            : $"Selected: {ModelName}";
+            ? $"{SelectedProviderDisplayName} · no model selected"
+            : $"{SelectedProviderDisplayName} · {ModelName}";
+
+        public string? SelectedDiscoveredModel
+        {
+            get => InstalledModels.FirstOrDefault(model =>
+                string.Equals(model, ModelName, StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    return;
+
+                ModelName = value;
+            }
+        }
+
 
         public string UserQuestion
         {
@@ -172,7 +302,12 @@ namespace CraneOptimizer.AI.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsQuestionEmpty));
                 OnPropertyChanged(nameof(HasUserQuestion));
+                OnPropertyChanged(nameof(IsProjectReadinessAgentQuestion));
                 OnPropertyChanged(nameof(CanUseComposerAction));
+                OnPropertyChanged(nameof(ComposerActionText));
+                OnPropertyChanged(nameof(ComposerActionToolTip));
+                OnPropertyChanged(nameof(ComposerStateText));
+                OnPropertyChanged(nameof(CanPullModel));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -339,6 +474,7 @@ namespace CraneOptimizer.AI.ViewModels
                 OnPropertyChanged(nameof(ComposerActionText));
                 OnPropertyChanged(nameof(ComposerActionToolTip));
                 OnPropertyChanged(nameof(ComposerStateText));
+                OnPropertyChanged(nameof(CanPullModel));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -346,10 +482,19 @@ namespace CraneOptimizer.AI.ViewModels
         public bool CanCancel => IsBusy && _activeRequestCts is { IsCancellationRequested: false };
         public bool IsQuestionEmpty => string.IsNullOrWhiteSpace(UserQuestion);
         public bool HasUserQuestion => !IsQuestionEmpty;
-        public bool CanUseComposerAction => IsBusy || (!string.IsNullOrWhiteSpace(ModelName) && HasUserQuestion);
-        public string ComposerActionText => IsBusy ? "Stop" : "Send";
-        public string ComposerActionToolTip => IsBusy ? "Stop the current local Ollama response." : "Send this question to local Ollama. Press Enter to send or Shift+Enter for a new line.";
-        public string ComposerStateText => IsBusy ? "Generating locally… click Stop to cancel" : "Private project context is attached automatically";
+        public bool IsProjectReadinessAgentQuestion => !IsBusy && _projectReadinessAgent.CanHandle(UserQuestion);
+        public bool CanUseComposerAction => IsBusy || (HasUserQuestion && (IsProjectReadinessAgentQuestion || !string.IsNullOrWhiteSpace(ModelName)));
+        public string ComposerActionText => IsBusy ? "Stop" : IsProjectReadinessAgentQuestion ? "Run Agent" : "Send";
+        public string ComposerActionToolTip => IsBusy
+            ? $"Stop the current {SelectedProviderDisplayName} response."
+            : IsProjectReadinessAgentQuestion
+                ? "Run the governed Project Readiness Agent with typed read-only tools. No model or cloud API is required."
+                : $"Send this question to {SelectedProviderDisplayName}. Press Enter to send or Shift+Enter for a new line.";
+        public string ComposerStateText => IsBusy
+            ? $"Generating with {SelectedProviderDisplayName}… click Stop to cancel"
+            : IsProjectReadinessAgentQuestion
+                ? "Governed agent · typed read-only tools · no model required"
+                : ProviderPrivacyLabel;
         public bool HasAiAnswer => IsMeaningfulAnswer(AiAnswer);
 
         public static bool IsMeaningfulAnswer(string? value)
@@ -358,7 +503,9 @@ namespace CraneOptimizer.AI.ViewModels
                 return false;
 
             var text = value.Trim();
-            return !text.StartsWith("No Ollama answer yet", StringComparison.OrdinalIgnoreCase)
+            return !text.StartsWith("No model answer yet", StringComparison.OrdinalIgnoreCase)
+                && !text.StartsWith("Waiting for AI provider response", StringComparison.OrdinalIgnoreCase)
+                && !text.StartsWith("No Ollama answer yet", StringComparison.OrdinalIgnoreCase)
                 && !text.StartsWith("Waiting for Ollama response", StringComparison.OrdinalIgnoreCase);
         }
         public bool HasError => !string.IsNullOrWhiteSpace(LastError);
@@ -367,12 +514,38 @@ namespace CraneOptimizer.AI.ViewModels
         public string HistoryCountLabel => ResponseHistory.Count == 0
             ? "No saved answers"
             : $"{ResponseHistory.Count} saved answer(s)";
+        public AiAgentRunSnapshot LastAgentRun => _lastAgentRun;
+        public bool HasAgentExecution => _lastAgentRun.HasTrace;
+        public Visibility AgentExecutionVisibility => HasAgentExecution ? Visibility.Visible : Visibility.Collapsed;
+        public string AgentExecutionLabel => HasAgentExecution
+            ? $"Agent run · {_lastAgentRun.StatusLabel} · {_lastAgentRun.SuccessfulToolCount}/{_lastAgentRun.PlannedToolCount} tools · model rev {_lastAgentRun.ModelRevision:N0}"
+            : "Agent run · not executed";
+        public string AgentConclusion => _lastAgentRun.Conclusion;
+        public string AgentGovernanceSummary => _lastAgentRun.GovernanceSummary;
+        public bool HasAgentActions => AgentActionProposals.Count > 0;
+        public Visibility AgentActionsVisibility => HasAgentActions ? Visibility.Visible : Visibility.Collapsed;
+        public string AgentActionsLabel => HasAgentActions
+            ? $"Recommended actions · {AgentActionProposals.Count:N0} executable step(s)"
+            : "Recommended actions · none";
+        public bool HasAgentActionAudit => AgentActionAudit.Count > 0;
+        public Visibility AgentActionAuditVisibility => HasAgentActionAudit ? Visibility.Visible : Visibility.Collapsed;
+        public string AgentActionAuditLabel => _lastAgentActionExecution == null
+            ? "Action audit · no action executed"
+            : $"Action audit · {_lastAgentActionExecution.StatusLabel} · {_lastAgentActionExecution.ToolName}";
+        public string AgentActionStatus => _lastAgentActionExecution?.Summary ?? "Select an action card to continue. Navigation actions never modify project data.";
+
+        public bool HasGroundingEvidence => GroundingCitations.Count > 0;
+        public Visibility GroundingEvidenceVisibility => HasGroundingEvidence ? Visibility.Visible : Visibility.Collapsed;
+        public string GroundingEvidenceLabel => HasGroundingEvidence
+            ? $"Grounding evidence · {GroundingCitations.Count} source(s) · model rev {_lastGroundingPacket.ModelRevision:N0}"
+            : "Grounding evidence · none retrieved";
 
         public void AnalyzeCurrentResult()
         {
             LastError = string.Empty;
             _lastContext = BuildContextFromCurrentResult();
             _lastWorkflowContext = _workflowContextProvider?.GetSnapshot();
+            SetGroundingPacket(_projectGroundingService.Ground(_lastWorkflowContext, UserQuestion, 6), refreshContextCards: false);
             _lastAdvisorResponse = _advisorService.Analyze(_lastContext);
 
             var workflowState = _lastWorkflowContext == null ? null : AiWorkflowStateClassifier.Classify(_lastWorkflowContext);
@@ -422,7 +595,7 @@ namespace CraneOptimizer.AI.ViewModels
                 : "XAML-derived software inventory not injected for this workflow request.";
             SelectedPromptTemplateSummary = BuildSelectedTemplateSummary(_lastContext, _lastAdvisorResponse);
             RefreshContextCards(_lastContext, _lastAdvisorResponse);
-            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext);
+            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext, _lastGroundingPacket, _lastAgentRun);
             StatusText = _lastContext.HasOptimizationResult
                 ? "Analysis complete. AI context includes result metrics and deterministic findings."
                 : workflowState != null && !workflowState.CanRunOptimizerNow
@@ -431,19 +604,84 @@ namespace CraneOptimizer.AI.ViewModels
         }
 
 
+        public bool CanRunProjectReadinessAgent(string? question) => _projectReadinessAgent.CanHandle(question);
+
+        public async Task<AiAgentRunSnapshot> RunProjectReadinessAgentAsync(
+            AiWorkflowContextSnapshot context,
+            string visibleQuestion,
+            string activeScreen,
+            string nextAction,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            UserQuestion = string.IsNullOrWhiteSpace(visibleQuestion)
+                ? "Assess project readiness and identify the next safe action."
+                : visibleQuestion.Trim();
+            _lastWorkflowContext = context;
+            var grounding = RefreshProjectGrounding(UserQuestion);
+
+            _activeRequestCts?.Dispose();
+            _activeRequestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            IsBusy = true;
+            StatusText = "Project Readiness Agent is executing governed read-only tools...";
+
+            try
+            {
+                var run = await _projectReadinessAgent.RunAsync(
+                    context,
+                    UserQuestion,
+                    activeScreen,
+                    nextAction,
+                    _activeRequestCts.Token).ConfigureAwait(true);
+
+                SetAgentRun(run);
+                if (_lastContext != null && _lastAdvisorResponse != null)
+                {
+                    ContextPreview = BuildContextJson(
+                        _lastContext,
+                        _lastAdvisorResponse,
+                        _softwareContext,
+                        LastDocumentContext + Environment.NewLine + LastXamlInventory,
+                        SelectedPromptTemplateSummary,
+                        _lastWorkflowContext,
+                        _lastGroundingPacket,
+                        _lastAgentRun);
+                }
+
+                var visibleAnswer = string.IsNullOrWhiteSpace(run.VisibleAnswer)
+                    ? run.Conclusion
+                    : run.VisibleAnswer;
+                AiAnswer = _projectGroundingService.AppendCitationTrace(visibleAnswer, grounding);
+                LastError = string.Empty;
+                StatusText = $"{run.AgentName} {run.StatusLabel.ToLowerInvariant()} using {run.SuccessfulToolCount:N0}/{run.PlannedToolCount:N0} governed read-only tools.";
+                AddHistory("Project Readiness Agent", UserQuestion, AiAnswer, "Agent + typed tools + RAG");
+                return run;
+            }
+            finally
+            {
+                IsBusy = false;
+                _activeRequestCts?.Dispose();
+                _activeRequestCts = null;
+            }
+        }
+
         public void RecordDeterministicCompanionAnswer(string visibleQuestion, string answer, string source)
         {
             UserQuestion = string.IsNullOrWhiteSpace(visibleQuestion)
                 ? "What should I do next from this screen?"
                 : visibleQuestion.Trim();
-            AiAnswer = string.IsNullOrWhiteSpace(answer)
+            _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
+            var grounding = RefreshProjectGrounding(UserQuestion);
+            var visibleAnswer = string.IsNullOrWhiteSpace(answer)
                 ? "No deterministic companion answer was generated."
                 : answer.Trim();
+            AiAnswer = _projectGroundingService.AppendCitationTrace(visibleAnswer, grounding);
             LastError = string.Empty;
             StatusText = string.IsNullOrWhiteSpace(source)
-                ? "Deterministic AI companion guidance produced locally."
-                : source.Trim();
-            AddHistory("Deterministic AI", UserQuestion, AiAnswer, "Companion");
+                ? $"Deterministic AI companion guidance produced locally with {grounding.Citations.Count:N0} grounded source(s)."
+                : source.Trim() + (grounding.HasEvidence ? $" Grounded with {grounding.Citations.Count:N0} cited live source(s)." : string.Empty);
+            AddHistory("Deterministic AI", UserQuestion, AiAnswer, "Companion + RAG");
         }
 
         private async Task ToggleOllamaAsync()
@@ -466,7 +704,7 @@ namespace CraneOptimizer.AI.ViewModels
                 : visibleQuestion.Trim();
             var currentWorkflow = _workflowContextProvider?.GetSnapshot();
             _pendingStrictWorkflowBlockerMode = _pendingLiveUiContext.Contains("CURRENT WORKFLOW BLOCKER", StringComparison.OrdinalIgnoreCase)
-                || AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(currentWorkflow, UserQuestion, "AI COPILOT");
+                || AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(currentWorkflow, UserQuestion, "AI STUDIO");
 
             await AskOllamaAsync().ConfigureAwait(true);
         }
@@ -475,12 +713,24 @@ namespace CraneOptimizer.AI.ViewModels
         {
             LastError = string.Empty;
             _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
+            RefreshProjectGrounding(UserQuestion);
+
+            if (_lastWorkflowContext != null && _projectReadinessAgent.CanHandle(UserQuestion))
+            {
+                await RunProjectReadinessAgentAsync(
+                    _lastWorkflowContext,
+                    UserQuestion,
+                    "AI STUDIO",
+                    _pendingDeterministicNextAction,
+                    CancellationToken.None).ConfigureAwait(true);
+                return;
+            }
 
             if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
                     _lastWorkflowContext,
                     null,
                     UserQuestion,
-                    "AI COPILOT",
+                    "AI STUDIO",
                     ModelName,
                     ModelCapabilitySummary,
                     BenchmarkSummary,
@@ -493,7 +743,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
             }
 
-            if (AiBimProjectQuestionService.TryBuildAnswer(_lastWorkflowContext, UserQuestion, "AI COPILOT", out var bimAnswer, out var bimSource))
+            if (AiBimProjectQuestionService.TryBuildAnswer(_lastWorkflowContext, UserQuestion, "AI STUDIO", out var bimAnswer, out var bimSource))
             {
                 RecordDeterministicCompanionAnswer(UserQuestion, bimAnswer, bimSource);
                 return;
@@ -504,7 +754,7 @@ namespace CraneOptimizer.AI.ViewModels
                 var metadataAnswer = AiWorkflowEvidenceTextBuilder.BuildIfcMetadataAssistantAnswer(
                     _lastWorkflowContext,
                     UserQuestion,
-                    "AI COPILOT");
+                    "AI STUDIO");
 
                 RecordDeterministicCompanionAnswer(
                     UserQuestion,
@@ -513,7 +763,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
             }
 
-            if (_lastWorkflowContext != null && AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(_lastWorkflowContext, UserQuestion, "AI COPILOT"))
+            if (_lastWorkflowContext != null && AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(_lastWorkflowContext, UserQuestion, "AI STUDIO"))
             {
                 var nextAction = string.IsNullOrWhiteSpace(_pendingDeterministicNextAction)
                     ? "Review AI Assist next action."
@@ -522,7 +772,7 @@ namespace CraneOptimizer.AI.ViewModels
                     _lastWorkflowContext,
                     UserQuestion,
                     nextAction,
-                    "AI COPILOT");
+                    "AI STUDIO");
 
                 RecordDeterministicCompanionAnswer(
                     UserQuestion,
@@ -533,12 +783,15 @@ namespace CraneOptimizer.AI.ViewModels
 
             if (string.IsNullOrWhiteSpace(ModelName))
             {
-                LastError = "Select or type an Ollama model first. Click Check Ollama, then choose one of the detected models.";
-                StatusText = "No Ollama model selected.";
+                LastError = $"Select or type a model for {SelectedProviderDisplayName} first. Use Check to discover model IDs where supported.";
+                StatusText = "No AI model selected.";
                 return;
             }
 
-            AiAnswer = "Waiting for Ollama response...";
+            if (!EnsureProviderReadyForGeneration())
+                return;
+
+            AiAnswer = "Waiting for AI provider response...";
 
             if (_lastContext == null || _lastAdvisorResponse == null)
                 AnalyzeCurrentResult();
@@ -549,7 +802,7 @@ namespace CraneOptimizer.AI.ViewModels
             _activeRequestCts?.Dispose();
             _activeRequestCts = new CancellationTokenSource();
             IsBusy = true;
-            StatusText = $"Asking local Ollama model '{ModelName}'...";
+            StatusText = $"Asking {SelectedProviderDisplayName} model '{ModelName}'...";
 
             try
             {
@@ -566,6 +819,7 @@ namespace CraneOptimizer.AI.ViewModels
 
                 var request = new AiChatRequestDto
                 {
+                    ProviderId = SelectedProviderId,
                     Model = ModelName,
                     SystemPrompt = BuildSystemPrompt(),
                     UserPrompt = UserQuestion,
@@ -574,6 +828,7 @@ namespace CraneOptimizer.AI.ViewModels
                         _lastAdvisorResponse,
                         _softwareContext,
                         LastDocumentContext + Environment.NewLine + LastXamlInventory,
+                        _lastGroundingPacket.PromptContext,
                         SelectedPromptTemplateSummary,
                         _lastWorkflowContext,
                         _pendingLiveUiContext,
@@ -585,37 +840,48 @@ namespace CraneOptimizer.AI.ViewModels
                         BenchmarkSummary),
                     Temperature = _settingsService.Current.Temperature,
                     TimeoutSeconds = _settingsService.Current.RequestTimeoutSeconds,
-                    PreferStreaming = _settingsService.Current.UseStreamingResponses
+                    PreferStreaming = _settingsService.Current.UseStreamingResponses,
+                    Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ContainsProjectContext"] = "true",
+                        ["Purpose"] = "GroundedProjectAssistant"
+                    }
                 };
 
                 var response = await AskWithOptionalStreamingAsync(request, _activeRequestCts.Token).ConfigureAwait(true);
                 if (_activeRequestCts.IsCancellationRequested)
                 {
-                    AiAnswer = "Ollama request cancelled by the user.";
-                    StatusText = "Ollama request cancelled.";
+                    AiAnswer = "AI provider request cancelled by the user.";
+                    StatusText = "AI provider request cancelled.";
                     return;
                 }
 
                 if (response.Success)
                 {
                     var normalizedAnswer = NormalizeAiOutput(response.Content);
-                    var intentDecision = AiIntentOrchestrator.Classify(_lastWorkflowContext, UserQuestion, "AI COPILOT");
+                    var intentDecision = AiIntentOrchestrator.Classify(_lastWorkflowContext, UserQuestion, "AI STUDIO");
                     var repairReason = string.Empty;
                     var stillNeedsRepair = !string.IsNullOrWhiteSpace(normalizedAnswer)
                         && AiIntentOrchestrator.NeedsResponseRepair(intentDecision, normalizedAnswer, out repairReason);
 
                     if (stillNeedsRepair)
                     {
-                        StatusText = "Local response violated the intent contract; asking Ollama to repair it...";
+                        StatusText = $"The response violated the intent contract; asking {SelectedProviderDisplayName} to repair it...";
                         var repairResponse = await _chatService.AskAsync(new AiChatRequestDto
                         {
+                            ProviderId = request.ProviderId,
                             Model = request.Model,
                             SystemPrompt = request.SystemPrompt,
                             UserPrompt = AiIntentOrchestrator.BuildResponseRepairPrompt(UserQuestion, normalizedAnswer, intentDecision, repairReason),
-                            ContextJson = AiIntentOrchestrator.BuildRepairContext(_lastWorkflowContext, UserQuestion, "AI COPILOT", _pendingDeterministicNextAction),
+                            ContextJson = AiIntentOrchestrator.BuildRepairContext(_lastWorkflowContext, UserQuestion, "AI STUDIO", _pendingDeterministicNextAction),
                             Temperature = Math.Min(request.Temperature ?? 0.2, 0.12),
                             TimeoutSeconds = request.TimeoutSeconds,
-                            PreferStreaming = false
+                            PreferStreaming = false,
+                            Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["ContainsProjectContext"] = "true",
+                                ["Purpose"] = "ResponseRepair"
+                            }
                         }, _activeRequestCts.Token).ConfigureAwait(true);
 
                         if (repairResponse.Success)
@@ -635,7 +901,7 @@ namespace CraneOptimizer.AI.ViewModels
                             _lastWorkflowContext,
                             null,
                             UserQuestion,
-                            "AI COPILOT",
+                            "AI STUDIO",
                             ModelName,
                             ModelCapabilitySummary,
                             BenchmarkSummary,
@@ -647,23 +913,26 @@ namespace CraneOptimizer.AI.ViewModels
                         StatusText = fallbackSource;
                     }
 
+                    if (!string.IsNullOrWhiteSpace(normalizedAnswer) && _lastGroundingPacket.HasEvidence)
+                        normalizedAnswer = _projectGroundingService.AppendCitationTrace(normalizedAnswer, _lastGroundingPacket);
+
                     AiAnswer = string.IsNullOrWhiteSpace(normalizedAnswer)
-                        ? "Ollama returned a successful response, but no visible text was included. Try another model or ask a shorter question."
+                        ? $"{SelectedProviderDisplayName} returned a successful response, but no visible text was included. Try another model or ask a shorter question."
                         : normalizedAnswer;
-                    StatusText = $"Ollama response received ({AiAnswer.Length:N0} characters).";
-                    AddHistory(ModelName, UserQuestion, AiAnswer, "Ollama");
+                    StatusText = $"{SelectedProviderDisplayName} response received ({AiAnswer.Length:N0} characters).";
+                    AddHistory(ModelName, UserQuestion, AiAnswer, SelectedProviderDisplayName);
                 }
                 else
                 {
-                    LastError = response.ErrorMessage ?? "Ollama request failed.";
-                    StatusText = "Ollama request failed.";
-                    AiAnswer = BuildOllamaHelpText();
+                    LastError = response.ErrorMessage ?? $"{SelectedProviderDisplayName} request failed.";
+                    StatusText = $"{SelectedProviderDisplayName} request failed.";
+                    AiAnswer = BuildProviderHelpText();
                 }
             }
             catch (OperationCanceledException)
             {
-                AiAnswer = "Ollama request cancelled by the user.";
-                StatusText = "Ollama request cancelled.";
+                AiAnswer = "AI provider request cancelled by the user.";
+                StatusText = "AI provider request cancelled.";
             }
             finally
             {
@@ -672,13 +941,14 @@ namespace CraneOptimizer.AI.ViewModels
                 _activeRequestCts = null;
                 _pendingLiveUiContext = string.Empty;
                 _pendingDeterministicNextAction = string.Empty;
+                _pendingStrictWorkflowBlockerMode = false;
             }
         }
 
         private void CancelOllama()
         {
             _activeRequestCts?.Cancel();
-            StatusText = "Cancelling Ollama request...";
+            StatusText = "Cancelling active AI operation...";
         }
 
         private void CopyContext()
@@ -706,8 +976,8 @@ namespace CraneOptimizer.AI.ViewModels
 
             var dialog = new SaveFileDialog
             {
-                Title = "Export AI Copilot response",
-                FileName = $"ai-copilot-response-{DateTime.Now:yyyyMMdd-HHmmss}.md",
+                Title = "Export AI Studio response",
+                FileName = $"ai-studio-response-{DateTime.Now:yyyyMMdd-HHmmss}.md",
                 Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|All files (*.*)|*.*"
             };
 
@@ -715,9 +985,10 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
 
             var builder = new StringBuilder();
-            builder.AppendLine("# AI Copilot Response");
+            builder.AppendLine("# AI Studio Response");
             builder.AppendLine();
             builder.AppendLine($"- Generated: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+            builder.AppendLine($"- Provider: {SelectedProviderDisplayName}");
             builder.AppendLine($"- Model: {ModelName}");
             builder.AppendLine();
             builder.AppendLine("## Question");
@@ -735,32 +1006,37 @@ namespace CraneOptimizer.AI.ViewModels
         {
             LastError = string.Empty;
             IsBusy = true;
-            StatusText = "Checking local Ollama status...";
+            StatusText = $"Checking {SelectedProviderDisplayName}...";
 
             try
             {
-                var status = await _modelManagementService.GetStatusAsync().ConfigureAwait(true);
-                InstalledModels.Clear();
-                foreach (var model in status.InstalledModels)
-                    InstalledModels.Add(model);
-
+                var status = await _providerManagementService.GetStatusAsync(SelectedProviderId).ConfigureAwait(true);
+                ReplaceInstalledModels(status.Models);
                 SelectBestInstalledModel();
+                RefreshModelSelectionBindings();
 
                 if (status.IsAvailable)
                 {
-                    var versionText = string.IsNullOrWhiteSpace(status.Version) ? string.Empty : $" v{status.Version}";
                     var modelText = InstalledModels.Count == 0
-                        ? "No models installed yet."
-                        : $"{InstalledModels.Count} model(s): {string.Join(", ", InstalledModels.Take(6))}{(InstalledModels.Count > 6 ? "..." : string.Empty)}";
-
-                    OllamaStatusText = $"Ollama online at {status.Endpoint}{versionText}. {modelText}";
-                    StatusText = "Ollama status check complete.";
+                        ? status.ErrorMessage ?? "No model IDs were discovered; enter one manually."
+                        : $"{InstalledModels.Count:N0} model ID(s) available.";
+                    OllamaStatusText = $"{status.DisplayName} connected at {status.Endpoint}. {modelText}";
+                    if (InstalledModels.Count > 0 && !string.IsNullOrWhiteSpace(status.ErrorMessage))
+                        OllamaStatusText += " " + status.ErrorMessage;
+                    StatusText = $"{status.DisplayName} connection check complete.";
                 }
                 else
                 {
-                    OllamaStatusText = $"Ollama offline at {status.Endpoint}. {status.ErrorMessage}";
-                    StatusText = "Ollama is not available. Deterministic advisor still works.";
+                    OllamaStatusText = $"{status.DisplayName} unavailable at {status.Endpoint}. {status.ErrorMessage}";
+                    StatusText = $"{status.DisplayName} is not available. Deterministic advisor features still work.";
+                    LastError = status.ErrorMessage ?? string.Empty;
                 }
+            }
+            catch (Exception ex)
+            {
+                LastError = $"{SelectedProviderDisplayName} connection check failed: {ex.Message}";
+                OllamaStatusText = LastError;
+                StatusText = "AI provider connection check failed.";
             }
             finally
             {
@@ -768,9 +1044,43 @@ namespace CraneOptimizer.AI.ViewModels
             }
         }
 
+        private void ConfigureProvider()
+        {
+            try
+            {
+                var dialog = new AiProviderSettingsDialog(SelectedProviderId, _providerManagementService)
+                {
+                    Owner = Application.Current?.MainWindow
+                };
+                dialog.ShowDialog();
+                if (!dialog.SettingsChanged)
+                    return;
+
+                var profile = GetSelectedProfile();
+                ModelName = profile.DefaultModel;
+                RefreshModelSelectionBindings();
+                OnPropertyChanged(nameof(SelectedProviderDisplayName));
+                OnPropertyChanged(nameof(ProviderModeLabel));
+                OnPropertyChanged(nameof(ProviderPrivacyLabel));
+                OnPropertyChanged(nameof(SelectedModelLabel));
+                OllamaStatusText = $"{profile.DisplayName} settings saved. Click Check to validate the connection.";
+                StatusText = $"{profile.DisplayName} configuration updated.";
+            }
+            catch (Exception ex)
+            {
+                LastError = "AI provider configuration failed: " + ex.Message;
+                StatusText = "AI provider configuration failed.";
+            }
+        }
+
         private async Task PullModelAsync()
         {
             LastError = string.Empty;
+            if (!IsOllamaSelected)
+            {
+                LastError = "Cloud models are selected remotely and cannot be pulled to Ollama. Use Check to discover model IDs or enter one manually.";
+                return;
+            }
             if (string.IsNullOrWhiteSpace(ModelName))
             {
                 LastError = "Enter a model name first, for example llama3.2.";
@@ -809,9 +1119,20 @@ namespace CraneOptimizer.AI.ViewModels
             if (InstalledModels.Count == 0)
                 await CheckOllamaAsync().ConfigureAwait(true);
 
-            var models = InstalledModels.Count > 0
-                ? InstalledModels.Take(_settingsService.Current.BenchmarkModelLimit).ToArray()
-                : new[] { ModelName };
+            var models = IsOllamaSelected
+                ? (InstalledModels.Count > 0
+                    ? InstalledModels.Take(_settingsService.Current.BenchmarkModelLimit).ToArray()
+                    : new[] { ModelName })
+                : string.IsNullOrWhiteSpace(ModelName)
+                    ? Array.Empty<string>()
+                    : new[] { ModelName };
+
+            if (models.Length == 0)
+            {
+                LastError = $"Select an exact model for {SelectedProviderDisplayName} before benchmarking. Cloud discovery does not auto-select or benchmark arbitrary models.";
+                BenchmarkSummary = "No model selected for benchmark.";
+                return;
+            }
 
             _activeRequestCts?.Dispose();
             _activeRequestCts = new CancellationTokenSource();
@@ -826,13 +1147,19 @@ namespace CraneOptimizer.AI.ViewModels
                     {
                         var response = await _chatService.AskAsync(new AiChatRequestDto
                         {
+                            ProviderId = SelectedProviderId,
                             Model = model,
-                            SystemPrompt = "You are benchmarking local model availability. Reply in one concise sentence.",
-                            UserPrompt = "Reply with: AI Copilot benchmark ready.",
+                            SystemPrompt = "You are benchmarking AI model availability. Reply in one concise sentence.",
+                            UserPrompt = "Reply with: AI Studio benchmark ready.",
                             ContextJson = "Benchmark context only. No project data is included.",
                             Temperature = 0.0,
                             TimeoutSeconds = Math.Min(_settingsService.Current.RequestTimeoutSeconds, 60),
-                            PreferStreaming = false
+                            PreferStreaming = false,
+                            Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["ContainsProjectContext"] = "false",
+                                ["Purpose"] = "ModelBenchmark"
+                            }
                         }, _activeRequestCts.Token).ConfigureAwait(true);
                         stopwatch.Stop();
 
@@ -880,7 +1207,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
 
             UserQuestion = question;
-            StatusText = "Quick question loaded. Click Ask Ollama to get a software-aware answer.";
+            StatusText = $"Quick question loaded. Click Send to ask {SelectedProviderDisplayName}.";
         }
 
         private void SelectModel(string modelName)
@@ -889,7 +1216,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
 
             ModelName = modelName.Trim();
-            StatusText = $"Selected Ollama model '{ModelName}'. Click Ask Ollama to use it.";
+            StatusText = $"Selected {SelectedProviderDisplayName} model '{ModelName}'. Click Send to use it.";
         }
 
         private void SelectHistory(AiResponseHistoryItemViewModel item)
@@ -897,6 +1224,11 @@ namespace CraneOptimizer.AI.ViewModels
             if (item == null)
                 return;
 
+            if (!string.IsNullOrWhiteSpace(item.ProviderId)
+                && _providerRegistry.TryResolve(item.ProviderId, out _))
+            {
+                SelectedProviderId = item.ProviderId;
+            }
             ModelName = item.Model;
             UserQuestion = item.Question;
             AiAnswer = item.Answer;
@@ -917,6 +1249,7 @@ namespace CraneOptimizer.AI.ViewModels
             ResponseHistory.Insert(0, new AiResponseHistoryItemViewModel
             {
                 CreatedAt = DateTimeOffset.Now,
+                ProviderId = SelectedProviderId,
                 Model = model,
                 Question = question,
                 Answer = answer,
@@ -987,13 +1320,15 @@ namespace CraneOptimizer.AI.ViewModels
 
             return await _chatService.AskAsync(new AiChatRequestDto
             {
+                ProviderId = request.ProviderId,
                 Model = request.Model,
                 SystemPrompt = request.SystemPrompt,
                 UserPrompt = request.UserPrompt,
                 ContextJson = request.ContextJson,
                 Temperature = request.Temperature,
                 TimeoutSeconds = request.TimeoutSeconds,
-                PreferStreaming = false
+                PreferStreaming = false,
+                Metadata = request.Metadata
             }, cancellationToken).ConfigureAwait(true);
         }
 
@@ -1007,8 +1342,8 @@ namespace CraneOptimizer.AI.ViewModels
 
             var dialog = new SaveFileDialog
             {
-                Title = "Export AI Copilot report appendix",
-                FileName = $"ai-copilot-report-appendix-{DateTime.Now:yyyyMMdd-HHmmss}.md",
+                Title = "Export AI Studio report appendix",
+                FileName = $"ai-studio-report-appendix-{DateTime.Now:yyyyMMdd-HHmmss}.md",
                 Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|All files (*.*)|*.*"
             };
 
@@ -1041,6 +1376,7 @@ namespace CraneOptimizer.AI.ViewModels
                 ResponseHistory.Add(new AiResponseHistoryItemViewModel
                 {
                     CreatedAt = record.CreatedAt,
+                    ProviderId = record.ProviderId,
                     Model = record.Model,
                     Question = record.Question,
                     Answer = record.Answer,
@@ -1062,6 +1398,7 @@ namespace CraneOptimizer.AI.ViewModels
                 CreatedAt = item.CreatedAt,
                 ProjectKey = _activeProjectKey,
                 ProjectDisplayName = _activeProjectDisplayName,
+                ProviderId = item.ProviderId,
                 Model = item.Model,
                 Question = item.Question,
                 Answer = item.Answer,
@@ -1082,6 +1419,114 @@ namespace CraneOptimizer.AI.ViewModels
             return $"{template.Title}: {template.AppliesWhen}";
         }
 
+        private void SetAgentRun(AiAgentRunSnapshot run)
+        {
+            _lastAgentRun = run;
+            _lastAgentActionExecution = null;
+            AgentExecutionTrace.Clear();
+            foreach (var entry in _lastAgentRun.Trace)
+                AgentExecutionTrace.Add(entry);
+
+            AgentActionProposals.Clear();
+            foreach (var proposal in _agentActionService.BuildProposals(_lastAgentRun))
+                AgentActionProposals.Add(proposal);
+
+            AgentActionAudit.Clear();
+            OnPropertyChanged(nameof(LastAgentRun));
+            OnPropertyChanged(nameof(HasAgentExecution));
+            OnPropertyChanged(nameof(AgentExecutionVisibility));
+            OnPropertyChanged(nameof(AgentExecutionLabel));
+            OnPropertyChanged(nameof(AgentConclusion));
+            OnPropertyChanged(nameof(AgentGovernanceSummary));
+            OnPropertyChanged(nameof(HasAgentActions));
+            OnPropertyChanged(nameof(AgentActionsVisibility));
+            OnPropertyChanged(nameof(AgentActionsLabel));
+            OnPropertyChanged(nameof(HasAgentActionAudit));
+            OnPropertyChanged(nameof(AgentActionAuditVisibility));
+            OnPropertyChanged(nameof(AgentActionAuditLabel));
+            OnPropertyChanged(nameof(AgentActionStatus));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private async void ExecuteAgentAction(AiAgentActionProposal proposal)
+        {
+            if (proposal == null || string.IsNullOrWhiteSpace(_lastAgentRun.RunId))
+                return;
+
+            try
+            {
+                var execution = await _agentActionService.ExecuteAsync(
+                    proposal,
+                    _lastAgentRun,
+                    userApproved: true,
+                    initiatedBy: "Desktop user").ConfigureAwait(true);
+                RecordAgentActionExecution(execution);
+                if (proposal.RequiresExplicitApproval
+                    && execution.Status != AiAgentActionExecutionStatus.ApprovalRequired)
+                {
+                    AgentActionProposals.Remove(proposal);
+                    OnPropertyChanged(nameof(HasAgentActions));
+                    OnPropertyChanged(nameof(AgentActionsVisibility));
+                    OnPropertyChanged(nameof(AgentActionsLabel));
+                }
+            }
+            catch (Exception ex)
+            {
+                LastError = ex.Message;
+            }
+        }
+
+        private void RejectAgentAction(AiAgentActionProposal proposal)
+        {
+            if (proposal == null || string.IsNullOrWhiteSpace(_lastAgentRun.RunId))
+                return;
+
+            RecordAgentActionExecution(_agentActionService.Reject(proposal, _lastAgentRun, "Desktop user"));
+            if (proposal.RequiresExplicitApproval)
+            {
+                AgentActionProposals.Remove(proposal);
+                OnPropertyChanged(nameof(HasAgentActions));
+                OnPropertyChanged(nameof(AgentActionsVisibility));
+                OnPropertyChanged(nameof(AgentActionsLabel));
+            }
+        }
+
+        private void RecordAgentActionExecution(AiAgentActionExecutionSnapshot execution)
+        {
+            _lastAgentActionExecution = execution;
+            AgentActionAudit.Insert(0, execution);
+            while (AgentActionAudit.Count > 12)
+                AgentActionAudit.RemoveAt(AgentActionAudit.Count - 1);
+
+            StatusText = execution.Summary;
+            OnPropertyChanged(nameof(HasAgentActionAudit));
+            OnPropertyChanged(nameof(AgentActionAuditVisibility));
+            OnPropertyChanged(nameof(AgentActionAuditLabel));
+            OnPropertyChanged(nameof(AgentActionStatus));
+        }
+
+        private AiGroundingPacket RefreshProjectGrounding(string question)
+        {
+            var packet = _projectGroundingService.Ground(_lastWorkflowContext, question, 6);
+            SetGroundingPacket(packet, refreshContextCards: true);
+            return packet;
+        }
+
+        private void SetGroundingPacket(AiGroundingPacket packet, bool refreshContextCards)
+        {
+            _lastGroundingPacket = packet ?? AiGroundingPacket.Empty;
+            GroundingCitations.Clear();
+            foreach (var citation in _lastGroundingPacket.Citations)
+                GroundingCitations.Add(citation);
+
+            OnPropertyChanged(nameof(HasGroundingEvidence));
+            OnPropertyChanged(nameof(GroundingEvidenceVisibility));
+            OnPropertyChanged(nameof(GroundingEvidenceLabel));
+
+            if (refreshContextCards && _lastContext != null && _lastAdvisorResponse != null)
+                RefreshContextCards(_lastContext, _lastAdvisorResponse);
+        }
+
         private void RefreshContextCards(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse)
         {
             ContextCards.Clear();
@@ -1094,7 +1539,7 @@ namespace CraneOptimizer.AI.ViewModels
                     ? $"{context.LiftedElementCount}/{context.TotalElementCount} elements lifted"
                     : workflowState != null && !workflowState.CanRunOptimizerNow
                         ? workflowState.RootCause + " Next: " + workflowState.RecommendedAction
-                        : "Run ANALYZE -> Run Optimizer only after readiness is complete."
+                        : "Run ANALYSIS -> Run Optimizer only after readiness is complete."
             });
             ContextCards.Add(new AiContextCardViewModel
             {
@@ -1129,6 +1574,25 @@ namespace CraneOptimizer.AI.ViewModels
                     Detail = $"Rich UI context attached from IFC/crane/GA/report contributors; {warningCount:N0} warning/error issue(s)."
                 });
             }
+
+            ContextCards.Add(new AiContextCardViewModel
+            {
+                Title = "Project RAG",
+                Value = _lastGroundingPacket.CoverageLabel,
+                Detail = _lastGroundingPacket.HasEvidence
+                    ? $"Hybrid lexical/semantic retrieval indexed {_lastGroundingPacket.IndexedDocumentCount:N0} documents and {_lastGroundingPacket.IndexedChunkCount:N0} chunks for model revision {_lastGroundingPacket.ModelRevision:N0}."
+                    : "No live evidence exceeded the retrieval threshold for the current question."
+            });
+
+            foreach (var citation in _lastGroundingPacket.Citations.Take(4))
+            {
+                ContextCards.Add(new AiContextCardViewModel
+                {
+                    Title = $"[{citation.Id}] {citation.SourceLabel}",
+                    Value = citation.ScoreLabel,
+                    Detail = citation.Snippet
+                });
+            }
         }
 
         private string BuildModelCapabilitySummary()
@@ -1138,7 +1602,7 @@ namespace CraneOptimizer.AI.ViewModels
 
             var successful = ModelBenchmarks.Where(result => result.Success).OrderBy(result => result.ElapsedMilliseconds).ToArray();
             if (successful.Length == 0)
-                return "No installed model completed the benchmark. Use Check Ollama, confirm models are available, then benchmark again.";
+                return "No model completed the benchmark. Use Check, confirm the provider and model are available, then benchmark again.";
 
             var fastest = successful[0];
             var reasoning = successful.FirstOrDefault(result => result.Model.Contains("qwen", StringComparison.OrdinalIgnoreCase)
@@ -1182,7 +1646,29 @@ namespace CraneOptimizer.AI.ViewModels
                 return $"{speed}; best for reasoning-heavy diagnostics and final report explanations.";
             if (model.Contains("gemma", StringComparison.OrdinalIgnoreCase) || model.Contains("llama", StringComparison.OrdinalIgnoreCase))
                 return $"{speed}; best for responsive workflow help and screen guidance.";
-            return $"{speed}; general local assistant model.";
+            return $"{speed}; general assistant model.";
+        }
+
+        private void RefreshModelSelectionBindings()
+        {
+            OnPropertyChanged(nameof(ModelName));
+            OnPropertyChanged(nameof(SelectedDiscoveredModel));
+            OnPropertyChanged(nameof(SelectedModelLabel));
+        }
+
+        private void ReplaceInstalledModels(IEnumerable<string> models)
+        {
+            _isRefreshingInstalledModels = true;
+            try
+            {
+                InstalledModels.Clear();
+                foreach (var model in models.Where(model => !string.IsNullOrWhiteSpace(model)))
+                    InstalledModels.Add(model.Trim());
+            }
+            finally
+            {
+                _isRefreshingInstalledModels = false;
+            }
         }
 
         private void SelectBestInstalledModel()
@@ -1198,29 +1684,28 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(current))
+            var configured = GetSelectedProfile().DefaultModel;
+            var configuredMatch = InstalledModels.FirstOrDefault(model =>
+                string.Equals(model, configured, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(configuredMatch))
             {
-                var latestAlias = InstalledModels.FirstOrDefault(model => string.Equals(model, current + ":latest", StringComparison.OrdinalIgnoreCase));
+                ModelName = configuredMatch;
+                return;
+            }
+
+            if (IsOllamaSelected && !string.IsNullOrWhiteSpace(current))
+            {
+                var latestAlias = InstalledModels.FirstOrDefault(model =>
+                    string.Equals(model, current + ":latest", StringComparison.OrdinalIgnoreCase));
                 if (!string.IsNullOrWhiteSpace(latestAlias))
                 {
                     ModelName = latestAlias;
                     return;
                 }
-
-                var versionedAlias = InstalledModels.FirstOrDefault(model => model.StartsWith(current + ":", StringComparison.OrdinalIgnoreCase));
-                if (!string.IsNullOrWhiteSpace(versionedAlias))
-                {
-                    ModelName = versionedAlias;
-                    return;
-                }
             }
 
-            var preferred = InstalledModels.FirstOrDefault(model => model.StartsWith("llama3.2", StringComparison.OrdinalIgnoreCase))
-                ?? InstalledModels.FirstOrDefault(model => model.StartsWith("qwen", StringComparison.OrdinalIgnoreCase))
-                ?? InstalledModels.FirstOrDefault(model => model.StartsWith("gemma", StringComparison.OrdinalIgnoreCase))
-                ?? InstalledModels[0];
-
-            ModelName = preferred;
+            if (IsOllamaSelected || InstalledModels.Count == 1)
+                ModelName = InstalledModels[0];
         }
 
         private AiOptimizationContextDto BuildContextFromCurrentResult()
@@ -1264,6 +1749,7 @@ namespace CraneOptimizer.AI.ViewModels
                 || text.Contains("REPORT")
                 || text.Contains("DOSSIER")
                 || text.Contains("SEARCH")
+                || text.Contains("EXPLAIN THE AI STUDIO")
                 || text.Contains("EXPLAIN THE AI COPILOT")
                 || text.Contains("WHAT DOES THE DOCUMENTATION")
                 || text.Contains("USER GUIDE");
@@ -1295,6 +1781,7 @@ namespace CraneOptimizer.AI.ViewModels
             AiAdvisorResponseDto advisorResponse,
             AiSoftwareContextDto softwareContext,
             string documentContext,
+            string projectGroundingContext,
             string promptTemplateSummary,
             AiWorkflowContextSnapshot? workflowContext = null,
             string liveUiContext = "",
@@ -1306,23 +1793,28 @@ namespace CraneOptimizer.AI.ViewModels
             string benchmarkSummary = "")
         {
             var builder = new StringBuilder();
-            var intentDecision = AiIntentOrchestrator.Classify(workflowContext, userQuestion, "AI COPILOT");
+            var intentDecision = AiIntentOrchestrator.Classify(workflowContext, userQuestion, "AI STUDIO");
             var suppressApplicationContext = AiIntentOrchestrator.ShouldSuppressApplicationContext(intentDecision);
             var includeDetailedWorkflowEvidence = AiIntentOrchestrator.ShouldIncludeDetailedWorkflowEvidence(intentDecision);
             var includeQualityWorkflowEvidence = AiIntentOrchestrator.ShouldIncludeQualityWorkflowEvidence(intentDecision);
             var includeOptimizationResult = AiIntentOrchestrator.ShouldIncludeOptimizationResultSection(intentDecision);
             var includeAdvisorFindings = AiIntentOrchestrator.ShouldIncludeAdvisorFindings(intentDecision);
             var includeLocalDocumentation = AiIntentOrchestrator.ShouldIncludeLocalDocumentationContext(intentDecision);
-            var promptContract = AiIntentOrchestrator.BuildPromptContract(workflowContext, userQuestion, "AI COPILOT", deterministicNextAction);
+            var promptContract = AiIntentOrchestrator.BuildPromptContract(workflowContext, userQuestion, "AI STUDIO", deterministicNextAction);
             builder.AppendLine(promptContract);
             builder.AppendLine();
             builder.AppendLine(AiIntentOrchestrator.BuildEvidenceRoutingPacket(
                 workflowContext,
                 null,
                 userQuestion,
-                "AI COPILOT",
+                "AI STUDIO",
                 deterministicNextAction));
             builder.AppendLine();
+            if (!string.IsNullOrWhiteSpace(projectGroundingContext))
+            {
+                builder.AppendLine(projectGroundingContext);
+                builder.AppendLine();
+            }
             if (!string.IsNullOrWhiteSpace(liveUiContext))
             {
                 builder.AppendLine("LIVE UI CONTEXT — highest priority for workflow/navigation questions");
@@ -1406,7 +1898,7 @@ namespace CraneOptimizer.AI.ViewModels
                 builder.AppendLine($"AI integration: {softwareContext.Framework.AiIntegrationMode}");
                 builder.AppendLine();
 
-                builder.AppendLine("VISIBLE SOFTWARE TABS AND ACTIONS");
+                builder.AppendLine("SOFTWARE WORKFLOW AREAS AND ACTIONS");
                 foreach (var tab in softwareContext.Tabs)
                 {
                     builder.AppendLine($"- {tab.TabName}: {tab.Purpose}");
@@ -1450,7 +1942,7 @@ namespace CraneOptimizer.AI.ViewModels
                     }
                     else
                     {
-                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYZE -> Run Optimizer first, then return to AI COPILOT.");
+                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYSIS -> Run Optimizer first, then open AI ASSIST -> STUDIO.");
                     }
                 }
                 else
@@ -1499,7 +1991,7 @@ namespace CraneOptimizer.AI.ViewModels
             return builder.ToString();
         }
 
-        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null)
+        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null, AiGroundingPacket? groundingPacket = null, AiAgentRunSnapshot? agentRun = null)
         {
             var payload = new
             {
@@ -1513,6 +2005,8 @@ namespace CraneOptimizer.AI.ViewModels
                     ActivePromptTemplate = promptTemplateSummary
                 },
                 WorkflowContext = workflowContext,
+                ProjectRagGrounding = groundingPacket,
+                AgentExecution = agentRun,
                 SoftwareContext = softwareContext,
                 LocalDocumentationContext = documentContext,
                 SafetyInstruction = "This AI output is advisory only. Final crane planning decisions must be checked by qualified personnel against project rules, manufacturer data, and applicable safety standards."
@@ -1523,12 +2017,13 @@ namespace CraneOptimizer.AI.ViewModels
 
         private static string BuildSystemPrompt()
         {
-            return "You are a local AI copilot embedded in a WPF crane path optimization application. " +
+            return "You are an AI copilot embedded in a WPF crane path optimization application. " +
                    "First obey the INTENT ROUTING CONTRACT in the supplied context: identify the question family, choose the correct evidence world, and answer the actual question directly before adding project caveats. Do not use memorized Q&A prose; synthesize a fresh answer from the user question and evidence. " +
                    "Use supplied internal context silently; never describe it as JSON, schema, prompt metadata, XAML inventory, or documentation snippets unless explicitly asked. " +
                    "Never open with phrases like 'This appears to be documentation' or 'Here is a summary of the documentation' unless the user explicitly asked to summarize documentation. " +
                    "Separate three knowledge worlds: general crane/construction knowledge, current deterministic project facts, and software documentation/navigation. Never collapse a domain question into a documentation summary. " +
-                   "Prioritize evidence in this order: intent routing contract, live UI context, compact deterministic project facts, deterministic screen contexts only when the intent explicitly asks for workflow/blockers/results, visible tabs/buttons/workflows, then local documentation only when directly relevant. " +
+                   "Prioritize evidence in this order: intent routing contract, live UI context, PROJECT RAG GROUNDING PACKET, compact deterministic project facts, deterministic screen contexts only when the intent explicitly asks for workflow/blockers/results, visible tabs/buttons/workflows, then local documentation only when directly relevant. " +
+                   "When a PROJECT RAG GROUNDING PACKET is supplied, cite project-specific factual claims with its evidence IDs such as [E1], and explicitly state when the retrieved evidence is incomplete or conflicting. " +
                    "Do not invent project facts, standards, site measurements, certification claims, or hidden UI commands. " +
                    "When the user asks what to do next, answer with the practical workflow state first; do not summarize documentation, XAML inventory, UI inventory, or implementation context. " +
                    "For active blockers, prefer the deterministic blocker summary only when the visible question is about optimization readiness, GA, blockers, candidates, weights, or next steps. For domain, quality, delivery, model-choice, or value questions, answer the question first and use blockers only as a short current-project caveat. " +
@@ -1559,7 +2054,7 @@ namespace CraneOptimizer.AI.ViewModels
             builder.AppendLine($"- Architecture: {context.Framework.Architecture}");
             builder.AppendLine($"- AI mode: {context.Framework.AiIntegrationMode}");
             builder.AppendLine();
-            builder.AppendLine("Tabs and buttons");
+            builder.AppendLine("Workflow areas and actions");
 
             foreach (var tab in context.Tabs)
             {
@@ -1584,6 +2079,120 @@ namespace CraneOptimizer.AI.ViewModels
             foreach (var guardrail in context.SafetyGuardrails)
                 builder.AppendLine($"- {guardrail}");
 
+            return builder.ToString();
+        }
+
+
+        private string ResolveInitialProviderId()
+        {
+            var configured = _settingsService.Current.DefaultProviderId;
+            if (_providerRegistry.TryResolve(configured, out var provider))
+                return provider.Descriptor.Id;
+            if (_providerRegistry.TryResolve(AiProviderProfileSettings.OllamaId, out var ollama))
+                return ollama.Descriptor.Id;
+
+            foreach (var descriptor in _providerRegistry.Providers)
+            {
+                if (_providerRegistry.TryResolve(descriptor.Id, out var available))
+                    return available.Descriptor.Id;
+            }
+
+            throw new InvalidOperationException("No enabled AI provider is available.");
+        }
+
+        private string ResolveProviderDefaultModel(string providerId)
+        {
+            var profile = _settingsService.Current.ProviderProfiles.FirstOrDefault(item =>
+                string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(profile?.DefaultModel))
+                return profile.DefaultModel.Trim();
+            return string.Equals(providerId, AiProviderProfileSettings.OllamaId, StringComparison.OrdinalIgnoreCase)
+                ? _settingsService.Current.DefaultModelName
+                : string.Empty;
+        }
+
+        private AiProviderProfileSettings GetSelectedProfile()
+        {
+            return _settingsService.Current.ProviderProfiles.FirstOrDefault(profile =>
+                       string.Equals(profile.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase))
+                   ?? _settingsService.Current.ProviderProfiles.First(profile =>
+                       string.Equals(profile.Id, AiProviderProfileSettings.OllamaId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool EnsureProviderReadyForGeneration()
+        {
+            var profile = GetSelectedProfile();
+            if (profile.IsLocal)
+                return true;
+
+            if (string.IsNullOrWhiteSpace(profile.BaseUrl))
+            {
+                LastError = $"Configure the base URL for {profile.DisplayName} before sending a request.";
+                StatusText = "Cloud provider configuration is incomplete.";
+                return false;
+            }
+
+            try
+            {
+                if (!_providerManagementService.HasCredential(profile.Id))
+                {
+                    LastError = $"No protected API key is stored for {profile.DisplayName}. Click Configure to add your own key.";
+                    StatusText = "Cloud provider API key required.";
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LastError = "Could not access Windows Credential Manager: " + ex.Message;
+                StatusText = "Cloud credential access failed.";
+                return false;
+            }
+
+            if (_settingsService.Current.CloudConsentAcceptedProviderIds.Contains(profile.Id))
+                return true;
+
+            var result = MessageBox.Show(
+                $"Use {profile.DisplayName} for cloud AI?\n\n" +
+                "The selected model will receive the grounded context shown in AI Studio, including relevant project readiness, BIM, crane, zone, GA, and conversation information. " +
+                "The application does not send the IFC file or project database itself, and the API key remains in Windows Credential Manager.\n\n" +
+                "No automatic fallback occurs. Continue with this cloud provider?",
+                "Cloud AI privacy confirmation",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+            {
+                StatusText = "Cloud AI request cancelled before any project context was sent.";
+                return false;
+            }
+
+            _settingsService.Update(settings => settings.CloudConsentAcceptedProviderIds.Add(profile.Id));
+            return true;
+        }
+
+        private string BuildProviderHelpText()
+        {
+            var profile = GetSelectedProfile();
+            var builder = new StringBuilder();
+            builder.AppendLine($"{profile.DisplayName} did not respond.");
+            builder.AppendLine();
+            if (profile.IsLocal)
+            {
+                builder.AppendLine("Checklist on your Windows machine:");
+                builder.AppendLine("1. Start Ollama.");
+                builder.AppendLine("2. Confirm the configured local endpoint is reachable.");
+                builder.AppendLine("3. Click Check to detect installed models.");
+                builder.AppendLine("4. Pull or run a model, then select its exact model ID.");
+            }
+            else
+            {
+                builder.AppendLine("Cloud provider checklist:");
+                builder.AppendLine("1. Click Configure and verify the provider base URL and chat-completions path.");
+                builder.AppendLine("2. Save your API key in Windows Credential Manager through the provider dialog.");
+                builder.AppendLine("3. Click Check to validate credentials and discover model IDs where supported.");
+                builder.AppendLine("4. Select or type an exact model ID and confirm that the account has access, quota, or credits.");
+                builder.AppendLine("5. Review the context payload before retrying; cloud use is explicit and never an automatic fallback.");
+            }
             return builder.ToString();
         }
 
@@ -1620,18 +2229,5 @@ namespace CraneOptimizer.AI.ViewModels
             }
         }
 
-        private static string BuildOllamaHelpText()
-        {
-            var builder = new StringBuilder();
-            builder.AppendLine("Local Ollama did not respond.");
-            builder.AppendLine();
-            builder.AppendLine("Checklist on your Windows machine:");
-            builder.AppendLine("1. Start Ollama.");
-            builder.AppendLine("2. Confirm it is listening at http://localhost:11434.");
-            builder.AppendLine("3. Click Check Ollama in this window to detect installed models.");
-            builder.AppendLine("4. Install or run a model, for example: ollama run llama3.2, or use Pull Model from this window.");
-            builder.AppendLine("5. Put that exact model name in the Model field, then click Ask Ollama.");
-            return builder.ToString();
-        }
     }
 }

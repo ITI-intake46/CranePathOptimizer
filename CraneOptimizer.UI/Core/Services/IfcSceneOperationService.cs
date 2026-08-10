@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Collections.Generic;
 
 namespace CraneOptimizer.UI.Core.Services
@@ -11,11 +12,16 @@ namespace CraneOptimizer.UI.Core.Services
     {
         private readonly ISceneService _scene;
         private readonly IIfcReaderRepository _ifcReader;
+        private readonly IOptimizationViewportHighlightService? _viewportHighlightService;
 
-        public IfcSceneOperationService(ISceneService scene, IIfcReaderRepository ifcReader)
+        public IfcSceneOperationService(
+            ISceneService scene,
+            IIfcReaderRepository ifcReader,
+            IOptimizationViewportHighlightService? viewportHighlightService = null)
         {
             _scene = scene;
             _ifcReader = ifcReader;
+            _viewportHighlightService = viewportHighlightService;
         }
 
         public bool HasIfcModel => _scene.GetElements().Count > 0;
@@ -31,6 +37,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         public List<PrecastElement> ReplaceIfcModel(IEnumerable<PrecastElement> elements)
         {
+            _viewportHighlightService?.Clear();
             var modelElements = elements.ToList();
             _scene.SetElements(modelElements);
             return modelElements;
@@ -38,6 +45,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         public List<PrecastElement> MergeIfcModel(IEnumerable<PrecastElement> elements)
         {
+            _viewportHighlightService?.Clear();
             var mergedElements = _scene.GetElements();
             mergedElements.AddRange(elements);
             _scene.SetElements(mergedElements);
@@ -46,6 +54,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         public List<PrecastElement> MoveIfcModel(DomainPoint3D delta)
         {
+            _viewportHighlightService?.Clear();
             var movedElements = TranslateElements(_scene.GetElements(), delta);
             _scene.ClearSelectedElements();
             _scene.SetElements(movedElements);
@@ -54,13 +63,14 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void DeleteIfcModel(bool clearReaderData = true)
         {
+            _viewportHighlightService?.Clear();
             _scene.ClearSelectedElements();
             _scene.ClearElements();
 
             if (clearReaderData)
             {
-                _ifcReader.ClearData();
                 ElementVisualBuilder.ClearMeshCache("IFC unloaded");
+                _ifcReader.ClearData();
             }
         }
 

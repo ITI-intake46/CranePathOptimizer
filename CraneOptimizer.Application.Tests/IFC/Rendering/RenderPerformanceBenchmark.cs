@@ -7,8 +7,6 @@ using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
-using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -319,12 +317,6 @@ namespace CraneOptimizer.Application.Tests
                 abList.Add("| Model | Quality | Mode | Avg Duration (ms) | Max Duration (ms) | Total Picks | Success (Non-Null) Picks | Missed/Wrong Picks | Visual Difference |");
                 abList.Add("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |");
 
-                var snapList = new List<string>();
-                snapList.Add("## 3. Snap Index Rebuild Performance (Before vs After)");
-                snapList.Add("");
-                snapList.Add("| Model | Vertices | Segments | Movement Type | Rebuild Count (Before) | Rebuild Count (After) | Avg Rebuild Time Before (ms) | Avg Rebuild Time After (ms) | Max Rebuild Time Before (ms) | Max Rebuild Time After (ms) | Rebuild Reduction % | Snap Accuracy Issue |");
-                snapList.Add("| :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |");
-
                 foreach (var (name, path) in modelPaths)
                 {
                     if (!File.Exists(path))
@@ -457,135 +449,10 @@ namespace CraneOptimizer.Application.Tests
                             $"| None |");
                     }
 
-                    // ─── 3. Snapping Benchmarks ───
-                    var settings = new OsnapSettings
-                    {
-                        MasterEnabled = true,
-                        SnapEndpoint = true,
-                        SnapMidpoint = true,
-                        SnapToIfc = true,
-                        SnapRadiusPx = 15
-                    };
-                    var osnap = new OsnapService(settings);
-
-                    // Build snap geometry list using elements
-                    var snapGeometryList = new List<IfcSnapGeometry>();
-                    foreach (var element in elements)
-                    {
-                        if (string.IsNullOrWhiteSpace(element.ElementID) ||
-                            element.ElementCOG == null ||
-                            !element.BBoxLength.HasValue ||
-                            !element.BBoxWidth.HasValue)
-                        {
-                            continue;
-                        }
-
-                        double hL = element.BBoxLength.Value / 2.0;
-                        double hW = element.BBoxWidth.Value / 2.0;
-                        double hH = (element.BBoxHeight ?? 0) / 2.0;
-                        double z = element.ElementCOG.Z;
-                        var min = new Point3D(element.ElementCOG.X - hL, element.ElementCOG.Y - hW, z - hH);
-                        var max = new Point3D(element.ElementCOG.X + hL, element.ElementCOG.Y + hW, z + hH);
-                        var boxVertices = new[]
-                        {
-                            new Point3D(min.X, min.Y, min.Z),
-                            new Point3D(max.X, min.Y, min.Z),
-                            new Point3D(max.X, max.Y, min.Z),
-                            new Point3D(min.X, max.Y, min.Z),
-                            new Point3D(min.X, min.Y, max.Z),
-                            new Point3D(max.X, min.Y, max.Z),
-                            new Point3D(max.X, max.Y, max.Z),
-                            new Point3D(min.X, max.Y, max.Z),
-                        };
-                        var boxSegments = new[]
-                        {
-                            (boxVertices[0], boxVertices[1]),
-                            (boxVertices[1], boxVertices[2]),
-                            (boxVertices[2], boxVertices[3]),
-                            (boxVertices[3], boxVertices[0]),
-                            (boxVertices[4], boxVertices[5]),
-                            (boxVertices[5], boxVertices[6]),
-                            (boxVertices[6], boxVertices[7]),
-                            (boxVertices[7], boxVertices[4]),
-                            (boxVertices[0], boxVertices[4]),
-                            (boxVertices[1], boxVertices[5]),
-                            (boxVertices[2], boxVertices[6]),
-                            (boxVertices[3], boxVertices[7]),
-                        };
-
-                        snapGeometryList.Add(new IfcSnapGeometry(element.ElementID, boxVertices, boxSegments));
-                    }
-                    osnap.SetIfcSnapGeometry(snapGeometryList);
-
-                    var snapViewport = new HelixViewport3D { Width = 800, Height = 600 };
-                    snapViewport.Viewport.Width = 800;
-                    snapViewport.Viewport.Height = 600;
-                    var baseCamera = new PerspectiveCamera(new Point3D(center.X, center.Y, center.Z + distance), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
-                    snapViewport.Camera = baseCamera;
-
-                    var movements = new[]
-                    {
-                        ("Nano (0.001 units)", 0.001),
-                        ("Tiny (0.01 units)", 0.01),
-                        ("Meaningful (0.50 units)", 0.50)
-                    };
-
-                    foreach (var (movName, offset) in movements)
-                    {
-                        // ─── Mode A: Legacy Key Comparison (Before) ───
-                        OsnapService.UseLegacyKeyComparison = true;
-                        OsnapService.ResetSnapDiagnostics();
-                        baseCamera.Position = new Point3D(center.X, center.Y, center.Z + distance);
-
-                        for (int step = 0; step < 20; step++)
-                        {
-                            baseCamera.Position = new Point3D(baseCamera.Position.X + offset, baseCamera.Position.Y, baseCamera.Position.Z);
-                            osnap.Snap(new Point(400, 300), snapViewport);
-                        }
-
-                        int countBefore = OsnapService.SnapRebuildCount;
-                        double avgBefore = countBefore > 0 ? OsnapService.SnapRebuildTotalMs / countBefore : 0;
-                        double maxBefore = OsnapService.SnapRebuildMaxMs;
-
-                        // ─── Mode B: Throttled Key Comparison (After) ───
-                        OsnapService.UseLegacyKeyComparison = false;
-                        OsnapService.ResetSnapDiagnostics();
-                        baseCamera.Position = new Point3D(center.X, center.Y, center.Z + distance);
-
-                        for (int step = 0; step < 20; step++)
-                        {
-                            baseCamera.Position = new Point3D(baseCamera.Position.X + offset, baseCamera.Position.Y, baseCamera.Position.Z);
-                            osnap.Snap(new Point(400, 300), snapViewport);
-                        }
-
-                        int countAfter = OsnapService.SnapRebuildCount;
-                        double avgAfter = countAfter > 0 ? OsnapService.SnapRebuildTotalMs / countAfter : 0;
-                        double maxAfter = OsnapService.SnapRebuildMaxMs;
-
-                        double reductionPct = countBefore > 0 ? ((double)(countBefore - countAfter) / countBefore) * 100.0 : 0.0;
-
-                        snapList.Add(
-                            $"| {name} " +
-                            $"| {osnap.SnapPointCount} " +
-                            $"| {snapGeometryList.Sum(s => s.Segments.Count)} " +
-                            $"| {movName} " +
-                            $"| {countBefore} " +
-                            $"| {countAfter} " +
-                            $"| {avgBefore:F4} " +
-                            $"| {avgAfter:F4} " +
-                            $"| {maxBefore:F4} " +
-                            $"| {maxAfter:F4} " +
-                            $"| {reductionPct:F1}% " +
-                            $"| None |");
-                    }
                 }
 
                 sb.AppendLine();
                 foreach (var line in abList)
-                    sb.AppendLine(line);
-
-                sb.AppendLine();
-                foreach (var line in snapList)
                     sb.AppendLine(line);
 
                 // Write the output report

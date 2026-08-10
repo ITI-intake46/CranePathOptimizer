@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using Xbim.Ifc4.Interfaces;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.Services
@@ -19,8 +20,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private readonly HashSet<string> _isolatedElementIds = new(StringComparer.Ordinal);
         private readonly HashSet<string> _shownElementIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _storeyByElementId = new(StringComparer.Ordinal);
+        // assembly ElementID -> the child parts that carry its geometry
+        private readonly Dictionary<string, List<PrecastElement>> _childrenByParentId = new(StringComparer.Ordinal);
         private readonly IIfcReaderRepository _ifcReader;
         private HashSet<string>? _includedElementIds;
+        private IfcLoadOptionsDto? _activeIfcVisibilityOptions;
 
         public ElementVisibilityFilterService(IIfcReaderRepository ifcReader)
         {
@@ -53,6 +57,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             _includedElementIds = null;
             SearchText = string.Empty;
 
+            BuildAssemblyChildMap();
             BuildStoreyMap();
             ElementTypes = BuildOptions(_allElements.Select(e => Normalize(e.ElementType, "Unknown type")));
             Materials = BuildOptions(_allElements.Select(e => Normalize(e.ElementMaterial, "N/A")));
@@ -135,7 +140,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         public void ShowElements(IEnumerable<PrecastElement> elements)
         {
             var isIsolated = _isolatedElementIds.Count > 0;
-            foreach (var element in elements)
+            foreach (var element in ExpandWithDescendants(elements))
             {
                 if (string.IsNullOrWhiteSpace(element.ElementID))
                     continue;
@@ -153,7 +158,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
         public void HideElements(IEnumerable<PrecastElement> elements)
         {
-            foreach (var element in elements)
+            foreach (var element in ExpandWithDescendants(elements))
             {
                 if (!string.IsNullOrWhiteSpace(element.ElementID))
                 {
@@ -169,7 +174,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         {
             _isolatedElementIds.Clear();
             _shownElementIds.Clear();
-            foreach (var element in elements)
+            foreach (var element in ExpandWithDescendants(elements))
             {
                 if (!string.IsNullOrWhiteSpace(element.ElementID))
                 {
@@ -186,33 +191,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
         public void ApplyLoadOptions(IfcLoadOptionsDto options)
         {
-            ResetFilters();
-
-            if (options.HideGrids)
-            {
-                foreach (var grid in _allElements.Where(element =>
-                             element.RawIfcType.Equals("IfcGrid", StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (!string.IsNullOrWhiteSpace(grid.ElementID))
-                        _excludedElementIds.Add(grid.ElementID);
-                }
-            }
-
-            foreach (var type in ElementTypes)
-            {
-                var enabled = true;
-                if (options.HideGrids && type.Contains("IfcGrid", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideLevels && type.Contains("IfcBuildingStorey", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideAnnotations && type.Contains("IfcAnnotation", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideSite && type.Contains("IfcSite", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideSpaces && type.Contains("IfcSpace", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideOpenings && type.Contains("IfcOpeningElement", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideVirtualElements && type.Contains("IfcVirtualElement", StringComparison.OrdinalIgnoreCase)) enabled = false;
-
-                if (!enabled)
-                    _enabledTypes.Remove(type);
-            }
-
+            _activeIfcVisibilityOptions = options;
             Recalculate();
         }
 
@@ -227,8 +206,74 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         public bool IsTypeEnabled(string type) => _enabledTypes.Contains(Normalize(type, "Unknown type"));
         public bool IsMaterialEnabled(string material) => _enabledMaterials.Contains(Normalize(material, "N/A"));
         public bool IsStoreyEnabled(string storey) => _enabledStoreys.Contains(Normalize(storey, "Unassigned"));
+        /// <summary>
+        /// Maps each assembly to the child parts that carry its geometry, so a
+        /// visibility change on an assembly can cascade to the parts the viewport
+        /// actually draws.
+        /// </summary>
+        private void BuildAssemblyChildMap()
+        {
+            _childrenByParentId.Clear();
+
+            foreach (var element in _allElements)
+            {
+                var parentId = element.ParentGlobalId;
+                if (string.IsNullOrWhiteSpace(parentId))
+                    continue;
+
+                if (!_childrenByParentId.TryGetValue(parentId, out var children))
+                {
+                    children = new List<PrecastElement>();
+                    _childrenByParentId[parentId] = children;
+                }
+
+                children.Add(element);
+            }
+        }
+
+        /// <summary>
+        /// Returns the given elements plus every descendant part beneath them.
+        /// The filter lists assemblies, but an assembly's visible geometry belongs
+        /// to its children — hiding the assembly alone leaves the parts on screen.
+        /// </summary>
+        private List<PrecastElement> ExpandWithDescendants(IEnumerable<PrecastElement> elements)
+        {
+            var result = new List<PrecastElement>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var queue = new Queue<PrecastElement>(elements);
+
+            while (queue.Count > 0)
+            {
+                var element = queue.Dequeue();
+                var id = element.ElementID;
+
+                if (string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                    continue;
+
+                result.Add(element);
+
+                if (_childrenByParentId.TryGetValue(id, out var children))
+                {
+                    foreach (var child in children)
+                        queue.Enqueue(child);
+                }
+            }
+
+            return result;
+        }
+
         public bool IsElementIncluded(PrecastElement element) => IsVisible(element);
         public bool IsElementHidden(PrecastElement element) => !IsVisible(element);
+
+        /// <summary>
+        /// True only when the element was explicitly hidden via <see cref="HideElements"/>.
+        /// Unlike <see cref="IsElementHidden"/>, this ignores elements that merely fall
+        /// outside the active type / material / storey / weight / search filters, so a
+        /// Hide-Show toggle can tell "user hid this" apart from "filtered out right now".
+        /// </summary>
+        public bool IsElementExplicitlyHidden(PrecastElement element) =>
+            !string.IsNullOrWhiteSpace(element.ElementID)
+            && _hiddenElementIds.Contains(element.ElementID);
 
         private void SetEnabled(HashSet<string> set, string value, bool enabled)
         {
@@ -252,6 +297,10 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private bool IsVisible(PrecastElement element)
         {
             var id = element.ElementID ?? string.Empty;
+
+            if (_activeIfcVisibilityOptions != null &&
+                IfcVisibilityOptionsCatalog.IsHiddenByOptions(_activeIfcVisibilityOptions, element))
+                return false;
 
             if (_hiddenElementIds.Contains(id))
                 return false;

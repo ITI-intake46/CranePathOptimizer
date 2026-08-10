@@ -16,6 +16,7 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Interaction;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 {
@@ -25,10 +26,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly ISceneService _scene;
         private readonly IIfcOptionsDialogService _dialogService;
         private readonly IDialogService _dialog;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IIfcSceneOperationService _ifcSceneOperations;
+        private readonly IIfcVisibilityOptionsService _visibilityOptionsService;
         private readonly IIfcDiagnosticAuditService _auditService;
         private readonly IProjectWorkspaceService? _workspaceService;
         private readonly IIfcNormalizationDecisionService _normalizationService;
@@ -36,17 +39,29 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IProjectCoordinateTransformService? _transformService;
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
-        private bool _isMovingExistingIfc;
+        private IfcMoveMethod? _activeIfcMoveMethod;
+        private IfcMoveStep _ifcMoveStep;
+        private Point3D? _selectedIfcBasePoint;
+        private Point3D? _ifcMovePreviewPoint;
+        private readonly object _ifcLoadSync = new();
+        private readonly SemaphoreSlim _ifcLoadGate = new(1, 1);
+        private CancellationTokenSource? _activeIfcLoadCancellation;
+        private CancellationTokenSource? _backgroundSessionCancellation;
+        private Task _backgroundSessionTask = Task.CompletedTask;
 
         public ICommand LoadIfcCommand { get; }
         public ICommand MergeIfcCommand { get; }
         public ICommand CancelPlacementCommand { get; }
         public ICommand MoveIfcCommand { get; }
+        public ICommand MoveIfcByOriginCommand { get; }
+        public ICommand MoveIfcByPickedPointCommand { get; }
         public ICommand DeleteIfcCommand { get; }
+        public ICommand ShowIfcDisplayOptionsCommand { get; }
 
         public event Action? IfcModelChanged;
 
         public string? LoadedIfcFilePath { get; private set; }
+        public bool HasIfcModel => _ifcSceneOperations.HasIfcModel;
 
         private bool _isLoading;
         public bool IsLoading
@@ -81,9 +96,58 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
         }
 
-        public string PlacementPrompt => _isMovingExistingIfc
-            ? "Click the new IFC origin location. Press Esc to cancel."
-            : "Click to place IFC origin. Press Esc to cancel.";
+        public IfcMoveMethod? ActiveIfcMoveMethod
+        {
+            get => _activeIfcMoveMethod;
+            private set
+            {
+                _activeIfcMoveMethod = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlacementPrompt));
+            }
+        }
+
+        public IfcMoveStep IfcMoveStep
+        {
+            get => _ifcMoveStep;
+            private set
+            {
+                _ifcMoveStep = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlacementPrompt));
+            }
+        }
+
+        public Point3D? SelectedIfcBasePoint
+        {
+            get => _selectedIfcBasePoint;
+            private set
+            {
+                _selectedIfcBasePoint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public Point3D? IfcMovePreviewPoint
+        {
+            get => _ifcMovePreviewPoint;
+            private set
+            {
+                _ifcMovePreviewPoint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string PlacementPrompt => (ActiveIfcMoveMethod, IfcMoveStep) switch
+        {
+            (IfcMoveMethod.Origin, _) =>
+                "Select the new IFC origin location. Object Snap is available. Press Esc to cancel.",
+            (IfcMoveMethod.PickedPoint, IfcMoveStep.SelectBasePoint) =>
+                "Select a base point on the IFC model. Object Snap is available. Press Esc to cancel.",
+            (IfcMoveMethod.PickedPoint, IfcMoveStep.SelectDestination) =>
+                "Select the destination point. Object Snap is available. Press Esc to cancel.",
+            _ => "Click to place IFC origin. Press Esc to cancel."
+        };
 
         private Point3D? _pendingPlacementPoint;
         public Point3D? PendingPlacementPoint
@@ -109,7 +173,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IProjectWorkspaceService? workspaceService,
             IIfcNormalizationDecisionService normalizationService,
             IProjectCoordinateTransformService? transformService = null,
-            IProjectMaterialSettingsService? materialSettingsService = null)
+            IProjectMaterialSettingsService? materialSettingsService = null,
+            IIfcVisibilityOptionsService? visibilityOptionsService = null,
+            IDeleteConfirmationService? deleteConfirmation = null)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -119,17 +185,27 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _hitTest = hitTest;
             _filterService = filterService;
             _ifcSceneOperations = ifcSceneOperations;
+            _visibilityOptionsService = visibilityOptionsService ?? new IfcVisibilityOptionsService(filterService);
             _auditService = auditService;
             _workspaceService = workspaceService;
             _normalizationService = normalizationService;
             _transformService = transformService ?? App.ServiceProvider?.GetService<IProjectCoordinateTransformService>();
             _materialSettingsService = materialSettingsService;
+            _deleteConfirmation = deleteConfirmation
+                ?? new CraneOptimizer.UI.Core.Services.DeleteConfirmationService();
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
-            MoveIfcCommand = new RelayCommand(StartMoveIfc, CanMoveIfc);
+            MoveIfcCommand = new RelayCommand(() => { }, CanMoveIfc);
+            MoveIfcByOriginCommand = new RelayCommand(
+                () => StartMoveIfc(IfcMoveMethod.Origin),
+                CanMoveIfc);
+            MoveIfcByPickedPointCommand = new RelayCommand(
+                () => StartMoveIfc(IfcMoveMethod.PickedPoint),
+                CanMoveIfc);
             DeleteIfcCommand = new RelayCommand(DeleteIfc, CanEditPlacedIfc);
+            ShowIfcDisplayOptionsCommand = new RelayCommand(ShowIfcDisplayOptions, CanEditPlacedIfc);
             if (_scene != null)
             {
                 _scene.ElementsChanged += OnSceneElementsChanged;
@@ -139,6 +215,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private async Task LoadIfcAsync()
         {
             string lastStatus = "Selecting file...";
+            CancellationTokenSource? loadRequest = null;
+            bool loadGateEntered = false;
+            bool replacementStarted = false;
             try
             {
                 var osnap = App.ServiceProvider?.GetService<IOsnapService>();
@@ -174,14 +253,26 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     }
                 });
 
-                var readingOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
+                var readingOptions = await GetCurrentIfcReadingOptionsAsync();
+                loadRequest = BeginIfcLoadRequest();
+                await _ifcLoadGate.WaitAsync(loadRequest.Token);
+                loadGateEntered = true;
+                await PrepareForIfcReplacementAsync(loadRequest.Token);
+                replacementStarted = true;
                 var all = await Task.Run(() =>
-                    _ifcReader.ReadElements(path, progress, readingOptions));
+                    _ifcReader.ReadElements(
+                        path,
+                        progress,
+                        readingOptions,
+                        loadRequest.Token),
+                    loadRequest.Token);
+                loadRequest.Token.ThrowIfCancellationRequested();
 
                 Debug.WriteLine("IFC Loaded: " + (all?.Count ?? 0));
 
                 if (all == null || !all.Any())
                 {
+                    await CleanupFailedIfcReplacementAsync();
                     _dialog.ShowMessage("No elements found.");
                     return;
                 }
@@ -197,7 +288,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 {
                     try
                     {
-                        var auditOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
+                        var auditOptions = await GetCurrentIfcReadingOptionsAsync();
                         var auditResult = await _auditService.RunAuditAsync(auditPath, auditOptions);
                         var projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
                         await _auditService.GenerateReportsAsync(auditResult, projectFolder);
@@ -221,7 +312,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     PendingPlacementPoint = new Point3D(0, 0, 0);
                     DateTime viewportStartedUtc = DateTime.UtcNow;
                     var viewportTimer = Stopwatch.StartNew();
-                    _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                    await RunOnUiThreadAsync(() =>
+                    {
+                        _visibilityOptionsService.ApplyOptions(filter);
+                        _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                    });
                     viewportTimer.Stop();
                     IfcImportProfiler.Record(
                         "PreparingViewport",
@@ -233,12 +328,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         "ElementsCount",
                         placedElements.Count,
                         true);
-                    if (_pendingFilterOptions != null)
-                        _filterService.ApplyLoadOptions(_pendingFilterOptions);
-
                     _pendingIfcElements = null;
                     _pendingFilterOptions = null;
-                    _isMovingExistingIfc = false;
+                    ClearIfcMoveState();
                     IsPlacementMode = false;
                     OnPropertyChanged(nameof(PlacementPrompt));
                     Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements using IFC Origin Mapping.";
@@ -246,7 +338,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 }
                 else
                 {
-                    _isMovingExistingIfc = false;
+                    ClearIfcMoveState();
                     PendingPlacementPoint = null;
                     IsPlacementMode = true;
                     OnPropertyChanged(nameof(PlacementPrompt));
@@ -260,14 +352,26 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Status = $"Loaded {all.Count} elements. Click to place IFC origin.";
                 }
             }
+            catch (OperationCanceledException)
+            {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
+                Status = "IFC load cancelled";
+            }
             catch (Exception ex)
             {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
                 Debug.WriteLine($"[IFC-PERF] IFC load failed: {ex}");
                 _dialog.ShowMessage(ex.Message);
             }
             finally
             {
-                IsLoading = false;
+                bool isCurrentRequest =
+                    loadRequest == null || IsCurrentIfcLoadRequest(loadRequest);
+                CompleteIfcLoadRequest(loadRequest, loadGateEntered);
+                if (isCurrentRequest)
+                    IsLoading = false;
                 Debug.WriteLine($"[IFC-PERF] Last UI status completed: {lastStatus}");
             }
         }
@@ -295,13 +399,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
 
             Debug.WriteLine($"IFC Origin Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
-            _ifcSceneOperations.ReplaceIfcModel(placedElements);
             if (_pendingFilterOptions != null)
-                _filterService.ApplyLoadOptions(_pendingFilterOptions);
+                _visibilityOptionsService.ApplyOptions(_pendingFilterOptions);
+            _ifcSceneOperations.ReplaceIfcModel(placedElements);
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
             Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
@@ -321,14 +425,21 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
 
             string lastStatus = "Restoring IFC...";
+            CancellationTokenSource? loadRequest = BeginIfcLoadRequest();
+            bool loadGateEntered = false;
+            bool replacementStarted = false;
             try
             {
+                await _ifcLoadGate.WaitAsync(loadRequest.Token);
+                loadGateEntered = true;
                 var osnap = App.ServiceProvider?.GetService<IOsnapService>();
                 osnap?.SetMasterEnabled(false);
 
                 IsLoading = true;
                 Progress = 0;
                 Status = "Restoring IFC...";
+                await PrepareForIfcReplacementAsync(loadRequest.Token);
+                replacementStarted = true;
 
                 List<PrecastElement>? elements = null;
                 bool usedCache = false;
@@ -340,27 +451,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Debug.WriteLine("[IfcRestore] Diagnostic: Cached restore used DB elements. Full extraction skipped.");
                     Status = $"Restored {elements.Count} elements from database cache. Initializing background render session...";
                     lastStatus = "Restoring from database cache";
-                    
-                    // Start only the xBIM model session/context in the background for detailed mesh rendering
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            Debug.WriteLine("[IfcRestore] Background session: Initializing render-only xBIM session.");
-                            await _ifcReader.InitializeSessionForRenderingAsync(filePath);
-                            Debug.WriteLine("[IfcRestore] Background session: Render-only xBIM session initialized. Real mesh re-render triggered.");
-                            
-                            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
-                            {
-                                TryApplyIfcGeoreferencing();
-                                IfcModelChanged?.Invoke();
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[IfcRestore] Background session: Failed to initialize xBIM session for rendering: {ex.Message}");
-                        }
-                    });
                 }
                 else
                 {
@@ -389,7 +479,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     });
 
                     var readingOptions = await GetCurrentIfcReadingOptionsAsync();
-                    elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress, readingOptions));
+                    elements = await Task.Run(
+                        () => _ifcReader.ReadElements(
+                            filePath,
+                            progress,
+                            readingOptions,
+                            loadRequest.Token),
+                        loadRequest.Token);
 
                     if (elements != null && elements.Count > 0)
                     {
@@ -421,9 +517,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 if (elements == null || elements.Count == 0)
                 {
+                    await CleanupFailedIfcReplacementAsync();
                     Status = "Saved IFC contains no elements.";
                     return false;
                 }
+                loadRequest.Token.ThrowIfCancellationRequested();
 
                 var beforeFirstCOG = elements.FirstOrDefault()?.ElementCOG;
 
@@ -473,7 +571,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 DateTime viewportStartedUtc = DateTime.UtcNow;
                 var viewportTimer = Stopwatch.StartNew();
-                _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                await RunOnUiThreadAsync(() =>
+                {
+                    _visibilityOptionsService.ApplyOptions(
+                        _visibilityOptionsService.GetCurrentOptions());
+                    _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                });
                 viewportTimer.Stop();
                 IfcImportProfiler.Record(
                     "PreparingViewport",
@@ -487,6 +590,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     true);
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
+                if (usedCache)
+                    StartBackgroundRenderingSession(filePath);
 
                 var originalBounds = CalculateBounds(elements);
                 var finalBounds = CalculateBounds(placedElements);
@@ -517,42 +622,305 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 return true;
             }
+            catch (OperationCanceledException)
+            {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
+                Status = "IFC restore cancelled";
+                return false;
+            }
             catch (Exception ex)
             {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
                 Debug.WriteLine($"[IFC-PERF] IFC restore failed: {ex}");
                 Status = $"IFC restore failed: {ex.Message}";
                 return false;
             }
             finally
             {
-                IsLoading = false;
+                bool isCurrentRequest = IsCurrentIfcLoadRequest(loadRequest);
+                CompleteIfcLoadRequest(loadRequest, loadGateEntered);
+                if (isCurrentRequest)
+                    IsLoading = false;
                 Debug.WriteLine($"[IFC-PERF] Last UI status completed: {lastStatus}");
             }
         }
 
+        private CancellationTokenSource BeginIfcLoadRequest()
+        {
+            var request = new CancellationTokenSource();
+            CancellationTokenSource? superseded;
+            lock (_ifcLoadSync)
+            {
+                superseded = _activeIfcLoadCancellation;
+                _activeIfcLoadCancellation = request;
+            }
+
+            if (superseded != null)
+            {
+                try
+                {
+                    superseded.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The superseded operation completed between hand-off steps.
+                }
+            }
+            return request;
+        }
+
+        private bool IsCurrentIfcLoadRequest(CancellationTokenSource request)
+        {
+            lock (_ifcLoadSync)
+                return ReferenceEquals(_activeIfcLoadCancellation, request);
+        }
+
+        private void CompleteIfcLoadRequest(
+            CancellationTokenSource? request,
+            bool loadGateEntered)
+        {
+            if (loadGateEntered)
+                _ifcLoadGate.Release();
+            if (request == null)
+                return;
+
+            lock (_ifcLoadSync)
+            {
+                if (ReferenceEquals(_activeIfcLoadCancellation, request))
+                    _activeIfcLoadCancellation = null;
+            }
+
+            request.Dispose();
+        }
+
+        private async Task PrepareForIfcReplacementAsync(
+            CancellationToken cancellationToken)
+        {
+            await CancelBackgroundRenderingSessionAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            await RunOnUiThreadAsync(() =>
+            {
+                if (IsPlacementMode)
+                {
+                    _interaction.PopMode();
+                    CancelPlacement();
+                }
+
+                _pendingIfcElements = null;
+                _pendingFilterOptions = null;
+                ClearIfcMoveState();
+                PendingPlacementPoint = null;
+                LoadedIfcFilePath = null;
+
+                // Scene events synchronously remove viewport visuals, hit-test
+                // geometry, selection, and IFC snap data before xBIM is disposed.
+                _ifcSceneOperations.DeleteIfcModel();
+                IfcModelChanged?.Invoke();
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        private Task CleanupFailedIfcReplacementAsync() =>
+            RunOnUiThreadAsync(() =>
+            {
+                if (IsPlacementMode)
+                {
+                    _interaction.PopMode();
+                    CancelPlacement();
+                }
+
+                _pendingIfcElements = null;
+                _pendingFilterOptions = null;
+                ClearIfcMoveState();
+                PendingPlacementPoint = null;
+                LoadedIfcFilePath = null;
+                _ifcSceneOperations.DeleteIfcModel();
+                IfcModelChanged?.Invoke();
+            });
+
+        private async Task CancelBackgroundRenderingSessionAsync()
+        {
+            CancellationTokenSource? cancellation;
+            Task task;
+            lock (_ifcLoadSync)
+            {
+                cancellation = _backgroundSessionCancellation;
+                task = _backgroundSessionTask;
+                _backgroundSessionCancellation = null;
+                _backgroundSessionTask = Task.CompletedTask;
+            }
+
+            if (cancellation == null)
+                return;
+
+            cancellation.Cancel();
+            try
+            {
+                await task;
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancellation is the expected hand-off between IFC sessions.
+            }
+            finally
+            {
+                cancellation.Dispose();
+            }
+        }
+
+        private void StartBackgroundRenderingSession(string filePath)
+        {
+            var cancellation = new CancellationTokenSource();
+            Task task = InitializeBackgroundRenderingSessionAsync(
+                filePath,
+                cancellation);
+            lock (_ifcLoadSync)
+            {
+                _backgroundSessionCancellation = cancellation;
+                _backgroundSessionTask = task;
+            }
+        }
+
+        private async Task InitializeBackgroundRenderingSessionAsync(
+            string filePath,
+            CancellationTokenSource cancellation)
+        {
+            try
+            {
+                Debug.WriteLine(
+                    "[IfcRestore] Background session: Initializing render-only xBIM session.");
+                await _ifcReader.InitializeSessionForRenderingAsync(
+                    filePath,
+                    cancellation.Token);
+                cancellation.Token.ThrowIfCancellationRequested();
+
+                await RunOnUiThreadAsync(() =>
+                {
+                    if (cancellation.IsCancellationRequested ||
+                        !string.Equals(
+                            LoadedIfcFilePath,
+                            filePath,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+
+                    TryApplyIfcGeoreferencing();
+                    IfcModelChanged?.Invoke();
+                });
+                Debug.WriteLine(
+                    "[IfcRestore] Background session: Render-only xBIM session initialized. Real mesh re-render triggered.");
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+                Debug.WriteLine(
+                    "[IfcRestore] Background session: Initialization cancelled for IFC replacement.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(
+                    $"[IfcRestore] Background session: Failed to initialize xBIM session for rendering: {ex.Message}");
+            }
+        }
+
+        private static Task RunOnUiThreadAsync(Action action)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return Task.CompletedTask;
+            }
+
+            return dispatcher.InvokeAsync(action).Task;
+        }
+
         public bool MovePlacedIfc(Point3D insertionPoint)
         {
-            if (!IsPlacementMode || !_isMovingExistingIfc)
+            if (!IsPlacementMode)
                 return false;
 
             var elements = _ifcSceneOperations.GetElements();
             if (elements.Count == 0)
                 return false;
 
-            var firstEl = elements.FirstOrDefault();
-            var beforeCOG = firstEl?.ElementCOG;
-
-            var originalBounds = CalculateBounds(elements);
             var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
-            var delta = new Point3D(
+            var delta = new Vector3D(
                 insertionPoint.X - currentOffset.X,
                 insertionPoint.Y - currentOffset.Y,
                 insertionPoint.Z - currentOffset.Z);
 
-            var newOffset = new Point3D(
-                currentOffset.X + delta.X,
-                currentOffset.Y + delta.Y,
-                currentOffset.Z + delta.Z);
+            return ApplyIfcMoveDelta(
+                elements,
+                currentOffset,
+                delta,
+                $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}");
+        }
+
+        public bool SetIfcMoveBasePoint(Point3D basePoint)
+        {
+            if (!IsPlacementMode ||
+                ActiveIfcMoveMethod != IfcMoveMethod.PickedPoint ||
+                IfcMoveStep != IfcMoveStep.SelectBasePoint)
+            {
+                return false;
+            }
+
+            SelectedIfcBasePoint = basePoint;
+            IfcMovePreviewPoint = basePoint;
+            IfcMoveStep = IfcMoveStep.SelectDestination;
+            Status = "Select the destination point for the IFC base point.";
+            return true;
+        }
+
+        public void SetIfcMovePreviewPoint(Point3D previewPoint)
+        {
+            if (IsPlacementMode &&
+                ActiveIfcMoveMethod == IfcMoveMethod.PickedPoint &&
+                IfcMoveStep == IfcMoveStep.SelectDestination)
+            {
+                IfcMovePreviewPoint = previewPoint;
+            }
+        }
+
+        public bool MovePlacedIfcFromPoint(Point3D sourcePoint, Point3D destinationPoint)
+        {
+            if (!IsPlacementMode ||
+                ActiveIfcMoveMethod != IfcMoveMethod.PickedPoint ||
+                IfcMoveStep != IfcMoveStep.SelectDestination ||
+                !SelectedIfcBasePoint.HasValue ||
+                SelectedIfcBasePoint.Value != sourcePoint)
+            {
+                return false;
+            }
+
+            var elements = _ifcSceneOperations.GetElements();
+            if (elements.Count == 0)
+                return false;
+
+            var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            Vector3D delta = destinationPoint - sourcePoint;
+
+            return ApplyIfcMoveDelta(
+                elements,
+                currentOffset,
+                delta,
+                $"Moved IFC point to {destinationPoint.X:F2}, {destinationPoint.Y:F2}, {destinationPoint.Z:F2}");
+        }
+
+        private bool ApplyIfcMoveDelta(
+            List<PrecastElement> elements,
+            Point3D currentOffset,
+            Vector3D delta,
+            string completionStatus)
+        {
+            PrecastElement? firstElement = elements.FirstOrDefault();
+            DomainPoint3D? beforeCog = firstElement?.ElementCOG;
+            var originalBounds = CalculateBounds(elements);
+            Point3D newOffset = currentOffset + delta;
 
             // CRITICAL rendering sync fix: Set PendingPlacementPoint BEFORE calling MoveIfcModel,
             // so that ReRenderElements triggered synchronously inside MoveIfcModel reads the new offset correctly!
@@ -560,8 +928,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
 
-            var movedElements = _ifcSceneOperations.GetElements();
-            var afterCOG = movedElements.FirstOrDefault()?.ElementCOG;
+            List<PrecastElement> movedElements = _ifcSceneOperations.GetElements();
+            DomainPoint3D? afterCog = movedElements.FirstOrDefault()?.ElementCOG;
             var finalBounds = CalculateBounds(movedElements);
 
             // Log [IfcMove Z-Preservation Diagnosis] as strictly requested in safeguards
@@ -574,50 +942,77 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             Debug.WriteLine($"[IfcMove Diagnosis] Old Offset: ({currentOffset.X:F3}, {currentOffset.Y:F3}, {currentOffset.Z:F3})");
             Debug.WriteLine($"[IfcMove Diagnosis] New Offset: ({newOffset.X:F3}, {newOffset.Y:F3}, {newOffset.Z:F3})");
             Debug.WriteLine($"[IfcMove Diagnosis] Move Delta: ({delta.X:F3}, {delta.Y:F3}, {delta.Z:F3})");
-            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG Before: {(beforeCOG != null ? $"({beforeCOG.X:F3}, {beforeCOG.Y:F3}, {beforeCOG.Z:F3})" : "null")}");
-            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG After: {(afterCOG != null ? $"({afterCOG.X:F3}, {afterCOG.Y:F3}, {afterCOG.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG Before: {(beforeCog != null ? $"({beforeCog.X:F3}, {beforeCog.Y:F3}, {beforeCog.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG After: {(afterCog != null ? $"({afterCog.X:F3}, {afterCog.Y:F3}, {afterCog.Z:F3})" : "null")}");
 
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             IsPlacementMode = false;
-            OnPropertyChanged(nameof(PlacementPrompt));
-            Status = $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
+            Status = completionStatus;
             IfcModelChanged?.Invoke();
             return true;
         }
 
         private void CancelPlacement()
         {
+            bool wasMovingIfc = ActiveIfcMoveMethod.HasValue;
+            if (wasMovingIfc &&
+                _interaction.CurrentMode is Interaction.IfcMoveMode)
+            {
+                _interaction.PopMode();
+            }
+
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            if (!_isMovingExistingIfc)
+            if (!wasMovingIfc)
             {
                 PendingPlacementPoint = null;
                 LoadedIfcFilePath = null;
             }
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             IsPlacementMode = false;
-            OnPropertyChanged(nameof(PlacementPrompt));
             Progress = 0;
-            Status = "IFC placement cancelled";
+            Status = wasMovingIfc
+                ? "IFC movement cancelled."
+                : "IFC placement cancelled";
         }
 
-        private void StartMoveIfc()
+        public void CancelIfcMovement()
         {
-            if (!CanEditPlacedIfc())
+            if (ActiveIfcMoveMethod.HasValue)
+                CancelPlacement();
+        }
+
+        private void StartMoveIfc(IfcMoveMethod method)
+        {
+            if (!CanMoveIfc())
                 return;
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            _isMovingExistingIfc = true;
+            ActiveIfcMoveMethod = method;
+            IfcMoveStep = method == IfcMoveMethod.PickedPoint
+                ? IfcMoveStep.SelectBasePoint
+                : IfcMoveStep.None;
+            SelectedIfcBasePoint = null;
+            IfcMovePreviewPoint = null;
             IsPlacementMode = true;
-            OnPropertyChanged(nameof(PlacementPrompt));
 
             _interaction.PushMode(new Interaction.IfcMoveMode(
                 this,
                 _hitTest,
                 _interaction));
 
-            Status = "Click a new origin location for the IFC model.";
+            Status = method == IfcMoveMethod.Origin
+                ? "Select the new IFC origin location."
+                : "Select a base point on the IFC model.";
+        }
+
+        private void ClearIfcMoveState()
+        {
+            ActiveIfcMoveMethod = null;
+            IfcMoveStep = IfcMoveStep.None;
+            SelectedIfcBasePoint = null;
+            IfcMovePreviewPoint = null;
         }
 
         private void DeleteIfc()
@@ -625,12 +1020,19 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!CanEditPlacedIfc())
                 return;
 
+            if (!_deleteConfirmation.ConfirmDelete(
+                    "Remove IFC Model",
+                    "Are you sure you want to remove the current IFC model from this project?",
+                    "Remove"))
+            {
+                return;
+            }
+
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             PendingPlacementPoint = null;
             IsPlacementMode = false;
-            OnPropertyChanged(nameof(PlacementPrompt));
 
             _ifcSceneOperations.DeleteIfcModel();
             LoadedIfcFilePath = null;
@@ -639,22 +1041,35 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IfcModelChanged?.Invoke();
         }
 
+        private void ShowIfcDisplayOptions()
+        {
+            if (!CanEditPlacedIfc())
+                return;
+
+            var appliedOptions = _dialogService.ShowDisplayOptions(LoadedIfcFilePath);
+            if (appliedOptions == null)
+                return;
+
+            _visibilityOptionsService.ApplyOptions(appliedOptions);
+            Status = $"Showing {_filterService.ShowingCount} of {_filterService.TotalCount} elements after IFC display options.";
+        }
+
         private void ShowMergeIfcPlaceholder()
         {
             Status = "Merge IFC is available in the ribbon for multi-building workflow, but shared multi-model geometry loading is not implemented yet.";
         }
 
-        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync(bool hideGrids = false)
+        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync()
         {
             var session = _workspaceService?.CurrentSession;
             if (session == null || _materialSettingsService == null)
-                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3, hideGrids);
+                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3);
 
             var density = await _materialSettingsService
                 .GetConcreteDensityKgPerM3Async(session.ProjectId)
                 .ConfigureAwait(false);
 
-            return new IfcReadingOptions(density, hideGrids);
+            return new IfcReadingOptions(density);
         }
 
         private bool CanEditPlacedIfc() => !IsLoading && !IsPlacementMode && _ifcSceneOperations.HasIfcModel;
@@ -674,27 +1089,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         private void OnSceneElementsChanged(List<PrecastElement> elements)
         {
+            OnPropertyChanged(nameof(HasIfcModel));
             CommandManager.InvalidateRequerySuggested();
-        }
-
-        private static List<PrecastElement> ApplyFilter(
-            List<PrecastElement> elements,
-            IfcLoadOptionsDto options)
-        {
-            return elements.Where(e =>
-            {
-                var t = e.ElementType ?? "";
-
-                if (options.HideGrids && t.Contains("IfcGrid", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideLevels && t.Contains("IfcBuildingStorey", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideAnnotations && t.Contains("IfcAnnotation", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideSite && t.Contains("IfcSite", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideSpaces && t.Contains("IfcSpace", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideOpenings && t.Contains("IfcOpeningElement", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideVirtualElements && t.Contains("IfcVirtualElement", StringComparison.OrdinalIgnoreCase)) return false;
-
-                return true;
-            }).ToList();
         }
 
         private Point3D CalculatePlacementOffset(

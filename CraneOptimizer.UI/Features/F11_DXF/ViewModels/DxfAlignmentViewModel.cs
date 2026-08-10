@@ -12,6 +12,7 @@ using System.Linq;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Features.F11_DXF.Views;
 using System.Windows;
 
@@ -57,7 +58,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
             Transform.PropertyChanged += (_, _) => OnPropertyChanged(nameof(TransformSummary));
 
-            LoadDxfCommand   = new RelayCommand(ExecuteLoadDxf);
+            LoadDxfCommand   = new AsyncRelayCommand(ExecuteLoadDxfAsync);
             ApplyManualCommand = new RelayCommand(ExecuteApplyManual);
             ResetCommand     = new RelayCommand(ExecuteReset);
 
@@ -395,7 +396,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         //  Command execute methods
         // ═════════════════════════════════════════════════════════════════════
 
-        private void ExecuteLoadDxf()
+        private async Task ExecuteLoadDxfAsync()
         {
             IsDxfLoading  = true;
             ValidationError = "";
@@ -410,7 +411,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
                 if (dlg.ShowDialog() != true) return;
 
-                var doc = DxfDocument.Load(dlg.FileName);
+                var doc = await Task.Run(() => DxfDocument.Load(dlg.FileName));
 
                 if (doc == null)
                 {
@@ -422,14 +423,20 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 DxfFilePath = dlg.FileName;
                 DxfFileName = Path.GetFileName(dlg.FileName);
 
-                int textTotal = CountDxfTextEntities(doc);
-                int total =
-                    doc.Entities.Lines.Count() +
-                    doc.Entities.Polylines2D.Count() +
-                    doc.Entities.Arcs.Count() +
-                    doc.Entities.Circles.Count() +
-                    doc.Entities.Ellipses.Count() +
-                    textTotal;
+                var entitySummary = await Task.Run(() =>
+                {
+                    int textCount = CountDxfTextEntities(doc);
+                    int entityCount =
+                        doc.Entities.Lines.Count() +
+                        doc.Entities.Polylines2D.Count() +
+                        doc.Entities.Arcs.Count() +
+                        doc.Entities.Circles.Count() +
+                        doc.Entities.Ellipses.Count() +
+                        textCount;
+                    return (TextCount: textCount, EntityCount: entityCount);
+                });
+                int textTotal = entitySummary.TextCount;
+                int total = entitySummary.EntityCount;
 
                 long fileSizeKb = new FileInfo(dlg.FileName).Length / 1024;
                 DxfInfo = $"{total:N0} entities  •  {doc.Layers.Count} layers  •  {fileSizeKb:F0} KB";
@@ -438,13 +445,21 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
                 // Compute DXF bounds so the locked DXF reference can use the drawing centre.
                 ApplyDxfDocumentUnit(doc);
-                ComputeDxfBounds(doc);
+                _dxfBounds = await Task.Run(() => CalculateDxfBounds(doc));
+                OnPropertyChanged(nameof(DxfOriginalGeometryReferenceSummary));
                 ApplyDxfOriginalReferencePoint(doc);
                 TryApplyReferencePlacement(out _);
 
                 if (_uploader != null)
                 {
-                    PushToUploader();
+                    _uploader.AlignmentTransform = GetResultTransform();
+                    _uploader.Opacity = Opacity;
+                    bool loaded = await _uploader.LoadDxfAsync(DxfFilePath, KeepText);
+                    if (!loaded)
+                    {
+                        StatusMessage = $"Could not load {DxfFileName}: {_uploader.LastLoadDiagnostic}";
+                        return;
+                    }
                     StatusMessage = $"✓  Loaded: {DxfFileName}";
                 }
                 else
@@ -506,6 +521,12 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
         private void ComputeDxfBounds(DxfDocument doc)
         {
+            _dxfBounds = CalculateDxfBounds(doc);
+            OnPropertyChanged(nameof(DxfOriginalGeometryReferenceSummary));
+        }
+
+        private static Rect CalculateDxfBounds(DxfDocument doc)
+        {
             double minX = double.MaxValue, minY = double.MaxValue;
             double maxX = double.MinValue, maxY = double.MinValue;
             bool   hasPoints = false;
@@ -548,10 +569,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 }
             }
 
-            _dxfBounds = hasPoints
+            return hasPoints
                 ? new Rect(minX, minY, maxX - minX, maxY - minY)
                 : Rect.Empty;
-            OnPropertyChanged(nameof(DxfOriginalGeometryReferenceSummary));
         }
 
         private void ApplyDxfOriginalReferencePoint(DxfDocument doc)
@@ -725,7 +745,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             OnPropertyChanged(nameof(DxfOriginalGeometryReferenceSummary));
         }
 
-        private void InitializeFromUploader()
+        private async void InitializeFromUploader()
         {
             if (_uploader == null || string.IsNullOrWhiteSpace(_uploader.LoadedFilePath))
                 return;
@@ -736,23 +756,33 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
             try
             {
-                var doc = _uploader.LoadedDocument ?? DxfDocument.Load(_uploader.LoadedFilePath);
+                var doc = _uploader.LoadedDocument ??
+                    await Task.Run(() => DxfDocument.Load(_uploader.LoadedFilePath));
                 if (doc == null) return;
 
                 _loadedDocument = doc;
-                int textTotal = CountDxfTextEntities(doc);
-                int total =
-                    doc.Entities.Lines.Count() +
-                    doc.Entities.Polylines2D.Count() +
-                    doc.Entities.Arcs.Count() +
-                    doc.Entities.Circles.Count() +
-                    doc.Entities.Ellipses.Count() +
-                    textTotal;
+                var summary = await Task.Run(() =>
+                {
+                    int textCount = CountDxfTextEntities(doc);
+                    int entityCount =
+                        doc.Entities.Lines.Count() +
+                        doc.Entities.Polylines2D.Count() +
+                        doc.Entities.Arcs.Count() +
+                        doc.Entities.Circles.Count() +
+                        doc.Entities.Ellipses.Count() +
+                        textCount;
+                    return (
+                        TextCount: textCount,
+                        EntityCount: entityCount,
+                        Bounds: CalculateDxfBounds(doc));
+                });
 
                 long fileSizeKb = new FileInfo(_uploader.LoadedFilePath).Length / 1024;
-                DxfInfo = $"{total:N0} entities - {doc.Layers.Count} layers - {fileSizeKb:F0} KB - text {textTotal:N0}";
+                DxfInfo = $"{summary.EntityCount:N0} entities - {doc.Layers.Count} layers - " +
+                          $"{fileSizeKb:F0} KB - text {summary.TextCount:N0}";
                 ApplyDxfDocumentUnit(doc);
-                ComputeDxfBounds(doc);
+                _dxfBounds = summary.Bounds;
+                OnPropertyChanged(nameof(DxfOriginalGeometryReferenceSummary));
                 ApplyDxfOriginalReferencePoint(doc);
                 TryApplyReferencePlacement(out _);
                 StatusMessage = $"Ready: {DxfFileName}";
@@ -971,7 +1001,6 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             {
                 _uploader.AlignmentTransform = GetResultTransform();
                 _uploader.Opacity = Opacity;
-                _uploader.LoadDxf(DxfFilePath, KeepText);
                 return;
             }
 

@@ -44,7 +44,7 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                     "Reports",
                     $"Optimization coverage is {result.CoverageRatio:P2}, below the 95% report-readiness guidance threshold.",
                     "Resolve or explicitly document unresolved elements before issuing a final report.",
-                    "ANALYZE → GA Diagnostics"));
+                    "ANALYZE → Lift Summary"));
             }
 
             if (readiness.GaBlockedElements > 0)

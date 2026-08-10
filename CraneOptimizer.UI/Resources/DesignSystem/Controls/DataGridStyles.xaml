@@ -50,6 +50,13 @@
         <Setter Property="HeadersVisibility" Value="Column" />
         <Setter Property="RowHeight" Value="32" />
         <Setter Property="Margin" Value="5" />
+        <Setter Property="EnableRowVirtualization" Value="True" />
+        <Setter Property="EnableColumnVirtualization" Value="True" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+        <Setter Property="VirtualizingPanel.IsVirtualizingWhenGrouping" Value="True" />
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
 
         <Setter Property="ColumnHeaderStyle" Value="{StaticResource  DataGrid.ColumnHeader}" />
         <Setter Property="RowStyle" Value="{StaticResource  DataGrid.Row}" />

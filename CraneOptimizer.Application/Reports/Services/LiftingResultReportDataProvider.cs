@@ -9,9 +9,7 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
         string itemsIncluded,
         IEnumerable<LiftingResultSourceRowDto> sourceRows)
     {
-        var rows = sourceRows.ToList();
-        if (!templateName.Equals(ReportTemplateCatalog.GaAssignmentReview, StringComparison.OrdinalIgnoreCase))
-            rows = SelectOneFinalReportRowPerElement(rows);
+        var rows = SelectOneFinalReportRowPerElement(sourceRows.ToList());
 
         rows = ApplyItemsIncluded(templateName, itemsIncluded, rows).ToList();
 
@@ -20,17 +18,23 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
             {
                 var values = new Dictionary<string, object?>(row.Values, StringComparer.OrdinalIgnoreCase);
                 var rowNumber = index + 1;
-                var elementMark = FirstNonEmpty(row.CanonicalMark, row.ElementMark, row.ElementId);
+                var elementMark = FirstNonEmpty(row.CanonicalMark, row.ElementMark, GetText(values, "ElementName"), "\u2014");
                 var utilization = CalculateUtilization(row);
                 var liftStatus = MapLiftStatus(row.InternalLiftStatus);
+                var failureCategory = MapFailureCategory(liftStatus, GetText(values, "FailureCategory"));
                 var effectiveRadius = FirstPositive(row.Radius, GetDouble(values, "BestFailedRequiredRadius"));
-                var effectiveBoomLength = FirstPositive(row.BoomLength, GetDouble(values, "BestFailedRequiredBoomLength"));
+                var effectiveBoomLength = FirstPositive(
+                    GetDouble(values, "RequiredBoomLength"),
+                    GetDouble(values, "RequiredBoomLengthM"),
+                    GetDouble(values, "BestFailedRequiredBoomLength"),
+                    row.BoomLength);
                 var elementWeight = FirstPositiveDouble(GetDouble(values, "Weight"), GetDouble(values, "ElementWeight"), GetDouble(values, "ElementWeightTons"));
                 var hookRiggingWeight = FirstPositiveDouble(GetDouble(values, "HookRiggingWeight"), GetDouble(values, "AdditionalWeight"), GetDouble(values, "AdditionalWt"));
                 var requiredCapacity = FirstPositiveDouble(row.RequiredCapacity, GetDouble(values, "RequiredCapacity"), GetDouble(values, "RequiredCapacityTons"));
                 if (!requiredCapacity.HasValue && elementWeight.HasValue && hookRiggingWeight.HasValue)
                     requiredCapacity = elementWeight.Value + hookRiggingWeight.Value;
 
+                var material = CanonicalMaterialResolver.Resolve(GetText(values, "Material"));
                 var rawChartCapacity = FirstPositiveDouble(GetDouble(values, "RawChartCapacity"), GetDouble(values, "ChartCapacity"));
                 var availableCapacity = FirstPositiveDouble(row.AvailableCapacity, GetDouble(values, "AvailableCapacity"), GetDouble(values, "AvailableCapacityTons"));
                 utilization = availableCapacity is > 0 && requiredCapacity is > 0
@@ -45,6 +49,8 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
                 SetIfMissing(values, "ElementId", row.ElementId);
                 SetIfMissing(values, "ElementMark", elementMark);
                 SetIfMissing(values, "ElementType", row.ElementType);
+                SetIfMissing(values, "MaterialType", material.MaterialType);
+                SetIfMissing(values, "MaterialGrade", material.MaterialGrade);
                 SetIfMissing(values, "Weight", elementWeight);
                 SetIfMissing(values, "ElementWeight", elementWeight);
                 SetIfMissing(values, "HookRiggingWeight", hookRiggingWeight);
@@ -69,6 +75,7 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
                 SetIfMissing(values, "CapacityUtilizationPercent", utilization ?? (object)"\u2014");
                 SetIfMissing(values, "CapacityMargin", calculatedSafetyMargin);
                 SetIfMissing(values, "LiftStatus", liftStatus);
+                values["FailureCategory"] = failureCategory;
                 SetIfMissing(values, "SafetyMargin", effectiveSafetyMargin);
 
                 SetIfMissing(values, "ParentAssemblyGlobalId", row.ParentAssemblyGlobalId);
@@ -99,14 +106,14 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
         string itemsIncluded,
         IEnumerable<LiftingResultSourceRowDto> rows)
     {
+        if (templateName.Equals(ReportTemplateCatalog.GaResultReport, StringComparison.OrdinalIgnoreCase))
+            return rows;
+
         if (itemsIncluded == "Liftable Items Only")
             return rows.Where(row => MapLiftStatus(row.InternalLiftStatus) == "Liftable");
 
-        if (itemsIncluded == "Failed Items Only"
-            || templateName.Equals(ReportTemplateCatalog.FailedLiftsOnly, StringComparison.OrdinalIgnoreCase))
-        {
+        if (itemsIncluded == "Failed Items Only")
             return rows.Where(row => MapLiftStatus(row.InternalLiftStatus) != "Liftable");
-        }
 
         return rows;
     }
@@ -132,9 +139,42 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
             "OutOfRadius" or "Out Of Radius" => "Out Of Radius",
             "Overweight" => "Overweight",
             "HeightFail" or "Height Fail" => "Height Fail",
-            "NotCharted" or "No Chart Data" or "NoListedCapacity" => "No Chart Data",
-            "MissingLoadChartData" => "No Chart Data",
+            "NotCharted" or "No Chart Data" or "NoListedCapacity" => "Missing Load Chart Coverage",
+            "MissingLoadChartData" => "Missing Load Chart Coverage",
             "SpecialCase" => "SpecialCase",
+            _ => "\u2014"
+        };
+    }
+
+    private static string MapFailureCategory(string liftStatus, string? rawCategory = null)
+    {
+        var normalizedRaw = NormalizeFailureCategory(rawCategory);
+        if (normalizedRaw != "\u2014")
+            return normalizedRaw;
+
+        return liftStatus switch
+        {
+            "Out Of Radius" => "Out of Radius",
+            "Overweight" => "Overweight",
+            "Height Fail" => "Height Failure",
+            "Missing Load Chart Coverage" => "Missing Load Chart Coverage",
+            _ => "\u2014"
+        };
+    }
+
+    private static string NormalizeFailureCategory(string? value)
+    {
+        if (IsPlaceholder(value))
+            return "\u2014";
+
+        return value.Trim() switch
+        {
+            "OutOfRadius" or "Out Of Radius" or "Out of Radius" => "Out of Radius",
+            "Overweight" => "Overweight",
+            "HeightFail" or "Height Fail" or "Height Failure" or "BoomLengthExceeded" => "Height Failure",
+            "NotCharted" or "No Chart Data" or "MissingLoadChartData" or "Missing Load Chart Coverage"
+                or "OutsideChartEnvelope" or "InvalidBlankCell" or "InvalidZeroCell" or "NoListedCapacity"
+                or "NoListedCapacityForBoomRadius" => "Missing Load Chart Coverage",
             _ => "\u2014"
         };
     }

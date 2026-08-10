@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 {
@@ -34,6 +35,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             CancellationToken cancellationToken)
         {
             var allStageResults = new List<GAResult>();
+            var stageExecutions = new List<GaStageExecutionResult>();
             int stagesExecuted = 0;
             string terminationReason = "MaxStagesReached";
             string optimizationRunId = Guid.NewGuid().ToString();
@@ -75,13 +77,27 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     var stageInput = CloneInput(project, stageSettings);
 
                     // 3. Execute GA optimization run
+                    var stageStartedAtUtc = DateTimeOffset.UtcNow;
                     var sw = Stopwatch.StartNew();
                     var runResult = await Task.Run(() => _placementEngine.RunOptimization(stageInput, cancellationToken), cancellationToken);
                     sw.Stop();
+                    var stageCompletedAtUtc = DateTimeOffset.UtcNow;
 
                     System.Diagnostics.Debug.WriteLine($"[MultiStageGAOrchestrator] Stage {stagesExecuted} Finished: Coverage={runResult.CoverageRatio:P2}, ActivePositions={runResult.Positions.Count}, Fitness={runResult.FitnessScore:F4}, Time={sw.ElapsedMilliseconds}ms");
 
                     allStageResults.Add(runResult);
+                    stageExecutions.Add(new GaStageExecutionResult
+                    {
+                        OptimizationRunId = optimizationRunId,
+                        StageRunId = stageSettings.StageRunId,
+                        StageIndex = stageSettings.StageIndex,
+                        EffectiveSettings = CloneSettings(stageSettings),
+                        Result = runResult,
+                        StartedAtUtc = stageStartedAtUtc,
+                        CompletedAtUtc = stageCompletedAtUtc,
+                        DurationMilliseconds = sw.ElapsedMilliseconds,
+                        TerminationReason = "StageCompleted"
+                    });
 
                     // Track best result
                     if (bestResult == null || IsBetterResult(runResult, bestResult))
@@ -109,11 +125,30 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 throw new InvalidOperationException("No GA optimization stages completed successfully.");
             }
 
+            for (int i = 0; i < stageExecutions.Count; i++)
+            {
+                var stage = stageExecutions[i];
+                stageExecutions[i] = new GaStageExecutionResult
+                {
+                    OptimizationRunId = stage.OptimizationRunId,
+                    StageRunId = stage.StageRunId,
+                    StageIndex = stage.StageIndex,
+                    EffectiveSettings = stage.EffectiveSettings,
+                    Result = stage.Result,
+                    StartedAtUtc = stage.StartedAtUtc,
+                    CompletedAtUtc = stage.CompletedAtUtc,
+                    DurationMilliseconds = stage.DurationMilliseconds,
+                    TerminationReason = terminationReason,
+                    WasSelectedAsFinal = ReferenceEquals(stage.Result, bestResult)
+                };
+            }
+
             return new MultiStageGAResult(
                 bestResult,
                 stagesExecuted,
                 allStageResults,
-                terminationReason
+                terminationReason,
+                stageExecutions
             );
         }
 
@@ -161,13 +196,28 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 ScenarioId = null,
                 ProjectFeatureSnapshotId = source.ProjectFeatureSnapshotId,
                 ScopeDefinitionHash = source.ScopeDefinitionHash,
+                CanonicalSnapshot = source.CanonicalSnapshot,
+                SubmittedCanonicalLiftUnits = source.SubmittedCanonicalLiftUnits,
+                CanonicalSnapshotId = source.CanonicalSnapshotId,
+                CanonicalPayloadHash = source.CanonicalPayloadHash,
                 RawElementCount = source.RawElementCount,
                 OptimizationScopeElementCount = source.OptimizationScopeElementCount,
                 RequestedMaxCranePositions = source.RequestedMaxCranePositions,
                 FeatureScopeElements = source.FeatureScopeElements,
                 TotalElementsCount = source.TotalElementsCount,
+                RawGaEligibleElementCount = source.RawGaEligibleElementCount,
+                GroupedAssemblyCount = source.GroupedAssemblyCount,
+                UngroupedElementCount = source.UngroupedElementCount,
                 DiagnosticsReportsDirectory = source.DiagnosticsReportsDirectory
             };
+        }
+
+        private static GASettings CloneSettings(GASettings settings)
+        {
+            var clone = settings.Clone();
+            if (settings.TargetElementTypes != null)
+                clone.TargetElementTypes = settings.TargetElementTypes.ToArray();
+            return clone;
         }
     }
 }

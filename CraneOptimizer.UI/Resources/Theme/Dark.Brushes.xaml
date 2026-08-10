@@ -11,9 +11,9 @@
     <SolidColorBrush x:Key="SurfaceBrush"         Color="#222222"/>
     <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#2C2C2C"/>
     <SolidColorBrush x:Key="BorderBrush"          Color="#383838"/>
-    <SolidColorBrush x:Key="TextPrimaryBrush"     Color="#F0F0F0"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush"   Color="#9E9E9E"/>
-    <SolidColorBrush x:Key="TextDisabledBrush"    Color="#555555"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush"     Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush"   Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TextDisabledBrush"    Color="#FFFFFF" />
     <SolidColorBrush x:Key="SurfaceOverlayBrush"  Color="#AA000000"/>
 
 </ResourceDictionary>

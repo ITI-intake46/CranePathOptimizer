@@ -2,7 +2,9 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using CraneOptimizer.Application.GAAnalysis;
 using CraneOptimizer.Application.Reports.Builders;
 using CraneOptimizer.Application.Reports.Inputs;
 using CraneOptimizer.Application.Reports.Interfaces;
@@ -20,6 +22,8 @@ using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Reports.Csv;
 using CraneOptimizer.Infrastructure.Reports.Pdf;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
+using CraneOptimizer.Infrastructure.Optimization.GeneticAlgorithms.Snapshots;
+using CraneOptimizer.Infrastructure.GAAnalysis;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -38,6 +42,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
 using CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
@@ -59,6 +64,7 @@ using CraneOptimizer.UI.F90_CraneSeedData.Services;
 using CraneOptimizer.UI.Features.F17_Selection.Interaction;
 using CraneOptimizer.UI.Features.F17_Selection.Services;
 using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
+using CraneOptimizer.UI.Shared.Behaviors;
 
 namespace CraneOptimizer.UI
 {
@@ -68,6 +74,9 @@ namespace CraneOptimizer.UI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            SmoothScrollBehavior.Initialize();
+            CraneOptimizer.UI.Resources.NativeTitleBarTheme.Initialize();
+
             // Initialize transitional static holder
             ZoneGeometryServiceHolder.Instance = new CraneOptimizer.Domain.Services.ZoneGeometryService();
 
@@ -117,10 +126,12 @@ namespace CraneOptimizer.UI
             // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IDeleteConfirmationService, DeleteConfirmationService>();
             services.AddSingleton<IStatusService, StatusService>();
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
+            services.AddSingleton<IIfcVisibilityOptionsService, IfcVisibilityOptionsService>();
             services.AddSingleton<IImportReadinessService, ImportReadinessService>();
 
             // =========================
@@ -137,6 +148,17 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<IActiveProjectPathProvider, UiActiveProjectPathProvider>();
             services.AddSingleton<IProjectOutputPathService, ProjectOutputPathService>();
+            services.AddSingleton<IGaResultSnapshotMapper, GaResultSnapshotMapper>();
+            services.AddSingleton<IGaResultSnapshotValidator, GaResultSnapshotValidator>();
+            services.AddSingleton<IGaSnapshotClassificationService, GaSnapshotClassificationService>();
+            services.AddSingleton<IGaModelIdentityService, GaModelIdentityService>();
+            services.AddSingleton<IGaCurrentResultStore, GaCurrentResultStore>();
+            services.AddSingleton<IGaSnapshotReportAdapter, GaSnapshotReportAdapter>();
+            services.AddSingleton<IGaResultSnapshotPathResolver, GaResultSnapshotPathResolver>();
+            services.AddSingleton<IGaResultSnapshotStore, JsonGaResultSnapshotStore>();
+            services.AddSingleton<IGaLegacyCsvSnapshotAdapter, LegacyCsvGaSnapshotAdapter>();
+            services.AddSingleton<IGaResultSnapshotProvider, GaResultSnapshotProvider>();
+            services.AddGaLiftAnalysisFeature();
 
             services.AddTransient<SplashScreenViewModel>();
             services.AddTransient<ProjectManagementViewModel>();
@@ -157,6 +179,8 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
             services.AddSingleton<IDxfZoneImportService, DxfZoneImportService>();
+            services.AddSingleton<IDxfLayerZoneAssignmentService, DxfLayerZoneAssignmentService>();
+            services.AddSingleton<IProjectHistoryService, ProjectHistoryService>();
 
             // =========================
             // GA
@@ -168,12 +192,14 @@ namespace CraneOptimizer.UI
             services.AddScoped<IOptimizationScopeEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope.OptimizationScopeEngine>();
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
+            services.AddSingleton<IOptimizationViewportHighlightService, OptimizationViewportHighlightService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
+            services.AddSingleton<IGaSnapshotToUiResultMapper, GaSnapshotToUiResultMapper>();
             services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 
             // =========================
-            // AI Advisor / Local Ollama Copilot
+            // AI Assist / Local Ollama Studio
             // =========================
             services.AddCraneOptimizerAi();
             services.AddSingleton<IAiScreenContextContributor, IfcAiContextContributor>();
@@ -354,6 +380,7 @@ namespace CraneOptimizer.UI
                 await context.Database.MigrateAsync();
 
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
                 var seeder = scope.ServiceProvider.GetRequiredService<CraneSeedService>();
                 await seeder.SeedAsync();
             }
@@ -366,6 +393,15 @@ namespace CraneOptimizer.UI
 
         protected override void OnExit(ExitEventArgs e)
         {
+            try
+            {
+                ServiceProvider?.GetService<IGaLiftAnalysisJobCoordinator>()?.CancelAll();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Lift analysis shutdown cancellation error: {ex}");
+            }
+
             Dispatcher.InvokeShutdown();
 
             try

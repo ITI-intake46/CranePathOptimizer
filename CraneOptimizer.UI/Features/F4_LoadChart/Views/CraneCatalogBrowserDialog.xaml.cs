@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
     {
         private readonly LoadChartCatalogService _catalogService;
         private readonly IUnitSettingsService _unitSettingsService;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
         private readonly bool _isReadOnlyView;
         private readonly Func<int, Task>? _onCraneUpdated;
         private List<LoadChartCraneDto> _allCranes = new();
@@ -35,8 +37,16 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
-            Loaded += async (_, _) => await LoadCranesAsync();
+            _deleteConfirmation = App.ServiceProvider.GetRequiredService<IDeleteConfirmationService>();
+            ContentRendered += OnContentRendered;
         }
+
+        private async void OnContentRendered(object? sender, EventArgs e)
+        {
+            ContentRendered -= OnContentRendered;
+            await LoadCranesAsync();
+        }
+
         private void ApplyDialogMode()
         {
             if (_isReadOnlyView)
@@ -362,15 +372,13 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return;
             }
 
-            var result = MessageBox.Show(
-                this,
-                $"Delete saved crane '{crane.Name}'?",
-                "Delete Crane",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result != MessageBoxResult.Yes)
+            if (!_deleteConfirmation.ConfirmDelete(
+                    "Delete Crane",
+                    $"Are you sure you want to delete \"{crane.Name}\"?",
+                    "Delete"))
+            {
                 return;
+            }
 
             await _catalogService.DeleteAsync(crane.Id);
             await LoadCranesAsync();

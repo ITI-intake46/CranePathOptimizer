@@ -11,5 +11,17 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
         {
             InitializeComponent();
         }
+
+        private void MoveIfcButton_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (MoveIfcButton.IsEnabled)
+                MoveIfcPopup.IsOpen = true;
+        }
+
+        private void MoveIfcOption_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(
+                new System.Action(() => MoveIfcPopup.IsOpen = false));
+        }
     }
 }

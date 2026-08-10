@@ -673,6 +673,8 @@ namespace CraneOptimizer.AI.Services
             AppendMetadataFact(builder, facts, "BuildingUsage", "Building usage");
             AppendMetadataFact(builder, facts, "BuildingType", "Building type");
             AppendMetadataFact(builder, facts, "TopRawIfcTypes", "Top IFC classes");
+            AppendMetadataFact(builder, facts, AiWorkflowFactKeys.TopPlanningCategories, "Top planning/filterable categories");
+            AppendMetadataFact(builder, facts, AiWorkflowFactKeys.TopFilterableCategories, "Top filterable categories");
             AppendMetadataFact(builder, facts, "TopResolvedCategories", "Top resolved categories");
             if (context.ElementCount > 0 && !facts.ContainsKey("BuildingUsage") && !facts.ContainsKey("BuildingType"))
                 builder.AppendLine("- Explicit building usage/type was not exposed in the current AI context. AI should not infer usage from geometry alone.");

@@ -58,6 +58,9 @@ namespace CraneOptimizer.UI.Features.F0_CoordinateSystem
             normalized.ElementWidth = NormalizeNullableLength(element.ElementWidth);
             normalized.ElementHeight = NormalizeNullableLength(element.ElementHeight);
             normalized.ElementCOG = NormalizePoint(element.ElementCOG);
+            normalized.AssemblyLiftCOG = element.AssemblyLiftCOG == null
+                ? null
+                : NormalizePoint(element.AssemblyLiftCOG);
             normalized.BBoxLength = NormalizeNullableLength(element.BBoxLength);
             normalized.BBoxWidth = NormalizeNullableLength(element.BBoxWidth);
             normalized.BBoxHeight = NormalizeNullableLength(element.BBoxHeight);

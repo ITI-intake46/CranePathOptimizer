@@ -55,7 +55,7 @@
                             <StackPanel>
                                 <TextBlock Text="PDF metadata applied"
                                            FontFamily="{StaticResource FontPrimary}"
-                                           FontSize="13"
+                                           FontSize="10"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource PrimaryBrush}"/>
                                 <TextBlock x:Name="TxtMetadataSummary"
@@ -78,15 +78,15 @@
 
                     <TextBlock x:Name="LblVehicleLength" Text="Total Length * (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtVehicleLength" Margin="0,0,0,3"/>
-                    <TextBlock x:Name="HintVehicleLength" FontFamily="{StaticResource FontPrimary}" FontSize="13" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="HintVehicleLength" FontFamily="{StaticResource FontPrimary}" FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"/>
 
                     <TextBlock x:Name="LblVehicleHeight" Text="Transport Height * (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtVehicleHeight" Margin="0,0,0,3"/>
-                    <TextBlock x:Name="HintVehicleHeight" FontFamily="{StaticResource FontPrimary}" FontSize="13" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="HintVehicleHeight" FontFamily="{StaticResource FontPrimary}" FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"/>
 
                     <TextBlock x:Name="LblVehicleWidth" Text="Travel Width * (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtVehicleWidth" Margin="0,0,0,3"/>
-                    <TextBlock x:Name="HintVehicleWidth" FontFamily="{StaticResource FontPrimary}" FontSize="13" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="HintVehicleWidth" FontFamily="{StaticResource FontPrimary}" FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,12"/>
 
                     <StackPanel x:Name="OutriggerFieldsPanel">
                         <TextBlock Text="OUTRIGGER CONFIGURATION"
@@ -103,7 +103,7 @@
                                 Margin="0,0,0,10">
                             <TextBlock x:Name="TxtOutriggerMetadataNotice"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="13"
+                                       FontSize="10"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextWrapping="Wrap"/>
@@ -111,11 +111,11 @@
 
                         <TextBlock x:Name="LblOutriggerWidth" Text="Outrigger Span (pad to pad) * (m)" Style="{StaticResource PropertyLabel}"/>
                         <TextBox x:Name="TxtOutriggerWidth" Margin="0,0,0,3"/>
-                        <TextBlock x:Name="HintOutriggerWidth" FontFamily="{StaticResource FontPrimary}" FontSize="13" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="HintOutriggerWidth" FontFamily="{StaticResource FontPrimary}" FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"/>
 
                         <TextBlock x:Name="LblOutriggerLength" Text="Span to Span (front to rear) * (m)" Style="{StaticResource PropertyLabel}"/>
                         <TextBox x:Name="TxtOutriggerLength" Margin="0,0,0,3"/>
-                        <TextBlock x:Name="HintOutriggerLength" FontFamily="{StaticResource FontPrimary}" FontSize="13" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
+                        <TextBlock x:Name="HintOutriggerLength" FontFamily="{StaticResource FontPrimary}" FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
                     </StackPanel>
 
                     <Border x:Name="OnRubberNotice"

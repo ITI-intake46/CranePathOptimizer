@@ -46,7 +46,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             DeleteProjectCommand     = new AsyncRelayCommand<ProjectCardViewModel>(DeleteProjectAsync, project => project != null);
             ToggleFavoriteCommand    = new AsyncRelayCommand<ProjectCardViewModel>(ToggleFavoriteAsync, project => project != null);
             ShowInFolderCommand      = new RelayCommand<ProjectCardViewModel>(ShowInFolder, project => project != null);
-            ReturnToProjectCommand   = new RelayCommand(ReturnToProject, () => _activeSession != null);
+            ReturnToProjectCommand   = new AsyncRelayCommand(ReturnToProjectAsync, () => _activeSession != null);
             ContinueWorkingCommand   = new AsyncRelayCommand(ContinueWorkingAsync, () => HasValidLatestProject);
         }
 
@@ -277,7 +277,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     },
                     _lifetime.Token);
 
-                _navigationService.OpenMainWindow(session);
+                await _navigationService.OpenMainWindowAsync(session);
                 owner.Close();
             }
             catch (Exception ex)
@@ -300,7 +300,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             {
                 IsBusy = true;
                 var session = await _workspaceService.OpenProjectFolderAsync(folderPath, _lifetime.Token);
-                _navigationService.OpenMainWindow(session);
+                await _navigationService.OpenMainWindowAsync(session);
                 return session;
             }
             finally
@@ -357,7 +357,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             // If an active session exists, just return to it
             if (_activeSession != null)
             {
-                ReturnToProject();
+                await ReturnToProjectAsync();
                 return;
             }
 
@@ -375,7 +375,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     return;
                 }
 
-                _navigationService.OpenMainWindow(session);
+                await _navigationService.OpenMainWindowAsync(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -419,7 +419,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     },
                     _lifetime.Token);
 
-                _navigationService.OpenMainWindow(session);
+                await _navigationService.OpenMainWindowAsync(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -463,7 +463,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     return;
                 }
 
-                _navigationService.OpenMainWindow(session);
+                await _navigationService.OpenMainWindowAsync(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -494,7 +494,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     picker.FolderName,
                     _lifetime.Token);
 
-                _navigationService.OpenMainWindow(session);
+                await _navigationService.OpenMainWindowAsync(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -592,10 +592,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             }
         }
 
-        private void ReturnToProject()
+        private async Task ReturnToProjectAsync()
         {
             if (_activeSession == null) return;
-            _navigationService.OpenMainWindow(_activeSession);
+            await _navigationService.OpenMainWindowAsync(_activeSession);
             CloseEntryWindow();
         }
     }

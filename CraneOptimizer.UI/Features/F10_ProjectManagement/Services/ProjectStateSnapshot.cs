@@ -14,6 +14,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
         public ProjectModelFileState? DxfFile { get; set; }
 
+        public List<ProjectModelFileState> DxfFiles { get; set; } = new();
+
         public List<ProjectSiteZoneState> Zones { get; set; } = new();
 
         public List<ProjectCraneSetupState> Cranes { get; set; } = new();
@@ -40,6 +42,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         public string FileName { get; set; } = string.Empty;
         public double[]? TransformValues { get; set; }
         public string? MetadataJson { get; set; }
+        public Guid? SourceId { get; set; }
+        public int LoadedOrder { get; set; }
+        public bool IsSelected { get; set; }
+        public bool IsActiveSource { get; set; }
+        public bool HasSavedTransform { get; set; }
+        public bool UseDxfColors { get; set; }
     }
 
     public sealed class ProjectSiteZoneState
@@ -49,6 +57,15 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         public ZoneType Type { get; set; }
         public double Area { get; set; }
         public List<DomainPoint3D> Vertices { get; set; } = new();
+        public double? MinimumHeight { get; set; }
+        public double? MaximumHeight { get; set; }
+        public Guid? SourceDxfId { get; set; }
+        public string? SourceDxfFileName { get; set; }
+        public string? SourceDxfFilePath { get; set; }
+        public string? SourceLayerName { get; set; }
+        public string? SourceCandidateId { get; set; }
+        public string? ImportMethod { get; set; }
+        public ZoneType? OriginalAssignmentType { get; set; }
     }
 
     public sealed class ProjectCraneSetupState

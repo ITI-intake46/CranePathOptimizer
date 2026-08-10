@@ -15,7 +15,7 @@
 
 
 
-    <Grid Margin="24,20,24,20">
+    <Grid Margin="24,20,24,20" Background="{DynamicResource BackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

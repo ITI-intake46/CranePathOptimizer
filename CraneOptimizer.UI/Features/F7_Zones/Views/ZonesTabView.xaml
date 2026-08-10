@@ -19,135 +19,146 @@
         <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Margin="6,0" Orientation="Horizontal">
 
-                <Border Padding="8,6,8,0" Width="190">
-                    <DockPanel Width="220">
-                        <TextBlock DockPanel.Dock="Bottom" 
-                           Style="{StaticResource GroupLabel}" 
-                           Text="DRAW MODE" Width="106" />
-
-                        <StackPanel Orientation="Horizontal" Width="175">
-                            <Border Margin="0,0,8,0">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="BorderBrush" Value="Transparent" />
-                                        <Setter Property="BorderThickness" Value="0" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ActiveDrawingMode}" Value="Allowed">
-                                                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
-                                                <Setter Property="BorderThickness" Value="4,0,0,0" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <Button Command="{Binding StartAllowedCommand}" 
-                                Style="{StaticResource RibbonLargeBtn}" Height="95">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-check (1)_white.png" 
-                                               Width="32" Height="32" Margin="0,6,0,4"
-                                               RenderOptions.BitmapScalingMode="HighQuality"
-                                               Opacity="0.8"/>
-                                        <TextBlock Text="Allowed" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSM}"/>
-                                        <TextBlock Text="Zone" FontSize="{StaticResource FontSizeXS}" Opacity="0.85"/>
-                                    </StackPanel>
-                                </Button>
-                            </Border>
-
-                            <Border>
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="BorderBrush" Value="Transparent" />
-                                        <Setter Property="BorderThickness" Value="0" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ActiveDrawingMode}" Value="Forbidden">
-                                                <Setter Property="BorderBrush" Value="{StaticResource DestructiveBrush}" />
-                                                <Setter Property="BorderThickness" Value="4,0,0,0" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <Button Command="{Binding StartForbiddenCommand}" 
-                                Style="{StaticResource RibbonLargeBtn}" Height="95">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-x (1)_white.png" 
-                                               Width="32" Height="32" Margin="0,6,0,4"
-                                               RenderOptions.BitmapScalingMode="HighQuality"
-                                               Opacity="0.8"/>
-                                        <TextBlock Text="Forbidden" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSM}"/>
-                                        <TextBlock Text="Zone" FontSize="{StaticResource FontSizeXS}" Opacity="0.85"/>
-                                    </StackPanel>
-                                </Button>
-                            </Border>
-                        </StackPanel>
-                    </DockPanel>
-                </Border>
-
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-                <Border Padding="8,6,8,0">
-                    <DockPanel Width="90">
-                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="MEASURE" />
-                        <Button Command="{Binding StartMeasureCommand}" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Margin="0,8,0,2" FontSize="40" Text="📏" />
-                                <TextBlock Text="Measure" />
-                            </StackPanel>
-                        </Button>
-                    </DockPanel>
-                </Border>
-
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-                <Border Padding="8,6,8,0">
-                    <DockPanel Width="160">
-                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="ACTIONS" />
-                        <StackPanel Margin="0,2,0,0">
-                            <Button Width="150" Margin="0,0,0,3"
-                            Command="{Binding FinishCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="✔ Finish Zone" />
+                <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="DRAW MODE">
+                <StackPanel Orientation="Horizontal">
+                        <Border>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActiveDrawingMode}" Value="Allowed">
+                                            <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                                            <Setter Property="BorderThickness" Value="4,0,0,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Button Command="{Binding StartAllowedCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
+                                <Button.Tag>
+                                    <Image
+                                        Width="32"
+                                        Height="32"
+                                        Opacity="0.8"
+                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                        Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-check (1)_white.png" />
+                                </Button.Tag>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontWeight="SemiBold"
+                                        Text="Allowed" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Margin="0,2,0,0"
+                                        FontSize="{StaticResource FontSizeXS}"
+                                        Opacity="0.85"
+                                        Text="Zone" />
                                 </StackPanel>
                             </Button>
-                            <Button Width="150" Margin="0,0,0,3"
-                            Command="{Binding UndoCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-                                <TextBlock Text="↩ Undo Vertex" />
+                        </Border>
+                        <Border>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActiveDrawingMode}" Value="Forbidden">
+                                            <Setter Property="BorderBrush" Value="{StaticResource DestructiveBrush}" />
+                                            <Setter Property="BorderThickness" Value="4,0,0,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Button Command="{Binding StartForbiddenCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorTrailingCommandTile}">
+                                <Button.Tag>
+                                    <Image
+                                        Width="32"
+                                        Height="32"
+                                        Opacity="0.8"
+                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                        Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-x (1)_white.png" />
+                                </Button.Tag>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontWeight="SemiBold"
+                                        Text="Forbidden" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Margin="0,2,0,0"
+                                        FontSize="{StaticResource FontSizeXS}"
+                                        Opacity="0.85"
+                                        Text="Zone" />
+                                </StackPanel>
                             </Button>
-                            <Button Width="150"
-                            Command="{Binding CancelCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-                                <TextBlock Text="✕ Cancel" />
-                            </Button>
-                        </StackPanel>
-                    </DockPanel>
-                </Border>
+                        </Border>
+                </StackPanel>
+                </ContentControl>
 
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+                <Rectangle Style="{StaticResource RibbonSep}" />
 
-                <Border Padding="8,6,8,0">
-                    <DockPanel Width="165">
-                        <TextBlock DockPanel.Dock="Bottom"
-                           Style="{StaticResource GroupLabel}"
-                           Text="{Binding ZoneList.ZoneCount, StringFormat=MANAGE ({0} zones)}" />
-                        <StackPanel Margin="0,2,0,0">
-                            <Button Width="150" Margin="0,0,0,3"
+                <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
+                <StackPanel Orientation="Horizontal">
+                        <Button Command="{Binding FinishCommand}" Content="Finish Zone" Style="{StaticResource RibbonMajorLeadingCommandTile}">
+                            <Button.Tag>
+                                <TextBlock Text="✔" />
+                            </Button.Tag>
+                        </Button>
+                        <Button Command="{Binding CancelCommand}" Content="Cancel" Style="{StaticResource RibbonMajorTrailingCommandTile}">
+                            <Button.Tag>
+                                <TextBlock Text="✕" />
+                            </Button.Tag>
+                        </Button>
+                </StackPanel>
+                </ContentControl>
+
+                <Rectangle Style="{StaticResource RibbonSep}" />
+
+                <ContentControl
+                    Style="{StaticResource RibbonCommandGroup}"
+                    Tag="{Binding ZoneList.ZoneCount, StringFormat=MANAGE ({0} zones)}">
+                <StackPanel Orientation="Horizontal">
+                        <Button
+                            AutomationProperties.Name="Delete selected zone"
                             Command="{Binding DeleteZoneCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-                                <TextBlock Text="🗑 Delete Selected" />
-                            </Button>
-                            <Button Width="150" Margin="0,0,0,3"
+                            Content="Delete Selected"
+                            Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                            ToolTip="Deletes the selected zone from the scene. Requires a selected zone and no active drawing or measurement. This action cannot be undone."
+                            ToolTipService.ShowOnDisabled="True">
+                            <Button.Tag>
+                                <Grid Width="24" Height="24">
+                                    <Path Data="M 7,7 H 17 L 16,20 H 8 Z M 9,7 V 4 H 15 V 7 M 5,7 H 19 M 10,10 V 17 M 14,10 V 17"
+                                          Stroke="{StaticResource DestructiveBrush}"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeThickness="1.6" />
+                                </Grid>
+                            </Button.Tag>
+                        </Button>
+                        <Button
+                            AutomationProperties.Name="Delete all zones"
                             Command="{Binding DeleteAllCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-                                <TextBlock Text="🗑 Delete All" />
-                            </Button>
-                            <Button Width="150"
-                            Command="{Binding ZoneList.ExportZonesCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-                                <TextBlock Text="📤 Export JSON" />
-                            </Button>
-                        </StackPanel>
-                    </DockPanel>
-                </Border>
+                            Content="Delete All"
+                            Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                            ToolTip="Deletes every zone from the scene after confirmation. Requires at least one zone and no active drawing or measurement. This action cannot be undone."
+                            ToolTipService.ShowOnDisabled="True">
+                            <Button.Tag>
+                                <Grid Width="24" Height="24">
+                                    <Path Data="M 7,7 H 17 L 16,20 H 8 Z M 9,7 V 4 H 15 V 7 M 5,7 H 19 M 10,10 V 17 M 14,10 V 17"
+                                          Stroke="{StaticResource DestructiveBrush}"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeThickness="1.6" />
+                                </Grid>
+                            </Button.Tag>
+                        </Button>
+                </StackPanel>
+                </ContentControl>
 
             </StackPanel>
         </ScrollViewer>
@@ -160,12 +171,12 @@
 
             <Border
                 Grid.Row="0"
+                Margin="0,4,0,0"
                 Padding="10,5"
+                HorizontalAlignment="Center"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 CornerRadius="12"
                 Opacity="0.92"
-                HorizontalAlignment="Center"
-                Margin="0,4,0,0"
                 Visibility="{Binding IsHintVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                 <TextBlock
                     FontFamily="Consolas"
@@ -178,11 +189,11 @@
                 Grid.Row="1"
                 Margin="0,6,0,0"
                 Padding="10,5"
+                HorizontalAlignment="Left"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{StaticResource WarningBrush}"
                 BorderThickness="1"
                 CornerRadius="8"
-                HorizontalAlignment="Left"
                 Visibility="{Binding IsInlineWarningVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                 <TextBlock
                     FontSize="{StaticResource FontSizeSM}"
@@ -194,10 +205,10 @@
                 Grid.Row="1"
                 Margin="0,6,0,0"
                 Padding="10,5"
+                HorizontalAlignment="Center"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 CornerRadius="8"
                 Opacity="0.92"
-                HorizontalAlignment="Center"
                 Visibility="{Binding IsMeasureOverlayVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                 <TextBlock
                     FontFamily="Consolas"

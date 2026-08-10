@@ -31,6 +31,50 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void AnswersCombinedBimObjectAndZoneCountsFromOneSnapshot()
+        {
+            var context = BuildModelContext(
+                elementCount: 362,
+                modelRevision: 7,
+                zoneCount: 5,
+                allowedZoneCount: 3,
+                forbiddenZoneCount: 2);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many BIM objects and zones are currently loaded?",
+                "HOME",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("362 BIM/model object", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("5 zone", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("3 allowed/green", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("2 forbidden", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("same captured live project snapshot", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("BIM object and zone count", source, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("cannot find a deterministic count", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void AnswersBimObjectCountAliasAsTotalSceneCount()
+        {
+            var context = BuildModelContext(elementCount: 362, modelRevision: 7);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many BIM objects are currently loaded?",
+                "HOME",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("362 scene BIM/model object", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("cannot find a deterministic count", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void AnswersBimCategoryBreakdownFromLiveFacts()
         {
             var context = BuildModelContext();
@@ -150,6 +194,247 @@ namespace CraneOptimizer.Application.Tests.AI
 
 
         [Fact]
+        public void HostPlanningFactsMakeDirectCategoryAnswerPlanningFirstAndSceneAware()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many slabs are there?",
+                "HOME",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("50 filterable planning elements", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("116 objects classified as Slab", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("66 additional complete-scene objects", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Filterable planning elements: 357", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Currently visible filterable planning elements: 357", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("both planning/filterable and complete-scene values came from explicit deterministic host facts", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("not available to AI", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("BIM category count", source, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void HostPlanningFactsMakeDiscrepancyComparisonFullyHostConfirmed()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Why does the IFC Element Filter show 50 slabs while the BIM context contains 116?",
+                "HOME",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.Contains("Difference: **66 more complete-scene object(s)**", answer);
+            Assert.Contains("Both values are host-confirmed", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("user-reported value agrees", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("not independently confirmed", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("host context adapter is required", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void HostPlanningFactsMakeCategoryBreakdownShowBothAuthoritativeScopes()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Show the BIM category counts for the planning/filter scope and the complete IFC scene.",
+                "HOME",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Planning/filterable categories", answer);
+            Assert.Contains("Slab: 50", answer);
+            Assert.Contains("Beam: 40", answer);
+            Assert.Contains("Resolved categories — complete IFC scene", answer);
+            Assert.Contains("Slab: 116", answer);
+            Assert.Contains("Beam: 80", answer);
+            Assert.Contains("Planning/filterable counts are the primary engineering scope", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void AmbiguousAlternativeCategoryCountsStayDeterministicAndExplainBothScopes()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Are there 50 or 116 slabs?",
+                "IFC MODEL",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("Both numbers are correct for different scopes", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Use the planning/filterable count for lift planning: **50 Slab elements**", answer);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.DoesNotContain("2,383 slabs", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("count-scope comparison", source, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ConflictingUserReportedCountIsExplicitlyCorrectedByHostFacts()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Why does the Filter show 999 slabs while BIM contains 116?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("planning/filter value of 999 conflicts", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host-confirmed value of 50", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host fact is authoritative", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+        }
+
+        [Fact]
+        public void SingleReportedFilterCountIsCorrectedWithoutProviderFallback()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "The Filter says 999 slabs.",
+                "IFC MODEL",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("planning/filter value of 999 conflicts", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host-confirmed value of 50", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.Contains("count-scope comparison", source, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void WhichCategoryCountIsCorrectRecommendsPlanningAndExplainsBothScopes()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Which slab count is correct?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Use the planning/filterable count for lift planning: **50 Slab elements**", answer);
+            Assert.Contains("Use the same planning/filterable scope for engineering filtering", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void LiftPlanningQuestionDirectlyRecommendsPlanningScope()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Which slab count should I use for lift planning?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Use the planning/filterable count for lift planning: **50 Slab elements**", answer);
+            Assert.Contains("not as the lift-planning quantity", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void MultiCategoryComparisonIncludesEveryRequestedCategory()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Compare the slab and beam counts in both scopes.",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Slab: **50 planning/filterable**; **116 complete scene**", answer);
+            Assert.Contains("Beam: **40 planning/filterable**; **80 complete scene**", answer);
+            Assert.Contains("Use planning/filterable counts for engineering filtering and lift-planning quantities", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void UnknownTypePlanningBucketIsRecognizedAsTheUnknownCategory()
+        {
+            var context = BuildModelContext(new Dictionary<string, string>
+            {
+                [AiWorkflowFactKeys.ResolvedCategoryCounts] = "Unknown=1950; Slab=116",
+                [AiWorkflowFactKeys.TopResolvedCategories] = "Unknown (1,950), Slab (116)",
+                [AiWorkflowFactKeys.PlanningCategoryCounts] = "Slab=50; Unknown type=1",
+                [AiWorkflowFactKeys.TopPlanningCategories] = "Slab (50), Unknown type (1)",
+                [AiWorkflowFactKeys.FilterableCategoryCounts] = "Slab=50; Unknown type=1",
+                [AiWorkflowFactKeys.TopFilterableCategories] = "Slab (50), Unknown type (1)",
+                [AiWorkflowFactKeys.FilterableElementCount] = "51",
+                [AiWorkflowFactKeys.VisibleFilterableElementCount] = "51",
+                [AiWorkflowFactKeys.SceneBimObjectCount] = "2066",
+                [AiWorkflowFactKeys.TotalElements] = "2066"
+            }, elementCount: 2066, modelRevision: 11, tableTotalCount: 2000, visibleTableCount: 2000);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many unknown elements are there?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("1 filterable planning elements classified as Unknown", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("1,950 objects classified as Unknown", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("planning count for Unknown is not available", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void UnknownExplanationUsesThePublishedUnknownTypePlanningBucket()
+        {
+            var context = BuildModelContext(new Dictionary<string, string>
+            {
+                [AiWorkflowFactKeys.ResolvedCategoryCounts] = "Unknown=1950; Slab=116",
+                [AiWorkflowFactKeys.TopResolvedCategories] = "Unknown (1,950), Slab (116)",
+                [AiWorkflowFactKeys.PlanningCategoryCounts] = "Slab=50; Unknown type=1",
+                [AiWorkflowFactKeys.TopPlanningCategories] = "Slab (50), Unknown type (1)",
+                [AiWorkflowFactKeys.FilterableElementCount] = "51",
+                [AiWorkflowFactKeys.VisibleFilterableElementCount] = "51",
+                [AiWorkflowFactKeys.SceneBimObjectCount] = "2066",
+                [AiWorkflowFactKeys.TotalElements] = "2066"
+            }, elementCount: 2066, modelRevision: 12, tableTotalCount: 2000, visibleTableCount: 2000);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "What does Unknown mean?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Planning/filterable Unknown elements: 1", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Complete-scene Unknown objects: 1,950", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void ChatMessageMarksPreviousModelAnswersAsStale()
         {
             var oldContext = BuildModelContext(elementCount: 2483, modelRevision: 7);
@@ -198,10 +483,43 @@ namespace CraneOptimizer.Application.Tests.AI
         {
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("How many slabs are there?"));
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Show the BIM category breakdown."));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are there 50 or 116 slabs?"));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Which slab count should I use for lift planning?"));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Compare the slab and beam counts in both scopes."));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("The Filter says 999 slabs."));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Which slab count is correct?"));
             Assert.False(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are you able to extract the type of building or usage of the building?"));
         }
 
-        private static AiWorkflowContextSnapshot BuildModelContext(IReadOnlyDictionary<string, string>? facts = null, int elementCount = 2483, long modelRevision = 7, int tableTotalCount = 2382, int visibleTableCount = 2351)
+        private static AiWorkflowContextSnapshot BuildEndToEndCountContext()
+        {
+            return BuildModelContext(new Dictionary<string, string>
+            {
+                [AiWorkflowFactKeys.ResolvedCategoryCounts] = "Unknown=1950; Wall=214; Slab=116; Beam=80; Column=72; Roof=51",
+                [AiWorkflowFactKeys.TopResolvedCategories] = "Unknown (1,950), Wall (214), Slab (116), Beam (80), Column (72), Roof (51)",
+                [AiWorkflowFactKeys.PlanningCategoryCounts] = "Wall=214; Slab=50; Beam=40; Column=36; Roof=17",
+                [AiWorkflowFactKeys.TopPlanningCategories] = "Wall (214), Slab (50), Beam (40), Column (36), Roof (17)",
+                [AiWorkflowFactKeys.FilterableCategoryCounts] = "Wall=214; Slab=50; Beam=40; Column=36; Roof=17",
+                [AiWorkflowFactKeys.TopFilterableCategories] = "Wall (214), Slab (50), Beam (40), Column (36), Roof (17)",
+                [AiWorkflowFactKeys.FilterableElementCount] = "357",
+                [AiWorkflowFactKeys.VisibleFilterableElementCount] = "357",
+                [AiWorkflowFactKeys.CategoryCountScopeNote] = "Planning/filterable categories use the same scope as HOME → Filter: top-level LiftAssembly elements with IncludeInGa=true. Complete-scene categories can additionally include categorized child/component objects.",
+                [AiWorkflowFactKeys.RawIfcTypeCounts] = "IfcBuildingElementPart=2025; IfcElementAssembly=357; IfcReinforcingBar=100; IfcGrid=1",
+                [AiWorkflowFactKeys.TopRawIfcTypes] = "IfcBuildingElementPart (2,025), IfcElementAssembly (357), IfcReinforcingBar (100), IfcGrid (1)",
+                [AiWorkflowFactKeys.SceneBimObjectCount] = "2483",
+                [AiWorkflowFactKeys.TotalElements] = "2483"
+            }, elementCount: 2483, modelRevision: 9, tableTotalCount: 2383, visibleTableCount: 2383);
+        }
+
+        private static AiWorkflowContextSnapshot BuildModelContext(
+            IReadOnlyDictionary<string, string>? facts = null,
+            int elementCount = 2483,
+            long modelRevision = 7,
+            int tableTotalCount = 2382,
+            int visibleTableCount = 2351,
+            int zoneCount = 0,
+            int allowedZoneCount = 0,
+            int forbiddenZoneCount = 0)
         {
             var modelFacts = facts ?? new Dictionary<string, string>
             {
@@ -223,7 +541,9 @@ namespace CraneOptimizer.Application.Tests.AI
                 ElementCount = elementCount,
                 ElementTableTotalCount = tableTotalCount,
                 ElementTableVisibleCount = visibleTableCount,
-                ZoneCount = 0,
+                ZoneCount = zoneCount,
+                AllowedZoneCount = allowedZoneCount,
+                ForbiddenZoneCount = forbiddenZoneCount,
                 CraneCount = 0,
                 OptimizationResult = new AiOptimizationResultSnapshot { HasResult = false },
                 ScreenContexts = new[]

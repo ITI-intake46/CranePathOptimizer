@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using Xbim.Common.Geometry;
@@ -143,6 +144,18 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
 
         private static readonly object SpatialHitTestGate = new();
         private static readonly List<SpatialHitTestElement> SpatialHitTestElements = new();
+        public static event Action? SpatialHitTestSnapshotChanged;
+
+        /// <summary>
+        /// UI-neutral rendered bounds already calculated by the IFC rendering
+        /// pipeline. Object Snap copies only these scalar values on a worker;
+        /// it never traverses the WPF visual or mesh collections.
+        /// </summary>
+        public readonly record struct SpatialSnapBoundsSnapshot(
+            string ElementId,
+            Point3D Min,
+            Point3D Max,
+            bool IsVisible);
 
         public static int SpatialHitTestElementCount
         {
@@ -162,6 +175,8 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
                 SpatialHitTestElements.Clear();
                 SpatialHitTestElements.AddRange(elements);
             }
+
+            SpatialHitTestSnapshotChanged?.Invoke();
         }
 
         public static IReadOnlyList<SpatialHitTestElement> GetSpatialHitTestElements()
@@ -169,6 +184,32 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
             lock (SpatialHitTestGate)
             {
                 return SpatialHitTestElements.ToList();
+            }
+        }
+
+        public static SpatialSnapBoundsSnapshot[]
+            GetSpatialSnapBoundsSnapshot(
+                CancellationToken cancellationToken)
+        {
+            lock (SpatialHitTestGate)
+            {
+                var result = new SpatialSnapBoundsSnapshot[
+                    SpatialHitTestElements.Count];
+                for (int index = 0; index < result.Length; index++)
+                {
+                    if ((index & 255) == 0)
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                    SpatialHitTestElement element =
+                        SpatialHitTestElements[index];
+                    result[index] = new SpatialSnapBoundsSnapshot(
+                        element.ElementId,
+                        element.Min,
+                        element.Max,
+                        element.IsVisible);
+                }
+
+                return result;
             }
         }
 
@@ -198,6 +239,8 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
                 SpatialHitTestElements.Clear();
                 Debug.WriteLine($"[ElementVisualBuilder] Spatial Hit Test elements cleared. Reason={reason}, Removed={count}");
             }
+
+            SpatialHitTestSnapshotChanged?.Invoke();
         }
 
         public record RenderCacheStats(Guid? SessionId, int CacheCount);
@@ -346,7 +389,7 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
                 var labelToGid = new Dictionary<int, string>();
                 foreach (var p in model.Instances.OfType<IIfcProduct>())
                 {
-                    if (IsReinforcementIfcProduct(p))
+                    if (CurrentQuality != MeshQuality.High && IsReinforcementIfcProduct(p))
                         continue;
 
                     var gid = p.GlobalId.ToString();
@@ -717,15 +760,22 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
 
         private static bool ShouldRenderElement(PrecastElement? element)
         {
-            if (element == null || !element.IncludeInRender)
+            if (element == null)
                 return false;
 
-            return !ContainsReinforcementRenderToken(
+            bool isReinforcement = ContainsReinforcementRenderToken(
                 element.ElementID,
                 element.ElementName,
                 element.ElementType,
                 element.ElementMark,
                 element.AssemblyMark);
+
+            if (isReinforcement)
+            {
+                return CurrentQuality == MeshQuality.High;
+            }
+
+            return element.IncludeInRender;
         }
 
 
@@ -734,12 +784,19 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
             if (product == null)
                 return false;
 
-            return !ContainsReinforcementRenderToken(
+            bool isReinforcement = ContainsReinforcementRenderToken(
                 product.ExpressType?.Name,
                 product.GetType().Name,
                 product.Name?.ToString(),
                 product.ObjectType?.ToString(),
                 (product as IIfcElement)?.Tag?.ToString());
+
+            if (isReinforcement)
+            {
+                return CurrentQuality == MeshQuality.High;
+            }
+
+            return true;
         }
 
         private static double GetBoxDimension(double? value)
@@ -762,7 +819,7 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
             var children = product.IsDecomposedBy?.SelectMany(rel => rel.RelatedObjects).OfType<IIfcProduct>() ?? Enumerable.Empty<IIfcProduct>();
             foreach (var child in children)
             {
-                if (IsReinforcementIfcProduct(child))
+                if (CurrentQuality != MeshQuality.High && IsReinforcementIfcProduct(child))
                     continue;
 
                 if (!labelToGid.ContainsKey(child.EntityLabel)) labelToGid[child.EntityLabel] = owningGlobalId;
@@ -897,6 +954,8 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
                     if (removed > 0)
                         Debug.WriteLine($"[ElementVisualBuilder] Spatial Hit Test elements reset for session {sessionId}. Removed={removed}");
                 }
+
+                SpatialHitTestSnapshotChanged?.Invoke();
             }
         }
 
@@ -1322,7 +1381,7 @@ var ev = new ModelVisual3D { Content = group };
             var labelToGid = new Dictionary<int, string>();
             foreach (var p in model.Instances.OfType<IIfcProduct>())
             {
-                if (IsReinforcementIfcProduct(p))
+                if (CurrentQuality != MeshQuality.High && IsReinforcementIfcProduct(p))
                     continue;
 
                 var gid = p.GlobalId.ToString();

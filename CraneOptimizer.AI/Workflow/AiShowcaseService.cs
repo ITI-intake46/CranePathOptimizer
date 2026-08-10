@@ -93,7 +93,7 @@ namespace CraneOptimizer.AI.Workflow
                 "Lift-Unit Trust Agent",
                 "What-If Advisor",
                 "Report Narrative Generator",
-                "Local RAG Copilot",
+                "Local RAG Assistant",
                 "ModelOps Benchmarking"
             };
 
@@ -204,7 +204,7 @@ namespace CraneOptimizer.AI.Workflow
                 Title = "ModelOps Benchmarking",
                 Badge = "MLOPS",
                 Purpose = "Supports local Ollama model checks, pulls, streaming, benchmarks, and model choice guidance.",
-                Evidence = "Full Copilot includes model status, installed model list, benchmark summaries, streaming cancel, and history.",
+                Evidence = "The full AI Optimization Studio includes model status, installed model list, benchmark summaries, streaming cancel, and history.",
                 VisiblePower = "Shows AI engineering maturity: not only prompts, but model management and evaluation UX.",
                 DemoPrompt = "Which local model should I use for fast side-dock help versus deep report reasoning?",
                 RiskBoundary = "Benchmarks guide model choice; they do not change optimization outputs."

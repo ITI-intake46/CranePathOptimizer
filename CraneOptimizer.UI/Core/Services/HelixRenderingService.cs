@@ -19,6 +19,7 @@ namespace CraneOptimizer.UI.Core.Services
         private LinesVisual3D? _yAxis;
         private double _gridCenterX;
         private double _gridCenterY;
+        private bool _isGridVisible = true;
 
         private readonly Dictionary<string, List<Visual3D>> _layers = new();
 
@@ -37,6 +38,20 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void SetGridSize(double widthMeters, double lengthMeters)
             => SetGridSize(widthMeters, lengthMeters, _gridCenterX, _gridCenterY);
+
+        public bool IsGridVisible => _isGridVisible;
+
+        public void SetGridVisible(bool isVisible)
+        {
+            if (_isGridVisible == isVisible)
+                return;
+
+            _isGridVisible = isVisible;
+            SetGridVisualAttached(_grid, isVisible);
+            SetGridVisualAttached(_majorGridLines, isVisible);
+            SetGridVisualAttached(_xAxis, isVisible);
+            SetGridVisualAttached(_yAxis, isVisible);
+        }
 
         public void SetGridSize(
             double widthMeters,
@@ -79,7 +94,7 @@ namespace CraneOptimizer.UI.Core.Services
                 Center = ToLegacyGridPoint(_gridCenterX, _gridCenterY, 0),
                 Transform = LegacyGridToMetersTransform
             };
-            _viewport.Children.Add(_grid);
+            SetGridVisualAttached(_grid, _isGridVisible);
             AddMajorGridLines(widthMeters, lengthMeters);
             AddGridAxes(widthMeters, lengthMeters);
         }
@@ -94,7 +109,7 @@ namespace CraneOptimizer.UI.Core.Services
                 Thickness = 1.2,
                 Transform = LegacyGridToMetersTransform
             };
-            _viewport.Children.Add(_majorGridLines);
+            SetGridVisualAttached(_majorGridLines, _isGridVisible);
             UpdateMajorGridLines(widthMeters, lengthMeters);
         }
 
@@ -104,9 +119,21 @@ namespace CraneOptimizer.UI.Core.Services
 
             _xAxis = new LinesVisual3D { Color = Color.FromRgb(255, 120, 120), Thickness = 4, Transform = LegacyGridToMetersTransform };
             _yAxis = new LinesVisual3D { Color = Color.FromRgb(120, 230, 150), Thickness = 4, Transform = LegacyGridToMetersTransform };
-            _viewport.Children.Add(_xAxis);
-            _viewport.Children.Add(_yAxis);
+            SetGridVisualAttached(_xAxis, _isGridVisible);
+            SetGridVisualAttached(_yAxis, _isGridVisible);
             UpdateGridAxes(widthMeters, lengthMeters);
+        }
+
+        private void SetGridVisualAttached(Visual3D? visual, bool isAttached)
+        {
+            if (_viewport == null || visual == null)
+                return;
+
+            bool isCurrentlyAttached = _viewport.Children.Contains(visual);
+            if (isAttached && !isCurrentlyAttached)
+                _viewport.Children.Add(visual);
+            else if (!isAttached && isCurrentlyAttached)
+                _viewport.Children.Remove(visual);
         }
 
         private void UpdateMajorGridLines(double widthMeters, double lengthMeters)
@@ -326,12 +353,21 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         public void ClearLayer(string layerKey)
         {
-            if (!_layers.ContainsKey(layerKey)) return;
+            if (_viewport == null)
+                return;
 
-            foreach (var visual in _layers[layerKey])
-            {
-                _viewport!.Children.Remove(visual);
-            }
+            var visuals = new HashSet<Visual3D>();
+            if (_layers.TryGetValue(layerKey, out List<Visual3D>? trackedVisuals))
+                visuals.UnionWith(trackedVisuals);
+
+            visuals.UnionWith(_viewport.Children
+                .OfType<ModelVisual3D>()
+                .Where(visual => Equals(
+                    visual.GetValue(FrameworkElement.TagProperty),
+                    layerKey)));
+
+            foreach (Visual3D visual in visuals)
+                _viewport.Children.Remove(visual);
 
             _layers.Remove(layerKey);
         }

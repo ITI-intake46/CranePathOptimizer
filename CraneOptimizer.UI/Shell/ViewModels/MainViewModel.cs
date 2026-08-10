@@ -17,6 +17,7 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
@@ -25,12 +26,25 @@ using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
+    public enum RightWorkspaceTab
+    {
+        CraneManager,
+        AiAssistant
+    }
+
+    public enum LeftWorkspaceTab
+    {
+        ElementProperties,
+        ZoneManager
+    }
+
     public partial class MainViewModel : ViewModelBase, IDisposable
     {
         private readonly IIfcReaderRepository _ifcReader;
         private readonly IRenderingService _render;
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
         private readonly ICranePlacementService _cranePlacementService;
         private readonly ISceneRenderingManager _sceneRendering;
         private readonly IStatusService _status;
@@ -41,6 +55,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IProjectStateService _projectStateService;
         private readonly IProjectCoordinateTransformService _transformService;
         private readonly IImportReadinessService _readinessService;
+        private readonly IGaModelIdentityService _gaModelIdentityService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -52,6 +67,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private string? _currentProjectIfcPath;
         private string _currentProjectFolderPath = string.Empty;
         private string _currentProjectDatabasePath = string.Empty;
+        private LeftWorkspaceTab _selectedLeftWorkspaceTab =
+            LeftWorkspaceTab.ElementProperties;
+        private RightWorkspaceTab _selectedRightWorkspaceTab = RightWorkspaceTab.CraneManager;
 
         public MainViewModel(
             ISceneService scene,
@@ -77,7 +95,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             SelectionViewModel selection,
             CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
             IProjectCoordinateTransformService transformService,
-            IImportReadinessService readinessService)
+            IImportReadinessService readinessService,
+            IGaModelIdentityService gaModelIdentityService,
+            IDeleteConfirmationService? deleteConfirmation = null)
         {
             Scene = scene;
             Drawing = drawing;
@@ -95,6 +115,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _render = render;
             _craneRepo = craneRepo;
             _dialog = dialog;
+            _deleteConfirmation = deleteConfirmation
+                ?? new CraneOptimizer.UI.Core.Services.DeleteConfirmationService();
             _cranePlacementService = cranePlacementService;
             _sceneRendering = sceneRendering;
             _status = status;
@@ -104,6 +126,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
             _readinessService = readinessService;
+            _gaModelIdentityService = gaModelIdentityService;
 
             _transformService.ReferenceChanged += OnReferenceChanged;
 
@@ -113,10 +136,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.PickingChanged += OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged += OnCraneInteractionStateChanged;
             _unitSettings.SettingsChanged += OnUnitSettingsChanged;
-            Scene.ZoneAdded += OnProjectStateZoneChanged;
-            Scene.ZoneRemoved += OnProjectStateZoneChanged;
-            Scene.ZoneUpdated += OnProjectStateZoneChanged;
-            Scene.ZonesCleared += OnProjectStateChanged;
+            Scene.ZonesChanged += OnProjectStateChanged;
             Scene.CraneAdded += OnProjectStateCraneChanged;
             Scene.CraneRemoved += OnProjectStateCraneChanged;
             Scene.CraneMoved += OnProjectStateCraneChanged;
@@ -147,6 +167,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             AddMobileCraneCommand = new RelayCommand(AddMobileCraneAndStartPlacement, CanAddCrane);
             RemoveSelectedCraneCommand = new RelayCommand(RemoveSelectedCrane, CanRemoveSelectedCrane);
             RemoveAllCranesCommand = new RelayCommand(RemoveAllCranes, () => Scene.GetCranes().Count > 0);
+            OpenProjectFolderCommand = new RelayCommand(OpenProjectFolder, CanOpenProjectFolder);
+            SelectLeftWorkspaceTabCommand =
+                new RelayCommand<LeftWorkspaceTab>(SelectLeftWorkspaceTab);
+            SelectRightWorkspaceTabCommand = new RelayCommand<RightWorkspaceTab>(SelectRightWorkspaceTab);
 
             _ = LoadCranesAsync();
 
@@ -174,6 +198,61 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public ICommand AddMobileCraneCommand { get; }
         public ICommand RemoveSelectedCraneCommand { get; }
         public ICommand RemoveAllCranesCommand { get; }
+        public ICommand OpenProjectFolderCommand { get; }
+        public ICommand SelectLeftWorkspaceTabCommand { get; }
+        public ICommand SelectRightWorkspaceTabCommand { get; }
+
+        public LeftWorkspaceTab SelectedLeftWorkspaceTab
+        {
+            get => _selectedLeftWorkspaceTab;
+            set
+            {
+                if (_selectedLeftWorkspaceTab == value)
+                    return;
+
+                _selectedLeftWorkspaceTab = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsElementPropertiesWorkspaceTabSelected));
+                OnPropertyChanged(nameof(IsZoneManagerWorkspaceTabSelected));
+            }
+        }
+
+        public bool IsElementPropertiesWorkspaceTabSelected =>
+            SelectedLeftWorkspaceTab == LeftWorkspaceTab.ElementProperties;
+
+        public bool IsZoneManagerWorkspaceTabSelected =>
+            SelectedLeftWorkspaceTab == LeftWorkspaceTab.ZoneManager;
+
+        public RightWorkspaceTab SelectedRightWorkspaceTab
+        {
+            get => _selectedRightWorkspaceTab;
+            set
+            {
+                if (_selectedRightWorkspaceTab == value)
+                    return;
+
+                _selectedRightWorkspaceTab = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsCraneManagerWorkspaceTabSelected));
+                OnPropertyChanged(nameof(IsAiAssistantWorkspaceTabSelected));
+            }
+        }
+
+        public bool IsCraneManagerWorkspaceTabSelected =>
+            SelectedRightWorkspaceTab == RightWorkspaceTab.CraneManager;
+
+        public bool IsAiAssistantWorkspaceTabSelected =>
+            SelectedRightWorkspaceTab == RightWorkspaceTab.AiAssistant;
+
+        private void SelectRightWorkspaceTab(RightWorkspaceTab tab)
+        {
+            SelectedRightWorkspaceTab = tab;
+        }
+
+        private void SelectLeftWorkspaceTab(LeftWorkspaceTab tab)
+        {
+            SelectedLeftWorkspaceTab = tab;
+        }
 
         public Guid? CurrentProjectId
         {
@@ -304,6 +383,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set => _status.SetStatus(value);
         }
 
+        public string StatusBarStatusText =>
+            StatusText.StartsWith("Project opened:", StringComparison.Ordinal)
+                ? string.Empty
+                : StatusText;
+
         public string HistoryBreadcrumb
         {
             get => _status.HistoryBreadcrumb;
@@ -322,6 +406,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         {
             get => _coordY;
             set { _coordY = value; OnPropertyChanged(); }
+        }
+
+        private string _coordZ = "0.00M";
+        public string CoordZ
+        {
+            get => _coordZ;
+            set { _coordZ = value; OnPropertyChanged(); }
         }
 
         private bool _isModelLoaded;
@@ -470,8 +561,19 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public void OpenProject(ProjectSession session)
         {
+            _ = OpenProjectAsync(session);
+        }
+
+        public async Task OpenProjectAsync(ProjectSession session)
+        {
             var osnap = App.ServiceProvider?.GetService<IOsnapService>();
             osnap?.SetMasterEnabled(false);
+
+            if (_currentProjectSession != null
+                && !string.Equals(_currentProjectSession.ProjectGuid, session.ProjectGuid, StringComparison.Ordinal))
+            {
+                CranePlacement.DeactivateProject(_currentProjectSession.ProjectGuid);
+            }
 
             _currentProjectSession = session;
             CurrentProjectId = session.ProjectId;
@@ -479,8 +581,34 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CurrentProjectFolderPath = session.ProjectFolderPath;
             CurrentProjectDatabasePath = session.ProjectDatabasePath;
             CurrentProjectIfcPath = session.ProjectCard.IfcFilePath;
-            _ = LoadProjectUnitsAsync(session.ProjectId);
-            _ = LoadProjectStateAsync(session);
+
+            var projectGuid = !string.IsNullOrWhiteSpace(session.ProjectGuid)
+                ? session.ProjectGuid
+                : session.ProjectId.ToString("N");
+            var activation = new GaProjectActivationContext(
+                session.ProjectFolderPath,
+                projectGuid,
+                session.ProjectName,
+                CurrentProjectIfcPath,
+                null,
+                null,
+                null);
+
+            await LoadProjectUnitsAsync(session.ProjectId);
+            await CranePlacement.ActivateProjectAsync(activation);
+            await LoadProjectStateAsync(session);
+
+            var identity = await _gaModelIdentityService.BuildCurrentAsync(
+                activation with { IfcPath = CurrentProjectIfcPath },
+                Scene.GetElements(),
+                CancellationToken.None);
+            await CranePlacement.ActivateProjectAsync(activation with
+            {
+                IfcPath = CurrentProjectIfcPath,
+                CurrentModelFingerprint = identity.ModelFingerprint,
+                CurrentIfcSha256 = identity.IfcSha256,
+                ModelRevision = identity.ModelRevision
+            });
             _status.Set($"Project opened: {session.ProjectName}", "Load IFC when needed.");
         }
 
@@ -498,41 +626,55 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private double _lastCoordinateX;
         private double _lastCoordinateY;
+        private double _lastCoordinateZ;
         private bool _hasCoordinate;
 
         private void OnReferenceChanged(object? sender, EventArgs e)
         {
             if (_hasCoordinate)
             {
-                SetCoordinates(_lastCoordinateX, _lastCoordinateY);
+                SetCoordinates(_lastCoordinateX, _lastCoordinateY, _lastCoordinateZ);
             }
         }
 
         public void SetCoordinates(double x, double y)
         {
+            SetCoordinates(x, y, 0.0, isReferencePlane: true);
+        }
+
+        public void SetCoordinates(double x, double y, double z, bool isReferencePlane = false)
+        {
             _lastCoordinateX = x;
             _lastCoordinateY = y;
+            _lastCoordinateZ = z;
             _hasCoordinate = true;
 
             var settings = _unitSettings.Current;
-            var zVal = 0.0; // default ground Z
             if (CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi && _transformService != null && _transformService.IsEnabled)
             {
-                var localPt = new DomainPoint3D(x, y, zVal);
+                var localPt = new DomainPoint3D(x, y, z);
                 var surveyPt = _transformService.LocalToSurvey(localPt);
                 CoordX = $"{UnitSystem.FormatLength(x, settings)} (Easting: {surveyPt.X:F3} m)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} (Northing: {surveyPt.Y:F3} m) [Default Local Z: {UnitSystem.FormatLength(zVal, settings)} | Elevation: {surveyPt.Z:F3} m (Ground)]";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (Northing: {surveyPt.Y:F3} m)";
+                CoordZ = $"{UnitSystem.FormatLength(z, settings)} (Elevation: {surveyPt.Z:F3} m)";
             }
             else
             {
                 CoordX = UnitSystem.FormatLength(x, settings);
                 // Temporarily hidden by product decision. Keep logic intact for future re-enable.
-                // CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}] (Survey: Not active)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}]";
+                // CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(z, settings)}] (Survey: Not active)";
+                CoordY = UnitSystem.FormatLength(y, settings);
+                CoordZ = isReferencePlane
+                    ? $"{UnitSystem.FormatLength(z, settings)} [Default Local Z]"
+                    : UnitSystem.FormatLength(z, settings);
             }
         }
 
-        private void OnStatusChanged() => OnPropertyChanged(nameof(StatusText));
+        private void OnStatusChanged()
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusBarStatusText));
+        }
         private void OnHistoryChanged() => OnPropertyChanged(nameof(HistoryBreadcrumb));
     }
 }

@@ -17,5 +17,6 @@ public sealed class ReportMetadataDto
     public CraneReportInfoDto? CraneInfo { get; init; }
     public LiftingAccessoriesInfoDto? LiftingAccessories { get; init; }
     public IReadOnlyList<ReportSummaryItemDto> SummaryItems { get; init; } = Array.Empty<ReportSummaryItemDto>();
+    public IReadOnlyList<ReportSummaryItemDto> FailureBreakdownItems { get; init; } = Array.Empty<ReportSummaryItemDto>();
     public string? GeneralNotes { get; init; }
 }

@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Reports.Definitions;
+using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 using CraneOptimizer.UI.Features.F12_Reports.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,10 +16,14 @@ public sealed class ReportBuilderDialogService : IReportBuilderDialogService
         _serviceProvider = serviceProvider;
     }
 
-    public void ShowReportBuilder(ReportFamily family, string templateName, string itemsIncluded)
+    public async Task ShowReportBuilderAsync(
+        ReportFamily family,
+        string templateName,
+        string itemsIncluded,
+        GaReportRunSelection? runSelection = null)
     {
         var viewModel = _serviceProvider.GetRequiredService<ReportBuilderViewModel>();
-        viewModel.Initialize(family, templateName, itemsIncluded);
+        await viewModel.InitializeAsync(family, templateName, itemsIncluded, runSelection);
 
         var dialog = new ReportBuilderDialog(viewModel)
         {

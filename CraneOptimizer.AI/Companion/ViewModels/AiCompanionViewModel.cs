@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text;
@@ -18,10 +19,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
     /// Non-intrusive, in-shell AI companion that follows the user through the workflow.
     /// It does not open popups automatically and never mutates crane-planning data;
     /// it summarizes context, suggests the next safe step, and forwards explicit user prompts
-    /// to the existing local Ollama copilot.
+    /// to the configured local or BYOK cloud AI provider.
     /// </summary>
     public sealed class AiCompanionViewModel : ViewModelBase, IDisposable
     {
+        private const string DeterministicResponseLabel = "Application facts · deterministic";
+        private const string ReadOnlyAgentResponseLabel = "Read-only agent";
+
         private readonly IAiWorkflowContextProvider _workflowContextProvider;
         private readonly AiAdvisorViewModel _advisor;
         private readonly IAiAdvisorWindowService _windowService;
@@ -60,12 +64,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         private string _showcaseNarrative = "AI capabilities will appear after live workflow context is evaluated.";
         private string _showcaseBrief = "AI showcase brief will appear after live workflow context is evaluated.";
         private double _workflowProgressValue;
-        private double _composerHeight = 34d;
+        private double _composerHeight = 40d;
         private string _selectedCommandCenterTab = "Chat";
         private string _pinnedReadinessBody = "AI Mission Control will summarize the current project once live context is evaluated.";
         private string _currentModelFingerprint = string.Empty;
         private long _currentModelRevision;
         private AiCompanionChatMessageViewModel? _liveAssistantMessage;
+        private string _lastResponseModeLabel = string.Empty;
 
         public AiCompanionViewModel(
             IAiWorkflowContextProvider workflowContextProvider,
@@ -94,7 +99,8 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             ToggleExpandedCommand = new RelayCommand(ToggleExpanded);
             CollapseCommand = new RelayCommand(() => IsExpanded = false);
             ToggleQuietModeCommand = new RelayCommand(() => IsQuietMode = !IsQuietMode);
-            OpenFullCopilotCommand = new RelayCommand(OpenFullCopilot);
+            OpenFullStudioCommand = new RelayCommand(OpenFullStudio);
+            PrepareLocalOllamaQuestionCommand = new RelayCommand(PrepareLocalOllamaQuestion);
             AnalyzeHereCommand = new RelayCommand(AnalyzeHere);
             AskFromHereCommand = new RelayCommand(AskFromHere, () => !Advisor.IsBusy);
             AskToggleCommand = new RelayCommand(ToggleAskOrStop, () => Advisor.IsBusy ? Advisor.CanCancel : true);
@@ -131,7 +137,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public ICommand ToggleExpandedCommand { get; }
         public ICommand CollapseCommand { get; }
         public ICommand ToggleQuietModeCommand { get; }
-        public ICommand OpenFullCopilotCommand { get; }
+        public ICommand OpenFullStudioCommand { get; }
+        public ICommand OpenFullCopilotCommand => OpenFullStudioCommand;
+        public ICommand PrepareLocalOllamaQuestionCommand { get; }
         public ICommand AnalyzeHereCommand { get; }
         public ICommand AskFromHereCommand { get; }
         public ICommand AskToggleCommand { get; }
@@ -186,6 +194,10 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_questionText == value) return;
                 _questionText = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsProjectReadinessAgentQuestion));
+                OnPropertyChanged(nameof(AskToggleLabel));
+                OnPropertyChanged(nameof(AskToggleToolTip));
+                OnPropertyChanged(nameof(CompactStatusLabel));
             }
         }
 
@@ -198,6 +210,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 _workflowStage = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CollapsedTitle));
+                OnPropertyChanged(nameof(CommandCenterStatusTitle));
             }
         }
 
@@ -210,6 +223,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 _currentHint = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CollapsedSubText));
+                OnPropertyChanged(nameof(NextActionToolTip));
             }
         }
 
@@ -221,6 +235,8 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_nextAction == value) return;
                 _nextAction = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(NextActionTitle));
+                OnPropertyChanged(nameof(NextActionToolTip));
             }
         }
 
@@ -243,6 +259,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_workflowProgressLabel == value) return;
                 _workflowProgressLabel = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CommandCenterProgressLabel));
             }
         }
 
@@ -254,6 +271,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_projectInsight == value) return;
                 _projectInsight = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CommandCenterProjectLabel));
             }
         }
 
@@ -310,6 +328,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_missionDiagnosisStatus == value) return;
                 _missionDiagnosisStatus = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CommandCenterStatusTitle));
             }
         }
 
@@ -494,7 +513,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
         public string CommandCenterTitle => "AI Assist";
-        public string CommandCenterSubtitle => "Slim section rail · grounded current-model answers";
+        public string CommandCenterSubtitle => "Grounded current-model answers · verified context · governed actions";
         public string CommandCenterSelectedTabLabel => SelectedCommandCenterTab.Equals("AI Studio", StringComparison.OrdinalIgnoreCase) ? "Studio" : SelectedCommandCenterTab;
         public bool IsChatSectionSelected => IsCommandCenterTab("Chat");
         public bool IsMissionSectionSelected => IsCommandCenterTab("Mission");
@@ -503,10 +522,29 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public bool IsReportSectionSelected => IsCommandCenterTab("Report");
         public bool IsAiStudioSectionSelected => IsCommandCenterTab("AI Studio");
         public string CommandCenterStateLabel => $"{WorkflowStage} · {MissionDiagnosisStatus} · {WorkflowProgressLabel}";
+        public string CommandCenterStatusTitle => $"{WorkflowStage} · {MissionDiagnosisStatus}";
+        public string CommandCenterProjectLabel
+        {
+            get
+            {
+                var project = ProjectInsight.Replace("Project · ", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+                if (string.IsNullOrWhiteSpace(project))
+                    project = "No project";
+
+                return _currentModelRevision > 0
+                    ? $"{project} · rev {_currentModelRevision:N0}"
+                    : project;
+            }
+        }
+        public string CommandCenterProgressLabel => WorkflowProgressLabel;
         public string CommandCenterModelLabel => string.IsNullOrWhiteSpace(_currentModelFingerprint)
             ? $"Model: {ProjectInsight} · {DataInsight}"
             : $"Model: {ProjectInsight} · rev {_currentModelRevision:N0} · {DataInsight}";
         public string CommandCenterNextLabel => $"Next: {NextAction}";
+        public string NextActionTitle => BuildCompactNextAction(NextAction);
+        public string NextActionToolTip => string.IsNullOrWhiteSpace(CurrentHint)
+            ? NextAction
+            : $"{NextAction}{Environment.NewLine}{CurrentHint}";
         public Visibility ChatTabVisibility => IsCommandCenterTab("Chat") ? Visibility.Visible : Visibility.Collapsed;
         public Visibility MissionTabVisibility => IsCommandCenterTab("Mission") ? Visibility.Visible : Visibility.Collapsed;
         public Visibility BimTabVisibility => IsCommandCenterTab("BIM") ? Visibility.Visible : Visibility.Collapsed;
@@ -557,30 +595,57 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             get => _composerHeight;
             set
             {
-                var clamped = Math.Max(32d, Math.Min(120d, value));
+                var clamped = Math.Max(34d, Math.Min(120d, value));
                 if (Math.Abs(_composerHeight - clamped) < 0.5d) return;
                 _composerHeight = clamped;
                 OnPropertyChanged();
             }
         }
 
-        public string AskToggleLabel => Advisor.IsBusy ? "Stop" : "Send";
+        public bool IsProjectReadinessAgentQuestion => !Advisor.IsBusy && Advisor.CanRunProjectReadinessAgent(QuestionText);
+        public string AskToggleLabel => Advisor.IsBusy ? "Stop" : IsProjectReadinessAgentQuestion ? "Run Agent" : "Send";
         public string AskToggleToolTip => Advisor.IsBusy
-            ? "Stop the current local Ollama response."
-            : "Send the visible question with private live project context. Enter also sends.";
+            ? $"Stop the current {Advisor.SelectedProviderDisplayName} response."
+            : IsProjectReadinessAgentQuestion
+                ? "Run the governed Project Readiness Agent with typed read-only project tools."
+                : "Send the visible question with private live project context. Enter also sends.";
+        public string CompactStatusLabel => Advisor.IsBusy
+            ? "Generating…"
+            : Advisor.HasError
+                ? "Needs attention"
+                : IsProjectReadinessAgentQuestion
+                    ? ReadOnlyAgentResponseLabel
+                    : !string.IsNullOrWhiteSpace(_lastResponseModeLabel)
+                        ? _lastResponseModeLabel
+                        : Advisor.ProviderModeLabel;
 
-        public string CollapsedTitle => $"AI Copilot · {WorkflowStage}";
+        public string CollapsedTitle => $"AI Assist · {WorkflowStage}";
         public string CollapsedSubText => IsQuietMode ? "Quiet mode enabled" : CurrentHint;
         public string QuietModeLabel => IsQuietMode ? "Quiet" : "Quiet mode";
-        public double PanelWidth => IsExpanded ? 460d : 320d;
+        public double PanelWidth => IsExpanded ? 620d : 420d;
         public Visibility ExpandedVisibility => IsExpanded ? Visibility.Visible : Visibility.Collapsed;
         public Visibility CollapsedVisibility => IsExpanded ? Visibility.Collapsed : Visibility.Visible;
+
+        private void SetLastResponseMode(string label)
+        {
+            var normalized = label?.Trim() ?? string.Empty;
+            if (_lastResponseModeLabel == normalized)
+                return;
+
+            _lastResponseModeLabel = normalized;
+            OnPropertyChanged(nameof(CompactStatusLabel));
+        }
 
         private void NotifyCommandCenterSummaryChanged()
         {
             OnPropertyChanged(nameof(CommandCenterStateLabel));
+            OnPropertyChanged(nameof(CommandCenterStatusTitle));
+            OnPropertyChanged(nameof(CommandCenterProjectLabel));
+            OnPropertyChanged(nameof(CommandCenterProgressLabel));
             OnPropertyChanged(nameof(CommandCenterModelLabel));
             OnPropertyChanged(nameof(CommandCenterNextLabel));
+            OnPropertyChanged(nameof(NextActionTitle));
+            OnPropertyChanged(nameof(NextActionToolTip));
             OnPropertyChanged(nameof(ModelSessionLabel));
         }
 
@@ -639,7 +704,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             else
             {
                 CurrentHint = snapshot.Summary;
-                NextAction = "Review AI Assist context or open Full Copilot.";
+                NextAction = "Review AI Assist context or open AI Studio.";
             }
 
             WorkflowChecklist.Clear();
@@ -659,9 +724,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             var hasResult = liveContext.OptimizationResult.HasResult;
 
             ProjectInsight = hasProject ? $"Project · {liveContext.CurrentProjectName}" : "Project · not opened";
-            DataInsight = liveContext.ElementTableTotalCount > 0
-                ? $"{elementCount} BIM objects · {liveContext.ElementTableVisibleCount}/{liveContext.ElementTableTotalCount} table items visible · {zoneCount} zones · {BuildCraneInsight(craneCount)}"
-                : $"{elementCount} BIM objects · {zoneCount} zones · {BuildCraneInsight(craneCount)}";
+            var filterableCount = GetWorkflowFactInt(liveContext, AiWorkflowFactKeys.FilterableElementCount);
+            var visibleFilterableCount = GetWorkflowFactInt(liveContext, AiWorkflowFactKeys.VisibleFilterableElementCount);
+            DataInsight = filterableCount.HasValue
+                ? visibleFilterableCount.HasValue
+                    ? $"{visibleFilterableCount.Value:N0}/{filterableCount.Value:N0} planning/filter elements visible · {elementCount:N0} complete-scene objects · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}"
+                    : $"{filterableCount.Value:N0} planning/filter elements · {elementCount:N0} complete-scene objects · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}"
+                : liveContext.ElementTableTotalCount > 0
+                    ? $"{elementCount:N0} BIM objects · {liveContext.ElementTableVisibleCount:N0}/{liveContext.ElementTableTotalCount:N0} table items visible · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}"
+                    : $"{elementCount:N0} BIM objects · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}";
             ResultInsight = BuildResultInsight(liveContext.OptimizationResult);
             RiskInsight = snapshot.MissingCriticalCount == 0
                 ? "No critical readiness gaps"
@@ -676,6 +747,23 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
 
+        private static int? GetWorkflowFactInt(AiWorkflowContextSnapshot context, string key)
+        {
+            foreach (var screen in context.ScreenContexts ?? Array.Empty<AiScreenContextSnapshot>())
+            {
+                if (screen.Facts == null
+                    || !screen.Facts.TryGetValue(key, out var value)
+                    || !int.TryParse(value, out var parsed))
+                {
+                    continue;
+                }
+
+                return parsed;
+            }
+
+            return null;
+        }
+
         private void UpdateConversationFreshness(AiWorkflowContextSnapshot liveContext)
         {
             var nextFingerprint = liveContext.ModelFingerprint ?? string.Empty;
@@ -689,6 +777,39 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             _currentModelFingerprint = nextFingerprint;
             _currentModelRevision = liveContext.ModelRevision;
             OnPropertyChanged(nameof(ModelSessionLabel));
+            OnPropertyChanged(nameof(CommandCenterProjectLabel));
+        }
+
+        private static string BuildCompactNextAction(string value)
+        {
+            var text = (value ?? string.Empty).Trim().TrimEnd('.');
+            if (string.IsNullOrWhiteSpace(text))
+                return "Review the current project";
+
+            if (text.Contains("MOBILE CRANE", StringComparison.OrdinalIgnoreCase))
+                return "Select a mobile crane";
+
+            if (text.Contains("LOAD CHART", StringComparison.OrdinalIgnoreCase))
+                return "Import a load chart";
+
+            if (text.Contains("WEIGHT", StringComparison.OrdinalIgnoreCase)
+                && text.Contains("TRUST", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Review trusted lift weights";
+            }
+
+            var arrowIndex = text.LastIndexOf('→');
+            if (arrowIndex >= 0 && arrowIndex < text.Length - 1)
+                text = text[(arrowIndex + 1)..].Trim();
+
+            if (text.Length <= 42)
+                return text;
+
+            var cut = text.LastIndexOf(' ', 41);
+            if (cut < 20)
+                cut = 41;
+
+            return $"{text[..cut].TrimEnd()}…";
         }
 
         private static string BuildModelContextLabel(AiWorkflowContextSnapshot context)
@@ -1198,6 +1319,22 @@ namespace CraneOptimizer.AI.Companion.ViewModels
 
             var readiness = _workflowReadinessService.Evaluate(liveContext, uiContextAtSend);
 
+            if (Advisor.CanRunProjectReadinessAgent(visibleQuestion))
+            {
+                await Advisor.RunProjectReadinessAgentAsync(
+                    liveContext,
+                    visibleQuestion,
+                    activeScreenAtSend,
+                    nextActionAtSend).ConfigureAwait(true);
+                SetLastResponseMode(ReadOnlyAgentResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    Advisor.AiAnswer,
+                    liveContext,
+                    ReadOnlyAgentResponseLabel));
+                FocusChatForSubmittedPrompt();
+                return;
+            }
+
             if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
                     liveContext,
                     readiness,
@@ -1212,7 +1349,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     out _))
             {
                 Advisor.RecordDeterministicCompanionAnswer(visibleQuestion, routedAnswer, routedSource);
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(routedAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    routedAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1220,7 +1361,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (AiBimProjectQuestionService.TryBuildAnswer(liveContext, visibleQuestion, activeScreenAtSend, out var bimAnswer, out var bimSource))
             {
                 Advisor.RecordDeterministicCompanionAnswer(visibleQuestion, bimAnswer, bimSource);
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(bimAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    bimAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1235,9 +1380,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 Advisor.RecordDeterministicCompanionAnswer(
                     visibleQuestion,
                     metadataAnswer,
-                    "Deterministic IFC metadata guidance produced locally; Ollama was not required for this evidence-routing answer.");
+                    "Deterministic IFC metadata guidance produced locally; no generative provider was required for this evidence-routing answer.");
 
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(metadataAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    metadataAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1253,14 +1402,23 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 Advisor.RecordDeterministicCompanionAnswer(
                     visibleQuestion,
                     deterministicAnswer,
-                    "Deterministic blocker guidance produced locally; Ollama was not required for this safety-critical next-step answer.");
+                    "Deterministic blocker guidance produced locally; no generative provider was required for this safety-critical next-step answer.");
 
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(deterministicAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    deterministicAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
 
-            _liveAssistantMessage = AiCompanionChatMessageViewModel.Assistant("Generating locally… live response will appear here as Ollama streams.", liveContext);
+            var providerResponseLabel = $"AI model · {Advisor.SelectedProviderDisplayName}";
+            SetLastResponseMode(providerResponseLabel);
+            _liveAssistantMessage = AiCompanionChatMessageViewModel.Assistant(
+                $"Generating with {Advisor.SelectedProviderDisplayName}… live response will appear here as it streams.",
+                liveContext,
+                providerResponseLabel);
             ConversationMessages.Add(_liveAssistantMessage);
             FocusChatForSubmittedPrompt();
 
@@ -1276,7 +1434,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     _liveAssistantMessage.Body = Advisor.HasAiAnswer
                         ? Advisor.AiAnswer
                         : string.IsNullOrWhiteSpace(Advisor.LastError)
-                            ? "No visible AI answer was produced. Check Ollama status or open Full Copilot for details."
+                            ? $"No visible AI answer was produced. Check {Advisor.SelectedProviderDisplayName} status or open AI Studio for details."
                             : Advisor.LastError;
                     FocusChatForSubmittedPrompt();
                 }
@@ -1341,11 +1499,21 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             FocusChatForSubmittedPrompt();
         }
 
-        private void OpenFullCopilot()
+        private void OpenFullStudio()
         {
             RefreshContext();
             Advisor.AnalyzeCurrentResult();
             _windowService.Show();
+        }
+
+        private void PrepareLocalOllamaQuestion()
+        {
+            RefreshContext();
+            IsExpanded = true;
+            SelectedCommandCenterTab = "Chat";
+            if (string.IsNullOrWhiteSpace(QuestionText))
+                QuestionText = "Explain the current project state and recommended next step.";
+            RequestComposerFocus();
         }
 
         private void ToggleExpanded()
@@ -1438,13 +1606,28 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     _liveAssistantMessage.Body = Advisor.AiAnswer;
             }
 
-            if (e.PropertyName is nameof(AiAdvisorViewModel.IsBusy) or nameof(AiAdvisorViewModel.CanCancel))
+            if (e.PropertyName is nameof(AiAdvisorViewModel.IsBusy)
+                or nameof(AiAdvisorViewModel.CanCancel)
+                or nameof(AiAdvisorViewModel.LastError)
+                or nameof(AiAdvisorViewModel.HasError)
+                or nameof(AiAdvisorViewModel.SelectedProviderId)
+                or nameof(AiAdvisorViewModel.SelectedProviderDisplayName)
+                or nameof(AiAdvisorViewModel.ProviderModeLabel))
             {
                 OnPropertyChanged(nameof(AskToggleLabel));
                 OnPropertyChanged(nameof(AskToggleToolTip));
+                OnPropertyChanged(nameof(CompactStatusLabel));
             }
 
-            if (e.PropertyName is nameof(AiAdvisorViewModel.AiAnswer) or nameof(AiAdvisorViewModel.HasAiAnswer) or nameof(AiAdvisorViewModel.IsBusy) or nameof(AiAdvisorViewModel.CanCancel))
+            if (e.PropertyName is nameof(AiAdvisorViewModel.AiAnswer)
+                or nameof(AiAdvisorViewModel.HasAiAnswer)
+                or nameof(AiAdvisorViewModel.IsBusy)
+                or nameof(AiAdvisorViewModel.CanCancel)
+                or nameof(AiAdvisorViewModel.LastError)
+                or nameof(AiAdvisorViewModel.HasError)
+                or nameof(AiAdvisorViewModel.SelectedProviderId)
+                or nameof(AiAdvisorViewModel.SelectedProviderDisplayName)
+                or nameof(AiAdvisorViewModel.ProviderModeLabel))
                 CommandManager.InvalidateRequerySuggested();
         }
 
@@ -1492,13 +1675,21 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         private string _body = string.Empty;
         private DateTimeOffset _timestamp = DateTimeOffset.Now;
         private bool _isStale;
+        private bool _isDetailsExpanded;
         private string _staleContextLabel = string.Empty;
 
-        private AiCompanionChatMessageViewModel(string sender, string body, bool isReadinessIntro, AiWorkflowContextSnapshot? context)
+        private AiCompanionChatMessageViewModel(
+            string sender,
+            string body,
+            bool isReadinessIntro,
+            AiWorkflowContextSnapshot? context,
+            string? responseSourceLabel)
         {
             Sender = sender;
             _body = body;
             IsReadinessIntro = isReadinessIntro;
+            ResponseSourceLabel = responseSourceLabel?.Trim() ?? string.Empty;
+            ToggleDetailsCommand = new RelayCommand(ToggleDetails);
             if (context != null)
             {
                 ContextFingerprint = context.ModelFingerprint ?? string.Empty;
@@ -1510,7 +1701,14 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
         public string Sender { get; }
+        public bool IsUserMessage => Sender.Equals("You", StringComparison.OrdinalIgnoreCase);
+        public string SenderLabel => IsUserMessage ? "You" : "AI Assist";
+        public HorizontalAlignment MessageAlignment => IsUserMessage ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         public bool IsReadinessIntro { get; }
+        public string ResponseSourceLabel { get; }
+        public Visibility ResponseSourceVisibility => !IsUserMessage && !string.IsNullOrWhiteSpace(ResponseSourceLabel)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         public string ContextFingerprint { get; } = string.Empty;
         public long ContextRevision { get; }
         public int ContextElementCount { get; }
@@ -1549,11 +1747,45 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_body == value) return;
                 _body = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(FullBodyPreview));
+                OnPropertyChanged(nameof(CompactBodyPreview));
+                OnPropertyChanged(nameof(DisplayBody));
                 OnPropertyChanged(nameof(BodyPreview));
+                OnPropertyChanged(nameof(HasHiddenDetails));
+                OnPropertyChanged(nameof(DetailsToggleVisibility));
             }
         }
 
-        public string BodyPreview => CleanPreview(Body);
+        public ICommand ToggleDetailsCommand { get; }
+        public string FullBodyPreview => CleanPreview(Body);
+        public string CompactBodyPreview => IsUserMessage ? FullBodyPreview : BuildCompactPreview(FullBodyPreview);
+        public string DisplayBody => IsDetailsExpanded ? FullBodyPreview : CompactBodyPreview;
+        public string BodyPreview => DisplayBody;
+        public bool HasHiddenDetails => !string.Equals(FullBodyPreview, CompactBodyPreview, StringComparison.Ordinal);
+        public Visibility DetailsToggleVisibility => HasHiddenDetails ? Visibility.Visible : Visibility.Collapsed;
+        public string DetailsToggleLabel => IsDetailsExpanded ? "Show less" : "View details";
+
+        public bool IsDetailsExpanded
+        {
+            get => _isDetailsExpanded;
+            private set
+            {
+                if (_isDetailsExpanded == value) return;
+                _isDetailsExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayBody));
+                OnPropertyChanged(nameof(BodyPreview));
+                OnPropertyChanged(nameof(DetailsToggleLabel));
+            }
+        }
+
+        private void ToggleDetails()
+        {
+            if (!HasHiddenDetails)
+                return;
+
+            IsDetailsExpanded = !IsDetailsExpanded;
+        }
 
         public DateTimeOffset Timestamp
         {
@@ -1593,6 +1825,105 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             return $"{label} · rev {context.ModelRevision:N0} · {context.ElementCount:N0} BIM object(s)";
         }
 
+        private static string BuildCompactPreview(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var normalized = value.Trim();
+            if (normalized.Length <= 650 && normalized.Count(character => character == '\n') <= 9)
+                return normalized;
+
+            if (normalized.Contains("Project Readiness Agent", StringComparison.OrdinalIgnoreCase)
+                && normalized.Contains("Conclusion", StringComparison.OrdinalIgnoreCase))
+            {
+                var lines = normalized.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                var compact = new List<string>();
+                var first = lines.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line))?.Trim();
+                if (!string.IsNullOrWhiteSpace(first))
+                    compact.Add(first);
+
+                AppendSection(lines, compact, "Conclusion", 3);
+                AppendSection(lines, compact, "Recommended actions", 3, "Next actions");
+
+                var agentPreview = string.Join(Environment.NewLine, compact).Trim();
+                if (!string.IsNullOrWhiteSpace(agentPreview))
+                    return LimitAtReadingBoundary(agentPreview, 650);
+            }
+
+            return LimitAtReadingBoundary(normalized, 650);
+        }
+
+        private static void AppendSection(
+            IReadOnlyList<string> lines,
+            ICollection<string> destination,
+            string sectionName,
+            int maxContentLines,
+            string? displayName = null)
+        {
+            var sectionIndex = -1;
+            for (var i = 0; i < lines.Count; i++)
+            {
+                if (lines[i].Trim().Equals(sectionName, StringComparison.OrdinalIgnoreCase))
+                {
+                    sectionIndex = i;
+                    break;
+                }
+            }
+
+            if (sectionIndex < 0)
+                return;
+
+            if (destination.Count > 0)
+                destination.Add(string.Empty);
+            destination.Add(displayName ?? sectionName);
+
+            var appended = 0;
+            for (var i = sectionIndex + 1; i < lines.Count && appended < maxContentLines; i++)
+            {
+                var line = lines[i].Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                if (IsAgentSectionHeading(line))
+                    break;
+
+                destination.Add(line);
+                appended++;
+            }
+        }
+
+        private static bool IsAgentSectionHeading(string value)
+        {
+            return value.Equals("Plan and tool execution", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("Deterministic findings", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("Recommended actions", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("Governance", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("Grounding evidence", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string LimitAtReadingBoundary(string value, int maxLength)
+        {
+            if (value.Length <= maxLength)
+                return value;
+
+            var boundary = value.LastIndexOf("\n\n", maxLength, StringComparison.Ordinal);
+            if (boundary < maxLength / 2)
+            {
+                boundary = value.LastIndexOfAny(new[] { '.', '!', '?' }, maxLength - 1);
+                if (boundary >= maxLength / 2)
+                    boundary++;
+            }
+
+            if (boundary < maxLength / 2)
+                boundary = value.LastIndexOf(' ', maxLength - 1);
+
+            if (boundary < maxLength / 2)
+                boundary = maxLength;
+
+            return $"{value[..boundary].TrimEnd()}…";
+        }
+
         private static string CleanPreview(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -1621,12 +1952,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
         public static AiCompanionChatMessageViewModel ReadinessIntro(string body)
-            => new("AI", body, true, null);
+            => new("AI", body, true, null, null);
 
         public static AiCompanionChatMessageViewModel User(string body, AiWorkflowContextSnapshot? context = null)
-            => new("You", body, false, context);
+            => new("You", body, false, context, null);
 
-        public static AiCompanionChatMessageViewModel Assistant(string body, AiWorkflowContextSnapshot? context = null)
-            => new("AI", body, false, context);
+        public static AiCompanionChatMessageViewModel Assistant(
+            string body,
+            AiWorkflowContextSnapshot? context = null,
+            string? responseSourceLabel = null)
+            => new("AI", body, false, context, responseSourceLabel);
     }
 }

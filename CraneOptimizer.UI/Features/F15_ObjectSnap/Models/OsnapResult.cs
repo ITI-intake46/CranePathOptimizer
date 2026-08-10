@@ -4,7 +4,7 @@ using System.Windows.Media.Media3D;
 namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Models
 {
     /// <summary>
-    /// Immutable result returned by <c>IOsnapService.Snap()</c>.
+    /// Immutable result returned by <c>IOsnapService.SnapAsync()</c>.
     /// Carries everything needed for the visual indicator and the drawing handler.
     /// </summary>
     /// <param name="SnapType">Which snap type was matched.</param>

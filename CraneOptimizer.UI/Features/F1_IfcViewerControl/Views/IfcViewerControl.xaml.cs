@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,16 +11,21 @@ using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using HelixToolkit.Wpf;
 using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F11_DXF.Views;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Interaction;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
-using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F7_Zones.Interaction;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Resources;
 using CraneOptimizer.UI.Shell.Interaction;
 using CraneOptimizer.UI.Shell.ViewModels;
 
@@ -35,7 +42,6 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly IViewportHitTestService _hitTestService = null!;
         private readonly ICameraService _cameraService = null!;
         private readonly IOsnapService _osnapService = null!;
-        private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
         private readonly IUnitSettingsService _unitSettingsService = null!;
         private readonly IViewportSelectionService _viewportSelectionService = null!;
@@ -52,9 +58,29 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private string _lastElementSceneKey = string.Empty;
         private bool _pendingWheelClipUpdate;
         private bool _isUpdatingCameraMode;
+        private bool _zoneRenderPending;
 
         private OsnapIndicator? _osnapIndicator;
+        private OsnapPointerCoordinator? _osnapCoordinator;
+        private CancellationTokenSource? _osnapLifetime;
+        private HoverRequestContext? _latestHoverContext;
+        private long _osnapCameraVersion = 1;
+        private long _osnapDrawingStateVersion = 1;
+        private long _osnapRequestId;
+        private long _latestHoverRequestId;
+        private bool _zoneClickPending;
+        private bool _ifcMoveClickPending;
+        private int _loadGeneration;
         private readonly List<(MeasurementVisualData Data, Border Label)> _measurementLabels = new();
+        private readonly List<(MeasurementVisualData Data, System.Windows.Shapes.Line Line)> _measurementLines = new();
+        private readonly List<(MeasurementVisualData Data, System.Windows.Shapes.Ellipse Start, System.Windows.Shapes.Ellipse End)> _measurementEndpointMarkers = new();
+        private System.Windows.Shapes.Line? _measurementPreviewLine;
+        private System.Windows.Shapes.Ellipse? _measurementPreviewStartMarker;
+        private System.Windows.Shapes.Ellipse? _measurementPreviewEndMarker;
+        private FrameworkElement? _measurementPickMarker;
+        private static readonly double MeasurementLineThickness = Math.Clamp(2.25d, 1.5d, 3d);
+        private const double MeasurementEndpointSize = 7d;
+        private const double MeasurementPickMarkerSize = 16d;
 
         public IfcViewerControl()
         {
@@ -70,18 +96,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _hitTestService = App.ServiceProvider.GetRequiredService<IViewportHitTestService>();
             _cameraService = App.ServiceProvider.GetRequiredService<ICameraService>();
             _osnapService = App.ServiceProvider.GetRequiredService<IOsnapService>();
-            _osnapVm = App.ServiceProvider.GetRequiredService<OsnapPanelViewModel>();
             _osnapBridge = App.ServiceProvider.GetRequiredService<OsnapGeometryBridge>();
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             _viewportSelectionService = App.ServiceProvider.GetRequiredService<IViewportSelectionService>();
             _selectionHandler = App.ServiceProvider.GetRequiredService<SelectionHandler>();
             _drawingViewModel = App.ServiceProvider.GetRequiredService<DrawingViewModel>();
 
-            OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
 
             _renderingService.Initialize(IfcViewer);
-            _osnapBridge.AttachViewport(IfcViewer);
 
             // Wire the 2D rubber-band overlay canvas to the selection handler.
             // Must be done after InitializeComponent() so SelectionCanvas is created.
@@ -91,8 +114,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             Unloaded += OnUnloaded;
         }
 
-        private void OnLoaded(object sender, RoutedEventArgs e)
+        private async void OnLoaded(object sender, RoutedEventArgs e)
         {
+            int loadGeneration =
+                Interlocked.Increment(ref _loadGeneration);
+            InitializeOsnapPointerPipeline();
             _ownerWindow = Window.GetWindow(this);
             if (_ownerWindow != null)
             {
@@ -100,16 +126,32 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 _ownerWindow.PreviewKeyDown += OwnerWindow_PreviewKeyDown;
             }
 
+            _sceneService.ElementsChanged -= OnElementsChanged;
             _sceneService.ElementsChanged += OnElementsChanged;
-            _sceneService.ZoneAdded += OnZoneAdded;
+            _sceneService.ZonesChanged -= ScheduleRenderZones;
+            _sceneService.ZonesChanged += ScheduleRenderZones;
+            _sceneService.ZoneSelected -= OnZoneSelected;
             _sceneService.ZoneSelected += OnZoneSelected;
-            _sceneService.ZoneRemoved += OnZoneChanged;
-            _sceneService.ZoneUpdated += OnZoneChanged;
-            _sceneService.ZonesCleared += OnZonesCleared;
-            _unitSettingsService.SettingsChanged += OnUnitSettingsChanged;
+            ThemeService.Instance.ThemeChanged -= OnThemeChanged;
+            ThemeService.Instance.ThemeChanged += OnThemeChanged;
+            IfcViewer.CameraChanged -= IfcViewer_CameraChanged;
             IfcViewer.CameraChanged += IfcViewer_CameraChanged;
+            IfcViewer.SizeChanged -= IfcViewer_SizeChanged;
             IfcViewer.SizeChanged += IfcViewer_SizeChanged;
+            _osnapService.MasterEnabledChanged -= OnOsnapMasterEnabledChanged;
+            _osnapService.MasterEnabledChanged += OnOsnapMasterEnabledChanged;
+            _osnapService.GeometryVersionChanged -= OnOsnapGeometryVersionChanged;
+            _osnapService.GeometryVersionChanged += OnOsnapGeometryVersionChanged;
+            _osnapService.SettingsVersionChanged -= OnOsnapSettingsVersionChanged;
+            _osnapService.SettingsVersionChanged += OnOsnapSettingsVersionChanged;
+            _drawingViewModel.PropertyChanged -=
+                DrawingViewModel_PropertyChanged;
+            _drawingViewModel.PropertyChanged +=
+                DrawingViewModel_PropertyChanged;
+            _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
             _drawingViewModel.MeasurementLabelsChanged += DrawingViewModel_MeasurementLabelsChanged;
+            _drawingViewModel.MeasurementPreviewChanged -= DrawingViewModel_MeasurementPreviewChanged;
+            _drawingViewModel.MeasurementPreviewChanged += DrawingViewModel_MeasurementPreviewChanged;
             RebuildMeasurementLabels();
 
             if (DataContext is MainViewModel vm)
@@ -119,11 +161,19 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     _hitTestService,
                     _viewportSelectionService,
                     () => _cameraService.UpdateClipping(_sceneService.GetElements())));
-                vm.Dxf.Initialize(IfcViewer);
+                await vm.Dxf.InitializeAsync(IfcViewer);
+                if (!IsLoaded ||
+                    loadGeneration !=
+                        Volatile.Read(ref _loadGeneration))
+                {
+                    return;
+                }
+
                 AttachDxfSnapBridge(vm);
             }
 
-            SetGridText(50d, 50d);
+            ScheduleRenderZones();
+            SetGridState(50d, 50d);
             var elements = _sceneService.GetElements();
             if (elements.Count == 0)
                 _cameraService.ResetToDefaultView();
@@ -131,6 +181,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            Interlocked.Increment(ref _loadGeneration);
             if (_ownerWindow != null)
             {
                 _ownerWindow.PreviewKeyDown -= OwnerWindow_PreviewKeyDown;
@@ -138,18 +189,28 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
 
             _sceneService.ElementsChanged -= OnElementsChanged;
-            _sceneService.ZoneAdded -= OnZoneAdded;
+            _sceneService.ZonesChanged -= ScheduleRenderZones;
             _sceneService.ZoneSelected -= OnZoneSelected;
-            _sceneService.ZoneRemoved -= OnZoneChanged;
-            _sceneService.ZoneUpdated -= OnZoneChanged;
-            _sceneService.ZonesCleared -= OnZonesCleared;
-            _unitSettingsService.SettingsChanged -= OnUnitSettingsChanged;
+            ThemeService.Instance.ThemeChanged -= OnThemeChanged;
             IfcViewer.CameraChanged -= IfcViewer_CameraChanged;
             IfcViewer.SizeChanged -= IfcViewer_SizeChanged;
+            _osnapService.MasterEnabledChanged -= OnOsnapMasterEnabledChanged;
+            _osnapService.GeometryVersionChanged -= OnOsnapGeometryVersionChanged;
+            _osnapService.SettingsVersionChanged -= OnOsnapSettingsVersionChanged;
+            _drawingViewModel.PropertyChanged -=
+                DrawingViewModel_PropertyChanged;
             _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
+            _drawingViewModel.MeasurementPreviewChanged -= DrawingViewModel_MeasurementPreviewChanged;
             MeasurementOverlayCanvas.Children.Clear();
             _measurementLabels.Clear();
+            _measurementLines.Clear();
+            _measurementEndpointMarkers.Clear();
+            _measurementPreviewLine = null;
+            _measurementPreviewStartMarker = null;
+            _measurementPreviewEndMarker = null;
+            _measurementPickMarker = null;
             DetachDxfSnapBridge();
+            DisposeOsnapPointerPipeline();
         }
 
         private void AttachDxfSnapBridge(MainViewModel vm)
@@ -158,11 +219,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             {
                 DetachDxfSnapBridge();
                 _osnapDxfSource = vm;
-                vm.Dxf.DxfLoaded += _osnapBridge.RefreshDxf;
+                vm.Dxf.DxfLoaded += OnDxfLoaded;
+                vm.Dxf.DxfRemoved += OnDxfRemoved;
             }
 
-            if (vm.Dxf.CurrentUploader?.IsLoaded == true)
-                _osnapBridge.RefreshDxf(vm.Dxf.CurrentUploader);
+            foreach (var source in vm.Dxf.LoadedDxfs)
+            {
+                if (source.Uploader?.IsLoaded == true)
+                    OnDxfLoaded(source.Uploader);
+            }
         }
 
         private void DetachDxfSnapBridge()
@@ -170,28 +235,104 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (_osnapDxfSource == null)
                 return;
 
-            _osnapDxfSource.Dxf.DxfLoaded -= _osnapBridge.RefreshDxf;
+            foreach (var source in _osnapDxfSource.Dxf.LoadedDxfs)
+            {
+                if (source.Uploader == null)
+                    continue;
+
+                source.Uploader.SetZoneContrast(
+                    Array.Empty<GreenAreaZone>(),
+                    Colors.White);
+                _osnapBridge.RemoveDxf(source.Uploader);
+            }
+
+            _osnapDxfSource.Dxf.DxfLoaded -= OnDxfLoaded;
+            _osnapDxfSource.Dxf.DxfRemoved -= OnDxfRemoved;
             _osnapDxfSource = null;
+        }
+
+        private void OnDxfLoaded(DxfUploader uploader)
+        {
+            _osnapBridge.RefreshDxf(uploader);
+            ApplyDxfZoneContrast(uploader, _sceneService.GetZones());
+        }
+
+        private void OnDxfRemoved(DxfUploader uploader)
+        {
+            uploader.SetZoneContrast(
+                Array.Empty<GreenAreaZone>(),
+                Colors.White);
+            _osnapBridge.RemoveDxf(uploader);
+        }
+
+        private void OnThemeChanged(AppTheme _) => RefreshDxfZoneContrast();
+
+        private void RefreshDxfZoneContrast(
+            IReadOnlyList<GreenAreaZone>? zones = null)
+        {
+            if (_osnapDxfSource == null)
+                return;
+
+            IReadOnlyList<GreenAreaZone> activeZones =
+                zones ?? _sceneService.GetZones();
+            foreach (var source in _osnapDxfSource.Dxf.LoadedDxfs)
+            {
+                if (source.Uploader != null)
+                    ApplyDxfZoneContrast(source.Uploader, activeZones);
+            }
+        }
+
+        private static void ApplyDxfZoneContrast(
+            DxfUploader uploader,
+            IReadOnlyList<GreenAreaZone> zones)
+        {
+            Color contrastColor = ThemeService.Instance.CurrentTheme == AppTheme.Dark
+                ? Colors.White
+                : Colors.Black;
+            uploader.SetZoneContrast(zones, contrastColor);
         }
 
         private void OwnerWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (Keyboard.FocusedElement is TextBox)
+                return;
+
             UpdateSelectionHandlerEnabled();
             _selectionHandler.OnKeyDown(IfcViewer, e);
             if (e.Handled)
                 return;
 
             _interactionService.HandleKeyDown(IfcViewer, e);
+            UpdateIfcMoveOverlay();
         }
 
-        private void OnZoneAdded(GreenAreaZone zone) => RenderZones();
-        private void OnZoneSelected(GreenAreaZone? zone) => RenderZones();
-        private void OnZoneChanged(GreenAreaZone zone) => RenderZones();
-        private void OnZonesCleared() => RenderZones();
+        private void OnZoneSelected(GreenAreaZone? zone) => ScheduleRenderZones();
+
+        private void ScheduleRenderZones()
+        {
+            if (_zoneRenderPending)
+                return;
+
+            _zoneRenderPending = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+            {
+                _zoneRenderPending = false;
+                if (IsLoaded)
+                    RenderZones();
+            }));
+        }
 
         private void RenderZones()
         {
-            _renderingService.Render(_sceneService.GetZones(), new ZoneVisualBuilder(_sceneService), "Zones");
+            List<GreenAreaZone> zones = _sceneService.GetZones();
+            RefreshDxfZoneContrast(zones);
+            if (zones.Count == 0)
+            {
+                _renderingService.ClearLayer("Zones");
+                return;
+            }
+
+            _renderingService.Render(zones, new ZoneVisualBuilder(_sceneService), "Zones");
         }
 
         private void OnElementsChanged(List<PrecastElement> elements)
@@ -202,7 +343,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     _sceneGridSizingService.CalculateGridSizeMeters(elements);
                 _gridCenterXMeters = centerXMeters;
                 _gridCenterYMeters = centerYMeters;
-                SetGridText(widthMeters, lengthMeters);
+                SetGridState(widthMeters, lengthMeters);
                 _renderingService.SetGridSize(
                     widthMeters,
                     lengthMeters,
@@ -228,7 +369,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (sender is HelixViewport3D viewport)
             {
                 if (_selectionHandler.IsClickOnViewCubeOrOverlay(viewport, e))
+                {
+                    if (_drawingViewModel.IsMeasuring)
+                        _drawingViewModel.StopMeasureMode();
                     return;
+                }
 
                 UpdateSelectionHandlerEnabled();
                 _selectionHandler.OnPreviewMouseDown(viewport, e);
@@ -243,34 +388,94 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void IfcViewer_MouseMove(object sender, MouseEventArgs e)
         {
-            if (sender is not HelixViewport3D viewport) return;
+            if (sender is not HelixViewport3D viewport)
+                return;
 
-            var screen = e.GetPosition(viewport);
-
-            if (_osnapIndicator != null)
+            Point screen = e.GetPosition(viewport);
+            bool capturedShift =
+                (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            DomainPoint3D? rawToolPoint = null;
+            if (_drawingViewModel.IsDrawing &&
+                TryResolveRawDrawingPoint(
+                    viewport,
+                    screen,
+                    out DomainPoint3D point))
             {
-                if (IsCameraOrDragMouseMove(e))
+                rawToolPoint = point;
+            }
+            else if (_drawingViewModel.IsMeasuring &&
+                     DrawingInteractionMode.TryResolveMeasurementPoint(
+                         viewport,
+                         screen,
+                         out Point3D measurementPoint))
+            {
+                rawToolPoint = ToDomainPoint(measurementPoint);
+            }
+
+            if (IsCameraOrDragMouseMove(e))
+            {
+                InvalidateOsnapHover();
+            }
+            else if (TryCreateOsnapQuery(
+                         viewport,
+                         screen,
+                         isClick: false,
+                         out OsnapQuery query) &&
+                     _osnapCoordinator != null)
+            {
+                _latestHoverRequestId = query.RequestId;
+                _latestHoverContext = new HoverRequestContext(
+                    query.RequestId,
+                    rawToolPoint,
+                    capturedShift);
+                try
                 {
-                    _osnapIndicator.Hide();
+                    _osnapCoordinator.SubmitHover(query);
                 }
-                else
+                catch (ObjectDisposedException)
                 {
-                    var result = _osnapService.Snap(screen, viewport);
-                    _osnapIndicator.Update(result);
+                    InvalidateOsnapHover();
+                }
+            }
+            else
+            {
+                InvalidateOsnapHover();
+                if ((_drawingViewModel.IsDrawing ||
+                     _drawingViewModel.IsMeasuring) &&
+                    rawToolPoint != null)
+                {
+                    _drawingViewModel.SetResolvedHoverPoint(
+                        rawToolPoint,
+                        capturedShift,
+                        acceptedSnap: null);
                 }
             }
 
             if (DataContext is MainViewModel vm)
             {
-                if (_hitTestService.TryGetWorldPoint(viewport, screen, out var worldPt))
+                if (_drawingViewModel.IsDrawing && rawToolPoint != null)
                 {
-                    vm.SetCoordinates(worldPt.X, worldPt.Y);
+                    vm.SetCoordinates(
+                        rawToolPoint.X,
+                        rawToolPoint.Y,
+                        rawToolPoint.Z,
+                        isReferencePlane: true);
+                }
+                else if (TryResolveMouseCoordinatePoint(
+                             viewport,
+                             screen,
+                             out Point3D worldPt,
+                             out bool isReferencePlane))
+                {
+                    vm.SetCoordinates(worldPt.X, worldPt.Y, worldPt.Z, isReferencePlane);
                 }
             }
 
             UpdateSelectionHandlerEnabled();
             _selectionHandler.OnMouseMove(viewport, e);
-            _interactionService.HandleMouseMove(viewport, e);
+            if (!_drawingViewModel.IsDrawing)
+                _interactionService.HandleMouseMove(viewport, e);
+            UpdateIfcMoveOverlay();
         }
 
         private void IfcViewer_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -298,14 +503,839 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                e.MiddleButton == MouseButtonState.Pressed ||
                e.RightButton == MouseButtonState.Pressed;
 
-        private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
+        private bool TryResolveMouseCoordinatePoint(
+            HelixViewport3D viewport,
+            Point screen,
+            out Point3D worldPoint,
+            out bool isReferencePlane)
         {
-            if (sender is HelixViewport3D viewport)
+            if (TryGetGeometryCoordinatePoint(viewport, screen, out worldPoint))
             {
-                UpdateSelectionHandlerEnabled();
-                _selectionHandler.OnMouseDown(viewport, e);
-                _interactionService.HandleMouseDown(viewport, e);
+                isReferencePlane = false;
+                return true;
             }
+
+            isReferencePlane = true;
+            return _hitTestService.TryGetWorldPoint(viewport, screen, out worldPoint);
+        }
+
+        private static bool TryGetGeometryCoordinatePoint(
+            HelixViewport3D viewport,
+            Point screen,
+            out Point3D worldPoint)
+        {
+            worldPoint = default;
+
+            try
+            {
+                Point innerPoint = ToInnerViewportPoint(viewport, screen);
+                foreach (PointHitResult hit in viewport.Viewport.FindHits(innerPoint))
+                {
+                    if (hit.Visual == null ||
+                        hit.Mesh == null ||
+                        hit.RayHit is not RayMeshGeometry3DHitTestResult ||
+                        !IsCoordinateGeometryVisual(hit.Visual) ||
+                        !IsFinite(hit.Position))
+                    {
+                        continue;
+                    }
+
+                    worldPoint = hit.Position;
+                    return true;
+                }
+            }
+            catch
+            {
+                // Coordinate display falls back to the active reference plane.
+            }
+
+            return false;
+        }
+
+        private static bool IsCoordinateGeometryVisual(Visual3D visual)
+        {
+            while (visual != null)
+            {
+                object? tag = visual.GetValue(FrameworkElement.TagProperty);
+                if (tag is PrecastElement || tag is SceneCrane || tag is GreenAreaZone)
+                    return true;
+
+                if (tag is string)
+                    return false;
+
+                visual = VisualTreeHelper.GetParent(visual) as Visual3D;
+            }
+
+            return false;
+        }
+
+        private static Point ToInnerViewportPoint(HelixViewport3D viewport, Point helixPoint)
+        {
+            try
+            {
+                return viewport.TranslatePoint(helixPoint, viewport.Viewport);
+            }
+            catch
+            {
+                return helixPoint;
+            }
+        }
+
+        private static bool IsFinite(Point3D point)
+            => double.IsFinite(point.X) &&
+               double.IsFinite(point.Y) &&
+               double.IsFinite(point.Z);
+
+        private void InitializeOsnapPointerPipeline()
+        {
+            DisposeOsnapPointerPipeline();
+
+            _osnapLifetime = new CancellationTokenSource();
+            _osnapCoordinator = new OsnapPointerCoordinator(
+                _osnapService,
+                TimeSpan.FromMilliseconds(20));
+            _osnapCoordinator.HoverCompleted +=
+                OsnapCoordinator_HoverCompleted;
+            _osnapCoordinator.Faulted +=
+                OsnapCoordinator_Faulted;
+            Interlocked.Increment(ref _osnapCameraVersion);
+            Interlocked.Increment(
+                ref _osnapDrawingStateVersion);
+            InvalidateOsnapHover();
+        }
+
+        private void DisposeOsnapPointerPipeline()
+        {
+            CancellationTokenSource? lifetime = _osnapLifetime;
+            OsnapPointerCoordinator? coordinator = _osnapCoordinator;
+            _osnapLifetime = null;
+            _osnapCoordinator = null;
+            _latestHoverContext = null;
+            _latestHoverRequestId = 0;
+            _zoneClickPending = false;
+
+            lifetime?.Cancel();
+            if (coordinator != null)
+            {
+                coordinator.HoverCompleted -=
+                    OsnapCoordinator_HoverCompleted;
+                coordinator.Faulted -=
+                    OsnapCoordinator_Faulted;
+                coordinator.Dispose();
+            }
+
+            lifetime?.Dispose();
+            _osnapIndicator?.Hide();
+        }
+
+        private void AdvanceOsnapCameraVersion()
+        {
+            Interlocked.Increment(ref _osnapCameraVersion);
+            InvalidateOsnapHover();
+        }
+
+        private void InvalidateOsnapHover()
+        {
+            _latestHoverContext = null;
+            _latestHoverRequestId = 0;
+            _osnapCoordinator?.InvalidateHover();
+            _osnapIndicator?.Hide();
+        }
+
+        private void OnOsnapMasterEnabledChanged(bool _)
+            => InvalidateOsnapStateFromAnyThread();
+
+        private void OnOsnapGeometryVersionChanged(long _)
+            => InvalidateOsnapStateFromAnyThread();
+
+        private void OnOsnapSettingsVersionChanged(long _)
+            => InvalidateOsnapStateFromAnyThread();
+
+        private void DrawingViewModel_PropertyChanged(
+            object? sender,
+            System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(DrawingViewModel.IsMeasuring))
+            {
+                UpdateMeasurementOverlayPositions();
+            }
+
+            if (e.PropertyName == nameof(DrawingViewModel.IsDrawing) ||
+                e.PropertyName == nameof(DrawingViewModel.IsMeasuring) ||
+                e.PropertyName == nameof(DrawingViewModel.PointCount))
+            {
+                Interlocked.Increment(
+                    ref _osnapDrawingStateVersion);
+                InvalidateOsnapHover();
+            }
+        }
+
+        private void InvalidateOsnapStateFromAnyThread()
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                InvalidateOsnapHover();
+                return;
+            }
+
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                new Action(() =>
+                {
+                    if (_osnapLifetime != null)
+                        InvalidateOsnapHover();
+                }));
+        }
+
+        private void OsnapCoordinator_HoverCompleted(
+            OsnapQueryCompletion completion)
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                new Action(() => ApplyHoverCompletion(completion)));
+        }
+
+        private void OsnapCoordinator_Faulted(Exception exception)
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                new Action(() =>
+                {
+                    if (_osnapLifetime != null)
+                        InvalidateOsnapHover();
+                }));
+        }
+
+        private void ApplyHoverCompletion(
+            OsnapQueryCompletion completion)
+        {
+            HoverRequestContext? context = _latestHoverContext;
+            if (_osnapLifetime == null ||
+                context == null ||
+                completion.Query.RequestId !=
+                    _latestHoverRequestId ||
+                context.RequestId != completion.Query.RequestId ||
+                !IsSnapshotCurrent(completion.Query.Viewport))
+            {
+                return;
+            }
+
+            OsnapResult? accepted = completion.SnapResult;
+            if (_interactionService.CurrentMode is IfcMoveMode ifcMoveMode)
+            {
+                accepted = ifcMoveMode.FilterSnapResult(accepted);
+                ifcMoveMode.UpdateSnapPreview(accepted);
+                UpdateIfcMoveOverlay();
+            }
+
+            _osnapIndicator?.Update(accepted);
+
+            if (!_drawingViewModel.IsDrawing &&
+                !_drawingViewModel.IsMeasuring)
+                return;
+
+            DomainPoint3D? rawPoint = context.RawPoint;
+            if (rawPoint == null && accepted != null)
+                rawPoint = ToDomainPoint(accepted.WorldPoint);
+            if (rawPoint != null)
+            {
+                _drawingViewModel.SetResolvedHoverPoint(
+                    rawPoint,
+                    context.CapturedShift,
+                    accepted);
+            }
+        }
+
+        private async Task ResolveAndCommitIfcMoveClickAsync(
+            HelixViewport3D viewport,
+            Point screen,
+            IfcMoveMode moveMode)
+        {
+            Point3D? rawPoint = moveMode.TryCaptureRawClick(
+                viewport,
+                screen,
+                out Point3D capturedRawPoint)
+                ? capturedRawPoint
+                : null;
+
+            OsnapResult? accepted = null;
+            CancellationTokenSource? lifetime = _osnapLifetime;
+            OsnapPointerCoordinator? coordinator = _osnapCoordinator;
+            if (lifetime != null && coordinator != null)
+            {
+                const int maximumAttempts = 2;
+                for (int attempt = 0; attempt < maximumAttempts; attempt++)
+                {
+                    lifetime.Token.ThrowIfCancellationRequested();
+                    if (!ReferenceEquals(_interactionService.CurrentMode, moveMode))
+                        return;
+
+                    if (!TryCreateOsnapQuery(
+                            viewport,
+                            screen,
+                            isClick: true,
+                            out OsnapQuery query))
+                    {
+                        break;
+                    }
+
+                    try
+                    {
+                        OsnapQueryCompletion completion =
+                            await coordinator.ResolveClickAsync(
+                                query,
+                                hoverCursorTolerancePixels: 3.0,
+                                lifetime.Token);
+                        if (!ReferenceEquals(
+                                _interactionService.CurrentMode,
+                                moveMode))
+                        {
+                            return;
+                        }
+
+                        if (!IsSnapshotCurrent(completion.Query.Viewport))
+                            continue;
+
+                        accepted = completion.SnapResult;
+                        break;
+                    }
+                    catch (OperationCanceledException)
+                        when (!lifetime.IsCancellationRequested)
+                    {
+                        // A snap epoch changed. Recapture once against the
+                        // current settings and geometry.
+                    }
+                    catch (Exception exception)
+                        when (exception is not OperationCanceledException &&
+                              exception is not ObjectDisposedException)
+                    {
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[OSnap] IFC movement click fell back to raw picking: " +
+                            exception.Message);
+                        break;
+                    }
+                }
+            }
+
+            if (!ReferenceEquals(_interactionService.CurrentMode, moveMode))
+                return;
+
+            accepted = moveMode.FilterSnapResult(accepted);
+            _osnapIndicator?.Update(accepted);
+            moveMode.CommitResolvedClick(rawPoint, accepted);
+            if (!ReferenceEquals(_interactionService.CurrentMode, moveMode))
+                _osnapIndicator?.Hide();
+        }
+
+        private async Task ResolveAndCommitToolClickAsync(
+            HelixViewport3D viewport,
+            Point screen,
+            bool capturedShift,
+            bool isDrawingClick)
+        {
+            CancellationTokenSource? lifetime = _osnapLifetime;
+            OsnapPointerCoordinator? coordinator = _osnapCoordinator;
+            if (lifetime == null || coordinator == null)
+                return;
+
+            CancellationToken cancellationToken = lifetime.Token;
+            long clickCameraVersion =
+                Interlocked.Read(ref _osnapCameraVersion);
+            long clickDrawingStateVersion =
+                Interlocked.Read(ref _osnapDrawingStateVersion);
+            long clickDrawingSessionVersion =
+                _drawingViewModel.DrawingSessionVersion;
+            DomainPoint3D? rawPoint;
+            if (isDrawingClick)
+            {
+                rawPoint = TryResolveRawDrawingPoint(
+                    viewport,
+                    screen,
+                    out DomainPoint3D resolvedRaw)
+                    ? resolvedRaw
+                    : null;
+            }
+            else
+            {
+                rawPoint = DrawingInteractionMode.TryResolveMeasurementPoint(
+                    viewport,
+                    screen,
+                    out Point3D resolvedRaw)
+                    ? ToDomainPoint(resolvedRaw)
+                    : null;
+            }
+            const int maximumAttempts = 2;
+            for (int attempt = 0;
+                 attempt < maximumAttempts;
+                 attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!IsOriginalToolClickStateCurrent(
+                        isDrawingClick,
+                        clickCameraVersion,
+                        clickDrawingStateVersion,
+                        clickDrawingSessionVersion))
+                {
+                    return;
+                }
+
+                if (!TryCreateOsnapQuery(
+                        viewport,
+                        screen,
+                        isClick: true,
+                        out OsnapQuery query))
+                {
+                    _osnapIndicator?.Hide();
+                    CommitRawToolClickIfCurrent(
+                        rawPoint,
+                        capturedShift,
+                        isDrawingClick,
+                        clickCameraVersion,
+                        clickDrawingStateVersion,
+                        clickDrawingSessionVersion);
+
+                    return;
+                }
+
+                OsnapQueryCompletion completion;
+                try
+                {
+                    completion = await coordinator.ResolveClickAsync(
+                        query,
+                        hoverCursorTolerancePixels: 3.0,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                    when (!cancellationToken.IsCancellationRequested)
+                {
+                    // A settings/master epoch changed. Recapture once so
+                    // disabling snap falls back unsnapped and reconfiguration
+                    // can resolve against the new immutable state.
+                    continue;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (ObjectDisposedException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    _osnapIndicator?.Hide();
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[OSnap] Viewport tool click resolution failed: " +
+                        exception.Message);
+                    CommitRawToolClickIfCurrent(
+                        rawPoint,
+                        capturedShift,
+                        isDrawingClick,
+                        clickCameraVersion,
+                        clickDrawingStateVersion,
+                        clickDrawingSessionVersion);
+                    return;
+                }
+
+                if (!IsOriginalToolClickStateCurrent(
+                        isDrawingClick,
+                        clickCameraVersion,
+                        clickDrawingStateVersion,
+                        clickDrawingSessionVersion))
+                {
+                    return;
+                }
+
+                if (!IsSnapshotCurrent(completion.Query.Viewport))
+                    continue;
+
+                OsnapResult? accepted = completion.SnapResult;
+                if (rawPoint == null && accepted != null)
+                    rawPoint = ToDomainPoint(accepted.WorldPoint);
+                if (rawPoint == null)
+                {
+                    _osnapIndicator?.Hide();
+                    return;
+                }
+
+                _osnapIndicator?.Update(accepted);
+                if (isDrawingClick)
+                {
+                    _drawingViewModel.CommitResolvedPoint(
+                        rawPoint,
+                        capturedShift,
+                        accepted);
+                }
+                else
+                {
+                    _drawingViewModel.CommitResolvedMeasurementPoint(
+                        rawPoint,
+                        accepted);
+                }
+                return;
+            }
+
+            // Repeated source/settings publication prevented a stable snap
+            // result. Commit only the raw point captured by this exact click,
+            // and only if its camera and drawing session never changed.
+            _osnapIndicator?.Hide();
+            CommitRawToolClickIfCurrent(
+                rawPoint,
+                capturedShift,
+                isDrawingClick,
+                clickCameraVersion,
+                clickDrawingStateVersion,
+                clickDrawingSessionVersion);
+        }
+
+        private bool IsOriginalToolClickStateCurrent(
+            bool isDrawingClick,
+            long cameraVersion,
+            long drawingStateVersion,
+            long drawingSessionVersion) =>
+            _osnapLifetime is { IsCancellationRequested: false } &&
+            cameraVersion ==
+                Interlocked.Read(ref _osnapCameraVersion) &&
+            drawingStateVersion ==
+                Interlocked.Read(ref _osnapDrawingStateVersion) &&
+            (isDrawingClick
+                ? _drawingViewModel.IsDrawing &&
+                  drawingSessionVersion ==
+                      _drawingViewModel.DrawingSessionVersion
+                : _drawingViewModel.IsMeasuring);
+
+        private void CommitRawToolClickIfCurrent(
+            DomainPoint3D? rawPoint,
+            bool capturedShift,
+            bool isDrawingClick,
+            long cameraVersion,
+            long drawingStateVersion,
+            long drawingSessionVersion)
+        {
+            if (rawPoint == null ||
+                !IsOriginalToolClickStateCurrent(
+                    isDrawingClick,
+                    cameraVersion,
+                    drawingStateVersion,
+                    drawingSessionVersion))
+            {
+                return;
+            }
+
+            if (isDrawingClick)
+            {
+                _drawingViewModel.CommitResolvedPoint(
+                    rawPoint,
+                    capturedShift,
+                    acceptedSnap: null);
+            }
+            else
+            {
+                _drawingViewModel.CommitResolvedMeasurementPoint(
+                    rawPoint,
+                    acceptedSnap: null);
+            }
+        }
+
+        private bool TryCreateOsnapQuery(
+            HelixViewport3D viewport,
+            Point cursor,
+            bool isClick,
+            out OsnapQuery query)
+        {
+            query = null!;
+            OsnapModeMask enabledModes = _osnapService.EnabledModes;
+            if (enabledModes == OsnapModeMask.None ||
+                viewport.Camera is not ProjectionCamera camera)
+            {
+                return false;
+            }
+
+            OsnapCameraType cameraType;
+            double fieldOfViewOrWidth;
+            if (camera is PerspectiveCamera perspective)
+            {
+                cameraType = OsnapCameraType.Perspective;
+                fieldOfViewOrWidth = perspective.FieldOfView;
+            }
+            else if (camera is OrthographicCamera orthographic)
+            {
+                cameraType = OsnapCameraType.Orthographic;
+                fieldOfViewOrWidth = orthographic.Width;
+            }
+            else
+            {
+                return false;
+            }
+
+            double viewportWidth = viewport.Viewport.ActualWidth;
+            double viewportHeight = viewport.Viewport.ActualHeight;
+            if (viewportWidth <= 0 || viewportHeight <= 0)
+            {
+                viewportWidth = viewport.ActualWidth;
+                viewportHeight = viewport.ActualHeight;
+            }
+
+            Point screenOffset;
+            try
+            {
+                screenOffset = viewport.Viewport.TranslatePoint(
+                    new Point(0, 0),
+                    viewport);
+            }
+            catch
+            {
+                screenOffset = default;
+            }
+
+            DpiScale dpi = VisualTreeHelper.GetDpi(viewport);
+            OsnapGeometryVersionState geometry =
+                _osnapService.GeometryVersions;
+            long settingsVersion = _osnapService.SettingsVersion;
+            OsnapSettings settings = _osnapService.Settings;
+            double snapRadius = settings.SnapRadiusPx;
+            int intersectionLimit =
+                settings.MaxEdgesForIntersection;
+            bool snapToDxf = settings.SnapToDxf;
+            bool snapToIfc = settings.SnapToIfc;
+
+            if (settingsVersion != _osnapService.SettingsVersion ||
+                geometry != _osnapService.GeometryVersions ||
+                enabledModes != _osnapService.EnabledModes)
+            {
+                return false;
+            }
+
+            var snapshot = new OsnapViewportSnapshot(
+                cameraType,
+                camera.Position,
+                camera.LookDirection,
+                camera.UpDirection,
+                fieldOfViewOrWidth,
+                viewportWidth,
+                viewportHeight,
+                screenOffset.X,
+                screenOffset.Y,
+                dpi.DpiScaleX,
+                dpi.DpiScaleY,
+                Interlocked.Read(ref _osnapCameraVersion),
+                geometry.Aggregate,
+                geometry.Sources,
+                settingsVersion,
+                Interlocked.Read(
+                    ref _osnapDrawingStateVersion),
+                cursor,
+                DrawingReferencePlane,
+                enabledModes,
+                snapRadius,
+                intersectionLimit,
+                snapToDxf,
+                snapToIfc);
+            if (!snapshot.IsValid)
+                return false;
+
+            query = new OsnapQuery(
+                Interlocked.Increment(ref _osnapRequestId),
+                isClick,
+                snapshot);
+            return true;
+        }
+
+        private bool IsSnapshotCurrent(
+            OsnapViewportSnapshot snapshot)
+        {
+            if (_osnapLifetime == null ||
+                _osnapLifetime.IsCancellationRequested ||
+                snapshot.CameraVersion !=
+                    Interlocked.Read(ref _osnapCameraVersion) ||
+                snapshot.DrawingSessionVersion !=
+                    Interlocked.Read(
+                        ref _osnapDrawingStateVersion) ||
+                snapshot.SettingsVersion !=
+                    _osnapService.SettingsVersion ||
+                snapshot.EnabledModes !=
+                    _osnapService.EnabledModes)
+            {
+                return false;
+            }
+
+            OsnapGeometryVersionState geometry =
+                _osnapService.GeometryVersions;
+            return snapshot.GeometryVersion ==
+                       geometry.Aggregate &&
+                   snapshot.SourceVersions ==
+                       geometry.Sources;
+        }
+
+        private bool TryResolveRawDrawingPoint(
+            HelixViewport3D viewport,
+            Point screen,
+            out DomainPoint3D point)
+        {
+            point = null!;
+            try
+            {
+                Point inner = ToInnerViewportPoint(viewport, screen);
+                if (!Viewport3DHelper.Point2DtoPoint3D(
+                        viewport.Viewport,
+                        inner,
+                        out Point3D near,
+                        out Point3D far))
+                {
+                    return false;
+                }
+
+                Vector3D direction = far - near;
+                Vector3D normal = DrawingReferencePlane.Normal;
+                double denominator =
+                    Vector3D.DotProduct(direction, normal);
+                if (Math.Abs(denominator) <= 1e-12)
+                    return false;
+
+                double distance =
+                    Vector3D.DotProduct(
+                        DrawingReferencePlane.Origin - near,
+                        normal) /
+                    denominator;
+                if (!double.IsFinite(distance) || distance <= 0)
+                    return false;
+
+                Point3D world = near + direction * distance;
+                if (!IsFinite(world))
+                    return false;
+
+                point = ToDomainPoint(world);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static DomainPoint3D ToDomainPoint(Point3D point)
+            => new(point.X, point.Y, point.Z);
+
+        private static readonly OsnapReferencePlaneSnapshot
+            DrawingReferencePlane = new(
+                new Point3D(0, 0, 0),
+                new Vector3D(0, 0, 1));
+
+        private async void IfcViewer_MouseDown(
+            object sender,
+            MouseButtonEventArgs e)
+        {
+            if (sender is not HelixViewport3D viewport)
+                return;
+
+            if (_interactionService.CurrentMode is IfcMoveMode ifcMoveMode &&
+                e.ChangedButton == MouseButton.Left)
+            {
+                e.Handled = true;
+                if (_ifcMoveClickPending)
+                    return;
+
+                _ifcMoveClickPending = true;
+                Point screen = e.GetPosition(viewport);
+                try
+                {
+                    await ResolveAndCommitIfcMoveClickAsync(
+                        viewport,
+                        screen,
+                        ifcMoveMode);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation is expected when the command, camera,
+                    // Object Snap settings, or geometry is superseded.
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The control or snap coordinator was unloaded mid-click.
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[OSnap] IFC movement click resolution failed: " +
+                        exception.Message);
+                }
+                finally
+                {
+                    _ifcMoveClickPending = false;
+                    UpdateIfcMoveOverlay();
+                }
+
+                return;
+            }
+
+            bool isDrawingClick = _drawingViewModel.IsDrawing;
+            if ((isDrawingClick || _drawingViewModel.IsMeasuring) &&
+                e.ChangedButton == MouseButton.Left)
+            {
+                e.Handled = true;
+                if (isDrawingClick && e.ClickCount > 1)
+                {
+                    _drawingViewModel.HandleDoubleClick();
+                    return;
+                }
+
+                if (_zoneClickPending)
+                    return;
+
+                long drawingSessionVersion =
+                    _drawingViewModel.DrawingSessionVersion;
+                if (isDrawingClick &&
+                    !_drawingViewModel.BeginPointResolution(
+                        drawingSessionVersion))
+                {
+                    return;
+                }
+
+                _zoneClickPending = true;
+                Point screen = e.GetPosition(viewport);
+                bool capturedShift =
+                    (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+                try
+                {
+                    await ResolveAndCommitToolClickAsync(
+                        viewport,
+                        screen,
+                        capturedShift,
+                        isDrawingClick);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation is expected when input, camera, settings,
+                    // geometry, or the drawing session is superseded.
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The control or coordinator was unloaded mid-click.
+                }
+                catch (Exception exception)
+                {
+                    _osnapIndicator?.Hide();
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[OSnap] Viewport tool click resolution failed: " +
+                        exception.Message);
+                }
+                finally
+                {
+                    _zoneClickPending = false;
+                    if (isDrawingClick)
+                    {
+                        _drawingViewModel.CompletePointResolution(
+                            drawingSessionVersion);
+                    }
+                }
+
+                return;
+            }
+
+            UpdateSelectionHandlerEnabled();
+            _selectionHandler.OnMouseDown(viewport, e);
+            _interactionService.HandleMouseDown(viewport, e);
+            UpdateIfcMoveOverlay();
         }
 
         private void IfcViewer_MouseUp(object sender, MouseButtonEventArgs e)
@@ -356,6 +1386,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         }
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
+            => ResetView();
+
+        public void ResetView()
         {
             var elements = _sceneService.GetElements();
             if (elements.Count == 0)
@@ -373,42 +1406,381 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private void DrawingViewModel_MeasurementLabelsChanged(object? sender, EventArgs e)
             => RebuildMeasurementLabels();
 
+        private void DrawingViewModel_MeasurementPreviewChanged(object? sender, EventArgs e)
+            => UpdateMeasurementTransientVisuals();
+
         private void IfcViewer_SizeChanged(object sender, SizeChangedEventArgs e)
-            => UpdateMeasurementLabelPositions();
+        {
+            AdvanceOsnapCameraVersion();
+            UpdateMeasurementOverlayPositions();
+            UpdateIfcMoveOverlay();
+        }
+
+        private void UpdateIfcMoveOverlay()
+        {
+            if (DataContext is not MainViewModel mainViewModel ||
+                mainViewModel.IfcViewer.ActiveIfcMoveMethod !=
+                    IfcMoveMethod.PickedPoint ||
+                mainViewModel.IfcViewer.IfcMoveStep !=
+                    IfcMoveStep.SelectDestination ||
+                !mainViewModel.IfcViewer.SelectedIfcBasePoint.HasValue)
+            {
+                IfcMoveBaseMarker.Visibility = Visibility.Collapsed;
+                IfcMovePreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Point3D basePoint =
+                mainViewModel.IfcViewer.SelectedIfcBasePoint.Value;
+            if (!TryProjectToOverlay(
+                    IfcViewer,
+                    basePoint,
+                    out Point baseScreen,
+                    out double baseDepth) ||
+                baseDepth <= 0)
+            {
+                IfcMoveBaseMarker.Visibility = Visibility.Collapsed;
+                IfcMovePreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Canvas.SetLeft(
+                IfcMoveBaseMarker,
+                baseScreen.X - IfcMoveBaseMarker.Width / 2d);
+            Canvas.SetTop(
+                IfcMoveBaseMarker,
+                baseScreen.Y - IfcMoveBaseMarker.Height / 2d);
+            IfcMoveBaseMarker.Visibility = Visibility.Visible;
+
+            Point3D? previewPoint =
+                mainViewModel.IfcViewer.IfcMovePreviewPoint;
+            if (!previewPoint.HasValue ||
+                !TryProjectToOverlay(
+                    IfcViewer,
+                    previewPoint.Value,
+                    out Point previewScreen,
+                    out double previewDepth) ||
+                previewDepth <= 0)
+            {
+                IfcMovePreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            IfcMovePreviewLine.X1 = baseScreen.X;
+            IfcMovePreviewLine.Y1 = baseScreen.Y;
+            IfcMovePreviewLine.X2 = previewScreen.X;
+            IfcMovePreviewLine.Y2 = previewScreen.Y;
+            IfcMovePreviewLine.Visibility = Visibility.Visible;
+        }
 
         private void RebuildMeasurementLabels()
         {
             MeasurementOverlayCanvas.Children.Clear();
             _measurementLabels.Clear();
+            _measurementLines.Clear();
+            _measurementEndpointMarkers.Clear();
+
+            _measurementPreviewLine = CreateMeasurementLine();
+            MeasurementOverlayCanvas.Children.Add(_measurementPreviewLine);
+            _measurementPreviewStartMarker = CreateMeasurementEndpointMarker();
+            MeasurementOverlayCanvas.Children.Add(_measurementPreviewStartMarker);
+            _measurementPreviewEndMarker = CreateMeasurementEndpointMarker();
+            MeasurementOverlayCanvas.Children.Add(_measurementPreviewEndMarker);
 
             foreach (MeasurementVisualData measurement in _drawingViewModel.MeasurementSegments)
             {
+                System.Windows.Shapes.Line line = CreateMeasurementLine();
+                MeasurementOverlayCanvas.Children.Add(line);
+                _measurementLines.Add((measurement, line));
+
+                System.Windows.Shapes.Ellipse startMarker =
+                    CreateMeasurementEndpointMarker();
+                System.Windows.Shapes.Ellipse endMarker =
+                    CreateMeasurementEndpointMarker();
+                MeasurementOverlayCanvas.Children.Add(startMarker);
+                MeasurementOverlayCanvas.Children.Add(endMarker);
+                _measurementEndpointMarkers.Add(
+                    (measurement, startMarker, endMarker));
+
                 var text = new TextBlock
                 {
                     Text = measurement.LabelText,
-                    FontFamily = new FontFamily("Segoe UI"),
-                    FontSize = 14,
+                    FontSize = (double)FindResource("FontSizeXS"),
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = Brushes.WhiteSmoke
                 };
+                text.SetResourceReference(
+                    TextBlock.FontFamilyProperty,
+                    "FontPrimary");
+                text.SetResourceReference(
+                    TextBlock.ForegroundProperty,
+                    "TextPrimaryBrush");
                 var label = new Border
                 {
                     Child = text,
-                    Padding = new Thickness(5, 2.5, 5, 2.5),
-                    Background = new SolidColorBrush(Color.FromArgb(205, 28, 30, 33)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(140, 145, 155, 163)),
-                    BorderThickness = new Thickness(0.6),
+                    Padding = new Thickness(4, 1, 4, 1),
+                    BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(2),
                     IsHitTestVisible = false,
                     SnapsToDevicePixels = true,
                     Visibility = Visibility.Collapsed
                 };
+                label.SetResourceReference(
+                    Border.BackgroundProperty,
+                    "SurfaceElevatedBrush");
+                label.SetResourceReference(
+                    Border.BorderBrushProperty,
+                    "PrimaryBrush");
 
                 MeasurementOverlayCanvas.Children.Add(label);
                 _measurementLabels.Add((measurement, label));
             }
 
+            _measurementPickMarker = CreateMeasurementPickMarker();
+            MeasurementOverlayCanvas.Children.Add(_measurementPickMarker);
+
+            UpdateMeasurementOverlayPositions();
+        }
+
+        private static System.Windows.Shapes.Line CreateMeasurementLine()
+        {
+            var line = new System.Windows.Shapes.Line
+            {
+                StrokeThickness = MeasurementLineThickness,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+            line.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            return line;
+        }
+
+        private static System.Windows.Shapes.Ellipse CreateMeasurementEndpointMarker()
+        {
+            var marker = new System.Windows.Shapes.Ellipse
+            {
+                Width = MeasurementEndpointSize,
+                Height = MeasurementEndpointSize,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+            marker.SetResourceReference(
+                System.Windows.Shapes.Shape.FillProperty,
+                "PrimaryBrush");
+            return marker;
+        }
+
+        private static FrameworkElement CreateMeasurementPickMarker()
+        {
+            var marker = new Grid
+            {
+                Width = MeasurementPickMarkerSize,
+                Height = MeasurementPickMarkerSize,
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+
+            var horizontal = new System.Windows.Shapes.Line
+            {
+                X1 = 1,
+                Y1 = MeasurementPickMarkerSize / 2d,
+                X2 = MeasurementPickMarkerSize - 1,
+                Y2 = MeasurementPickMarkerSize / 2d,
+                StrokeThickness = 1.25d,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            };
+            horizontal.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            marker.Children.Add(horizontal);
+
+            var vertical = new System.Windows.Shapes.Line
+            {
+                X1 = MeasurementPickMarkerSize / 2d,
+                Y1 = 1,
+                X2 = MeasurementPickMarkerSize / 2d,
+                Y2 = MeasurementPickMarkerSize - 1,
+                StrokeThickness = 1.25d,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            };
+            vertical.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            marker.Children.Add(vertical);
+
+            var ring = new System.Windows.Shapes.Ellipse
+            {
+                Width = 7d,
+                Height = 7d,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                StrokeThickness = 1.25d
+            };
+            ring.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            marker.Children.Add(ring);
+
+            var center = new System.Windows.Shapes.Ellipse
+            {
+                Width = 2.5d,
+                Height = 2.5d,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            center.SetResourceReference(
+                System.Windows.Shapes.Shape.FillProperty,
+                "PrimaryBrush");
+            marker.Children.Add(center);
+
+            return marker;
+        }
+
+        private void UpdateMeasurementOverlayPositions()
+        {
+            UpdateMeasurementLinePositions();
+            UpdateMeasurementEndpointPositions();
             UpdateMeasurementLabelPositions();
+            UpdateMeasurementPickMarker();
+        }
+
+        private void UpdateMeasurementLinePositions()
+        {
+            UpdateMeasurementPreviewLine();
+            foreach ((MeasurementVisualData data, System.Windows.Shapes.Line line) in _measurementLines)
+                UpdateMeasurementLine(line, data.Start, data.End);
+        }
+
+        private void UpdateMeasurementEndpointPositions()
+        {
+            UpdateMeasurementPreviewMarkers();
+            foreach ((MeasurementVisualData data, System.Windows.Shapes.Ellipse start, System.Windows.Shapes.Ellipse end) in _measurementEndpointMarkers)
+            {
+                UpdateMeasurementMarker(start, data.Start);
+                UpdateMeasurementMarker(end, data.End);
+            }
+        }
+
+        private void UpdateMeasurementTransientVisuals()
+        {
+            UpdateMeasurementPreviewLine();
+            UpdateMeasurementPreviewMarkers();
+            UpdateMeasurementPickMarker();
+        }
+
+        private void UpdateMeasurementPreviewLine()
+        {
+            if (_measurementPreviewLine == null)
+                return;
+
+            MeasurementLineData? preview = _drawingViewModel.MeasurementPreview;
+            if (preview == null)
+            {
+                _measurementPreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementLine(
+                _measurementPreviewLine,
+                preview.Start,
+                preview.End);
+        }
+
+        private void UpdateMeasurementPreviewMarkers()
+        {
+            if (_measurementPreviewStartMarker == null ||
+                _measurementPreviewEndMarker == null)
+            {
+                return;
+            }
+
+            MeasurementLineData? preview = _drawingViewModel.MeasurementPreview;
+            if (preview == null)
+            {
+                _measurementPreviewStartMarker.Visibility = Visibility.Collapsed;
+                _measurementPreviewEndMarker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementMarker(_measurementPreviewStartMarker, preview.Start);
+            double dx = preview.End.X - preview.Start.X;
+            double dy = preview.End.Y - preview.Start.Y;
+            double dz = preview.End.Z - preview.Start.Z;
+            if (dx * dx + dy * dy + dz * dz <= 1e-12d)
+            {
+                _measurementPreviewEndMarker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementMarker(_measurementPreviewEndMarker, preview.End);
+        }
+
+        private void UpdateMeasurementPickMarker()
+        {
+            if (_measurementPickMarker == null)
+                return;
+
+            DomainPoint3D? point = _drawingViewModel.MeasurementMarkerPoint;
+            if (!_drawingViewModel.IsMeasuring || point == null)
+            {
+                _measurementPickMarker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementMarker(_measurementPickMarker, point);
+        }
+
+        private void UpdateMeasurementMarker(
+            FrameworkElement marker,
+            DomainPoint3D point)
+        {
+            if (!TryProjectToOverlay(
+                    IfcViewer,
+                    new Point3D(point.X, point.Y, point.Z),
+                    out Point screen,
+                    out double depth) ||
+                depth <= 0)
+            {
+                marker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Canvas.SetLeft(marker, screen.X - marker.Width / 2d);
+            Canvas.SetTop(marker, screen.Y - marker.Height / 2d);
+            marker.Visibility = Visibility.Visible;
+        }
+
+        private void UpdateMeasurementLine(
+            System.Windows.Shapes.Line line,
+            DomainPoint3D start,
+            DomainPoint3D end)
+        {
+            if (!TryProjectToOverlay(
+                    IfcViewer,
+                    new Point3D(start.X, start.Y, start.Z),
+                    out Point screenStart,
+                    out _) ||
+                !TryProjectToOverlay(
+                    IfcViewer,
+                    new Point3D(end.X, end.Y, end.Z),
+                    out Point screenEnd,
+                    out _))
+            {
+                line.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            line.X1 = screenStart.X;
+            line.Y1 = screenStart.Y;
+            line.X2 = screenEnd.X;
+            line.Y2 = screenEnd.Y;
+            line.Visibility = Visibility.Visible;
         }
 
         private void UpdateMeasurementLabelPositions()
@@ -429,9 +1801,12 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     (data.Start.Y + data.End.Y) / 2.0,
                     (data.Start.Z + data.End.Z) / 2.0);
 
-                if (!OsnapProjection.TryGetCameraDepth(IfcViewer, anchor, out double depth) ||
+                if (!TryProjectToOverlay(
+                        IfcViewer,
+                        anchor,
+                        out Point screen,
+                        out double depth) ||
                     depth <= 0 ||
-                    !OsnapProjection.TryProject(IfcViewer, anchor, out Point screen) ||
                     screen.X < 0 ||
                     screen.Y < 0 ||
                     screen.X > viewportWidth ||
@@ -448,7 +1823,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     0,
                     Math.Max(0, viewportWidth - labelSize.Width));
                 double top = Math.Clamp(
-                    screen.Y - labelSize.Height - 10,
+                    screen.Y - labelSize.Height - 6,
                     0,
                     Math.Max(0, viewportHeight - labelSize.Height));
 
@@ -458,9 +1833,51 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
         }
 
+        private static bool TryProjectToOverlay(
+            HelixViewport3D viewport,
+            Point3D world,
+            out Point screen,
+            out double depth)
+        {
+            screen = default;
+            depth = default;
+            if (viewport.Camera is not ProjectionCamera camera ||
+                !IsFinite(world) ||
+                camera.LookDirection.LengthSquared < 1e-12)
+            {
+                return false;
+            }
+
+            Vector3D forward = camera.LookDirection;
+            forward.Normalize();
+            depth = Vector3D.DotProduct(
+                world - camera.Position,
+                forward);
+            if (!double.IsFinite(depth) || depth <= 0)
+                return false;
+
+            try
+            {
+                Point inner = Viewport3DHelper.Point3DtoPoint2D(
+                    viewport.Viewport,
+                    world);
+                screen = viewport.Viewport.TranslatePoint(
+                    inner,
+                    viewport);
+                return double.IsFinite(screen.X) &&
+                       double.IsFinite(screen.Y);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void IfcViewer_CameraChanged(object sender, RoutedEventArgs e)
         {
-            UpdateMeasurementLabelPositions();
+            AdvanceOsnapCameraVersion();
+            UpdateMeasurementOverlayPositions();
+            UpdateIfcMoveOverlay();
 
             if (_isUpdatingCameraMode)
                 return;
@@ -516,12 +1933,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
         }
 
-        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        public void ApplyRenderQualitySelection(string? qualityTag)
         {
-            if (RenderQualityCombo.SelectedItem is not ComboBoxItem item)
-                return;
-
-            var selectedQuality = item.Tag?.ToString() switch
+            var selectedQuality = qualityTag switch
             {
                 "High" => ElementVisualBuilder.MeshQuality.High,
                 "Low" => ElementVisualBuilder.MeshQuality.Low,
@@ -565,15 +1979,27 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             };
         }
 
-        private void ApplyGridSize_Click(object sender, RoutedEventArgs e)
+        public double CurrentGridWidthMeters => _gridWidthMeters;
+
+        public double CurrentGridLengthMeters => _gridLengthMeters;
+
+        public string CurrentGridWidthDisplayText => FormatGridDisplayValue(_gridWidthMeters);
+
+        public string CurrentGridLengthDisplayText => FormatGridDisplayValue(_gridLengthMeters);
+
+        public string CurrentGridUnitSymbol => UnitSystem.LengthSymbol(_unitSettingsService.Current.DisplayLengthUnit);
+
+        public bool IsGridVisible => _renderingService.IsGridVisible;
+
+        public bool ApplyManualGridSize(string widthText, string lengthText)
         {
-            if (!TryReadGridSizeMeters(out var widthMeters, out var lengthMeters))
+            if (!TryReadGridSizeMeters(widthText, lengthText, out var widthMeters, out var lengthMeters))
             {
                 if (DataContext is MainViewModel vm)
                 {
-                    vm.StatusText = "Grid size must be positive numbers in meters.";
+                    vm.StatusText = "Grid size must be positive finite numbers.";
                 }
-                return;
+                return false;
             }
 
             _manualGridSize = true;
@@ -582,15 +2008,17 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 lengthMeters,
                 _gridCenterXMeters,
                 _gridCenterYMeters);
-            SetGridText(widthMeters, lengthMeters);
+            SetGridState(widthMeters, lengthMeters);
 
             if (DataContext is MainViewModel mainVm)
             {
                 mainVm.StatusText = $"Grid size set to {FormatGridLength(widthMeters)} x {FormatGridLength(lengthMeters)}.";
             }
+
+            return true;
         }
 
-        private void AutoGridSize_Click(object sender, RoutedEventArgs e)
+        public void AutoSizeGrid()
         {
             _manualGridSize = false;
             OnElementsChanged(_sceneService.GetElements());
@@ -601,38 +2029,39 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
         }
 
-        private bool TryReadGridSizeMeters(out double widthMeters, out double lengthMeters)
+        public void SetGridVisible(bool isVisible)
+            => _renderingService.SetGridVisible(isVisible);
+
+        private bool TryReadGridSizeMeters(
+            string widthText,
+            string lengthText,
+            out double widthMeters,
+            out double lengthMeters)
         {
-            var hasWidth = double.TryParse(GridSizeXTextBox.Text, out widthMeters);
-            var hasLength = double.TryParse(GridSizeYTextBox.Text, out lengthMeters);
+            var hasWidth = double.TryParse(widthText, out widthMeters);
+            var hasLength = double.TryParse(lengthText, out lengthMeters);
 
             if (hasWidth)
                 widthMeters = UnitSystem.ToMeters(widthMeters, _unitSettingsService.Current.DisplayLengthUnit);
             if (hasLength)
                 lengthMeters = UnitSystem.ToMeters(lengthMeters, _unitSettingsService.Current.DisplayLengthUnit);
 
-            return hasWidth && hasLength && widthMeters > 0 && lengthMeters > 0;
+            return hasWidth && hasLength &&
+                   double.IsFinite(widthMeters) && double.IsFinite(lengthMeters) &&
+                   widthMeters > 0 && lengthMeters > 0;
         }
 
-        private void SetGridText(double widthMeters, double lengthMeters)
+        private void SetGridState(double widthMeters, double lengthMeters)
         {
             _gridWidthMeters = widthMeters;
             _gridLengthMeters = lengthMeters;
-            var settings = _unitSettingsService.Current;
-            GridUnitLabel.Text = $"GRID {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
-            GridSizeXTextBox.ToolTip = $"Grid size on X axis in {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
-            GridSizeYTextBox.ToolTip = $"Grid size on Y axis in {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
-            GridSizeXTextBox.Text = UnitSystem.FromMeters(widthMeters, settings.DisplayLengthUnit).ToString("0.###");
-            GridSizeYTextBox.Text = UnitSystem.FromMeters(lengthMeters, settings.DisplayLengthUnit).ToString("0.###");
         }
+
+        private string FormatGridDisplayValue(double meters)
+            => UnitSystem.FromMeters(meters, _unitSettingsService.Current.DisplayLengthUnit).ToString("0.###");
 
         private string FormatGridLength(double meters)
             => UnitSystem.FormatLength(meters, _unitSettingsService.Current);
-
-        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
-        {
-            SetGridText(_gridWidthMeters, _gridLengthMeters);
-        }
 
         private static string BuildElementSceneKey(IReadOnlyList<PrecastElement> elements)
         {
@@ -653,5 +2082,10 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 return $"{elements.Count}:{hash}";
             }
         }
+
+        private sealed record HoverRequestContext(
+            long RequestId,
+            DomainPoint3D? RawPoint,
+            bool CapturedShift);
     }
 }
