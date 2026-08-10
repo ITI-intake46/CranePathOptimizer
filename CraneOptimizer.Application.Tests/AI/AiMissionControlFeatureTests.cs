@@ -203,6 +203,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("LimitAtReadingBoundary", companionVm);
             Assert.Contains("DetailsToggleLabel", companionVm);
             Assert.Contains("BuildCompactNextAction", companionVm);
+            Assert.Contains("IsNavigationTargetAlreadyActive(proposal.Target, _uiContext.ActiveTabName)", companionVm);
 
             Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
@@ -313,15 +314,20 @@ namespace CraneOptimizer.Application.Tests.AI
             var guessTarget = vmType.GetMethod("GuessTargetTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             var compactAction = vmType.GetMethod("BuildCompactNextAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             var displayName = vmType.GetMethod("GetNavigationTargetDisplayName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var alreadyActive = vmType.GetMethod("IsNavigationTargetAlreadyActive", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
             Assert.NotNull(guessTarget);
             Assert.NotNull(compactAction);
             Assert.NotNull(displayName);
+            Assert.NotNull(alreadyActive);
 
             Assert.Equal("ANALYZE", guessTarget!.Invoke(null, new object[] { "ANALYSIS → Lift Summary", "Result review" }));
             Assert.Equal("Analysis", displayName!.Invoke(null, new object[] { "ANALYZE" }));
             Assert.Equal("Review Lift Summary", compactAction!.Invoke(null, new object[] { "ANALYSIS → Lift Summary" }));
             Assert.Equal("Verify optimizer readiness", compactAction.Invoke(null, new object[] { "ANALYSIS → Run Optimizer" }));
+            Assert.True((bool)alreadyActive!.Invoke(null, new object[] { "ANALYZE", "ANALYSIS" })!);
+            Assert.True((bool)alreadyActive.Invoke(null, new object[] { "IFC MODEL", "IFC MODEL" })!);
+            Assert.False((bool)alreadyActive.Invoke(null, new object[] { "ANALYZE", "ZONES" })!);
         }
 
     }
