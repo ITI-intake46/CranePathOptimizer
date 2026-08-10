@@ -38,3 +38,9 @@ The same project snapshot can support different, non-contradictory answers:
   snapshot and directs the user to the optimizer's built-in readiness indicator.
 
 This keeps workflow guidance inside AI while preserving engineering ownership of optimizer behavior.
+
+## Result provenance boundary
+
+The strict host contract exposes an `AiOptimizationResultSnapshot`, but it does not expose a stable run identifier or an explicit flag proving that the snapshot is the saved result currently selected in the Analysis UI. Therefore AI must not describe that snapshot as **the selected result** or attach its captured percentage to the visible selection. Exact captured metrics may be shown only as AI-captured evidence with a provenance caveat. Primary workflow guidance should direct the user to **ANALYSIS → Lift Summary** to review the application-selected result directly.
+
+Navigation guidance follows the same rule: when the next step is Lift Summary, the AI may navigate only through already-available host tab navigation. The button should therefore say **Open Analysis**, not imply a direct Lift Summary command and never fall back to Home.

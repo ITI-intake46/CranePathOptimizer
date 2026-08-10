@@ -326,9 +326,9 @@ namespace CraneOptimizer.AI.Agents.Readiness
             {
                 if (context.OptimizationResult.HasResult)
                 {
-                    return context.OptimizationResult.CoverageRatio >= 0.95
-                        ? $"The selected optimization result is a report candidate at {context.OptimizationResult.CoverageRatio:P2}. The next workflow step is ANALYSIS → Lifting Summary Report and engineering review."
-                        : $"The selected optimization result needs review at {context.OptimizationResult.CoverageRatio:P2}. The next workflow step is ANALYSIS → Lift Summary. If another run is desired afterward, its current eligibility must still be checked in the optimizer's built-in readiness indicator.";
+                    return "AI-captured optimization result evidence is available, but the strict host contract does not identify which saved Analysis result is currently selected. " +
+                           "The next workflow step is ANALYSIS → Lift Summary so the user can review the result selected in the application. " +
+                           "If another run is desired afterward, its current eligibility must still be checked in the optimizer's built-in readiness indicator.";
                 }
 
                 return BuildOptimizerVerificationConclusion(assessment, leadWithEligibilityAnswer: false);
@@ -339,10 +339,9 @@ namespace CraneOptimizer.AI.Agents.Readiness
 
             if (context.OptimizationResult.HasResult)
             {
-                var result = context.OptimizationResult;
-                return result.CoverageRatio >= 0.95
-                    ? $"Core project prerequisites are visible and the selected result is a report candidate at {result.CoverageRatio:P2}. Current rerun eligibility, if needed, is still owned by the optimizer's built-in preflight."
-                    : $"Core project prerequisites are visible and the selected result needs engineering review at {result.CoverageRatio:P2}. Result quality and current rerun eligibility are separate; the AI does not certify the optimizer's current preflight.";
+                return "Core project prerequisites are visible and AI-captured optimization result evidence exists. " +
+                       "The strict host contract does not bind that evidence to the saved Analysis result currently selected on screen, so the AI does not present its captured percentage as the selected result. " +
+                       "Result review and current rerun eligibility are separate; the AI does not certify the optimizer's current preflight.";
             }
 
             return BuildOptimizerVerificationConclusion(assessment, leadWithEligibilityAnswer: false);
@@ -400,9 +399,7 @@ namespace CraneOptimizer.AI.Agents.Readiness
             }
             else if (intent == ReadinessQuestionIntent.NextStep && context.OptimizationResult.HasResult)
             {
-                actions.Add(context.OptimizationResult.CoverageRatio >= 0.95
-                    ? "ANALYSIS → Lifting Summary Report — review the selected result evidence before issue."
-                    : "ANALYSIS → Lift Summary — inspect unresolved lifts and dominant failure modes.");
+                actions.Add("ANALYSIS → Lift Summary — review the result selected in the application and inspect unresolved lifts and dominant failure modes.");
             }
             else
             {

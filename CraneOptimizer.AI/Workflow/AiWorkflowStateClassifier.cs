@@ -139,23 +139,19 @@ namespace CraneOptimizer.AI.Workflow
 
             if (hasResult)
             {
-                var reportCandidate = context.OptimizationResult.CoverageRatio >= 0.95;
-                var resultText = $"{context.OptimizationResult.CoverageRatio:P2} coverage; {context.OptimizationResult.LiftedElementCount:N0}/{context.OptimizationResult.TotalElementCount:N0} evaluated lift(s) completed.";
+                var resultText = $"AI-captured result evidence reports {context.OptimizationResult.CoverageRatio:P2} coverage and {context.OptimizationResult.LiftedElementCount:N0}/{context.OptimizationResult.TotalElementCount:N0} evaluated lift(s) completed.";
+                var provenanceNote = "The strict host contract does not expose a run/selection identifier, so this evidence must not be described as the Analysis result currently selected on screen.";
                 var evidence = assessment.CandidateEvidenceConflict
-                    ? $"A completed result exists ({resultText}) while AI import/readiness signals also report zero candidate units. Those signals conflict and must not be treated as the optimizer's current preflight."
-                    : $"A completed optimization result is attached ({resultText}). Current rerun eligibility is still owned by the optimizer's built-in preflight.";
+                    ? $"{resultText} AI import/readiness signals also report zero candidate units. Those signals conflict or use different scopes and must not be treated as the optimizer's current preflight. {provenanceNote}"
+                    : $"{resultText} Current rerun eligibility is still owned by the optimizer's built-in preflight. {provenanceNote}";
 
                 return State(
-                    reportCandidate ? AiWorkflowStateKind.ReportCandidate : AiWorkflowStateKind.ResultReview,
-                    reportCandidate ? "AI Diagnosis: result is report-candidate" : "AI Diagnosis: result needs engineering review",
+                    AiWorkflowStateKind.ResultReview,
+                    "AI Diagnosis: captured result evidence needs review",
                     "Review",
-                    reportCandidate
-                        ? $"The selected optimization result covers {context.OptimizationResult.CoverageRatio:P2}; review assumptions before reporting."
-                        : $"The selected optimization result covers {context.OptimizationResult.CoverageRatio:P2}; unresolved elements and diagnostics should be reviewed.",
-                    reportCandidate
-                        ? "ANALYSIS → Lifting Summary Report, then review the report evidence before issue."
-                        : "ANALYSIS → Lift Summary, then inspect unresolved elements and dominant failure modes.",
-                    "Result quality and current rerun eligibility are separate. The AI does not certify crane capacity or the optimizer's current preflight.",
+                    "AI-captured optimization result evidence is available, but its identity is not bound to the saved Analysis result currently selected on screen.",
+                    "ANALYSIS → Lift Summary, then review the result selected in the application and inspect unresolved elements and dominant failure modes.",
+                    "Result evidence, selected-result identity, and current rerun eligibility are separate. The AI does not certify crane capacity or the optimizer's current preflight.",
                     assessment,
                     canProceed: true,
                     evidence: evidence);

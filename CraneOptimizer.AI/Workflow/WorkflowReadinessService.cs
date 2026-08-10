@@ -20,7 +20,6 @@ namespace CraneOptimizer.AI.Workflow
             var result = context.OptimizationResult ?? new AiOptimizationResultSnapshot();
             var hasResult = result.HasResult;
             var hasDiagnostics = hasResult && !string.IsNullOrWhiteSpace(result.DiagnosticsPath);
-            var resultIsReportReady = hasResult && result.CoverageRatio >= 0.95;
 
             var items = new List<WorkflowReadinessItem>
             {
@@ -92,10 +91,10 @@ namespace CraneOptimizer.AI.Workflow
                 false,
                 hasResult ? "OK" : "Info",
                 hasResult
-                    ? $"Selected result coverage: {result.CoverageRatio:P2}; completed {result.LiftedElementCount:N0}/{result.TotalElementCount:N0}."
+                    ? $"AI-captured result evidence reports {result.CoverageRatio:P2} coverage and {result.LiftedElementCount:N0}/{result.TotalElementCount:N0} completed. The strict host contract does not identify this snapshot as the saved Analysis result currently selected on screen."
                     : "No completed optimization result is currently attached.",
                 hasResult
-                    ? "Review the selected result and diagnostics before reporting or choosing a rerun strategy."
+                    ? "Open Lift Summary and review the result selected in the application before reporting or choosing a rerun strategy."
                     : assessment.CorePrerequisitesComplete
                         ? "Use ANALYSIS → Run Optimizer and rely on the optimizer's built-in readiness check before starting a run."
                         : "Complete the visible project prerequisites before opening the optimizer workflow.",
@@ -104,17 +103,13 @@ namespace CraneOptimizer.AI.Workflow
             if (hasResult)
             {
                 items.Add(Item(
-                    resultIsReportReady ? "Report review" : "Result review",
+                    "Result review",
                     false,
                     false,
-                    resultIsReportReady ? "Info" : "Warning",
-                    resultIsReportReady
-                        ? $"Selected result coverage is {result.CoverageRatio:P2}; report evidence still requires engineering review."
-                        : $"Selected result coverage is {result.CoverageRatio:P2}; unresolved lifts and dominant failure modes require review.",
-                    resultIsReportReady
-                        ? "Review assumptions/evidence before generating or issuing reports."
-                        : "Inspect Lift Summary and unresolved failure modes before deciding whether to change inputs or rerun.",
-                    resultIsReportReady ? "ANALYSIS → Lifting Summary Report" : "ANALYSIS → Lift Summary"));
+                    "Warning",
+                    "AI-captured result evidence exists, but the strict host contract does not expose which saved Analysis result is currently selected. Review the application-selected result directly before relying on any captured percentage.",
+                    "Inspect Lift Summary and unresolved failure modes before deciding whether to change inputs, report, or rerun.",
+                    "ANALYSIS → Lift Summary"));
 
                 items.Add(Item(
                     "Optimizer rerun eligibility",
@@ -131,7 +126,7 @@ namespace CraneOptimizer.AI.Workflow
                 hasDiagnostics,
                 false,
                 hasDiagnostics ? "OK" : "Info",
-                hasDiagnostics ? $"Diagnostics path: {result.DiagnosticsPath}" : "No diagnostics path is attached to the selected result.",
+                hasDiagnostics ? $"Diagnostics path from AI-captured result evidence: {result.DiagnosticsPath}" : "No diagnostics path is attached to the AI-captured result evidence.",
                 "Use diagnostics to distinguish geometry/reachability, capacity, and convergence issues.",
                 "ANALYSIS → Lift Summary"));
 
@@ -139,7 +134,7 @@ namespace CraneOptimizer.AI.Workflow
 
             var complete = items.Count(item => item.IsComplete);
             var missingCritical = items.Count(item => item.IsCritical && !item.IsComplete);
-            var stage = InferStage(items, hasResult, result.CoverageRatio, assessment.CorePrerequisitesComplete);
+            var stage = InferStage(items, hasResult, assessment.CorePrerequisitesComplete);
 
             return new WorkflowReadinessSnapshot
             {
@@ -149,7 +144,7 @@ namespace CraneOptimizer.AI.Workflow
                 TotalCount = items.Count,
                 CompletionRatio = items.Count == 0 ? 0 : complete / (double)items.Count,
                 MissingCriticalCount = missingCritical,
-                Summary = BuildSummary(missingCritical, hasResult, result, assessment),
+                Summary = BuildSummary(missingCritical, hasResult, assessment),
                 Items = items
             };
         }
@@ -217,16 +212,16 @@ namespace CraneOptimizer.AI.Workflow
             return assessment.AuthorityNote;
         }
 
-        private static string BuildSummary(int missingCritical, bool hasResult, AiOptimizationResultSnapshot result, AiOptimizerEvidenceAssessment assessment)
+        private static string BuildSummary(int missingCritical, bool hasResult, AiOptimizerEvidenceAssessment assessment)
         {
             if (missingCritical > 0)
                 return $"{missingCritical:N0} visible project prerequisite(s) still need attention before checking an optimizer run.";
 
             if (hasResult)
             {
-                return result.CoverageRatio >= 0.95
-                    ? $"Core project prerequisites are visible and the selected result is a report candidate at {result.CoverageRatio:P2}. Current rerun eligibility, if needed, must still be checked in the optimizer."
-                    : $"Core project prerequisites are visible and the selected result needs review at {result.CoverageRatio:P2}. Result quality does not establish current rerun eligibility; use the optimizer's built-in readiness check.";
+                return "Core project prerequisites are visible and AI-captured optimization result evidence exists. " +
+                       "Because the strict host contract does not identify which saved Analysis result is selected, review Lift Summary in the application rather than treating the AI-captured percentage as the selected result. " +
+                       "Result quality does not establish current rerun eligibility; use the optimizer's built-in readiness check.";
             }
 
             if (assessment.HasNoCandidateAdvisory)
@@ -343,14 +338,14 @@ namespace CraneOptimizer.AI.Workflow
             _ => 0
         };
 
-        private static string InferStage(IReadOnlyList<WorkflowReadinessItem> items, bool hasResult, double coverage, bool coreComplete)
+        private static string InferStage(IReadOnlyList<WorkflowReadinessItem> items, bool hasResult, bool coreComplete)
         {
             var firstMissingCritical = items.FirstOrDefault(item => item.IsCritical && !item.IsComplete);
             if (firstMissingCritical != null)
                 return firstMissingCritical.Name;
 
             if (hasResult)
-                return coverage >= 0.95 ? "Report review" : "Result review";
+                return "Result review";
 
             return coreComplete ? "Optimizer verification" : "Project setup";
         }

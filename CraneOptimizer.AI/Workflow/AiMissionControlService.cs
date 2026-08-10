@@ -178,7 +178,7 @@ namespace CraneOptimizer.AI.Workflow
                 Title = "GA Feasibility Intelligence",
                 Status = context.OptimizationResult.HasResult ? "Result available" : state.CanProceedToOptimizerCheck ? "Verify in optimizer" : "Prerequisite missing",
                 Finding = context.OptimizationResult.HasResult
-                    ? $"Selected result coverage is {context.OptimizationResult.CoverageRatio:P2}. A completed result does not establish current rerun eligibility."
+                    ? "AI-captured optimization result evidence is available, but the strict host contract does not identify it as the saved Analysis result currently selected on screen. A completed result also does not establish current rerun eligibility."
                     : state.CanProceedToOptimizerCheck
                         ? "Visible project prerequisites are present; the optimizer's built-in Current Run Readiness must make the current run decision."
                         : "Complete the visible project prerequisite before checking optimizer readiness.",
@@ -209,9 +209,9 @@ namespace CraneOptimizer.AI.Workflow
             yield return new AiMissionControlInsight
             {
                 Title = "Report Readiness Intelligence",
-                Status = context.OptimizationResult.HasResult && context.OptimizationResult.CoverageRatio >= 0.95 ? "Candidate" : "Not final",
+                Status = context.OptimizationResult.HasResult ? "Review required" : "Not final",
                 Finding = context.OptimizationResult.HasResult
-                    ? $"Report narrative can describe {context.OptimizationResult.CoverageRatio:P2} coverage."
+                    ? "AI-captured result evidence can support a draft narrative, but result selection identity is not exposed to AI. Review the result selected in Analysis before reporting any exact coverage value."
                     : state.CanProceedToOptimizerCheck
                         ? "No final optimization result exists; current optimizer eligibility still requires the optimizer's built-in readiness check."
                         : "No optimization result exists for final report narrative yet.",

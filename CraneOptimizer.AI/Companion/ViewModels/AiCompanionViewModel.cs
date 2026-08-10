@@ -557,7 +557,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             ? "Model context: not evaluated"
             : $"Model context rev {_currentModelRevision:N0}";
         public AiActionProposalViewModel? PrimaryActionProposal => ActionProposals.FirstOrDefault(proposal => proposal.ActionType.Equals("NavigateTab", StringComparison.OrdinalIgnoreCase));
-        public string PrimaryActionLabel => PrimaryActionProposal?.ConfirmLabel ?? "Open recommended tab";
+        public string PrimaryActionLabel => PrimaryActionProposal == null
+            ? "Open recommended tab"
+            : BuildPrimaryActionLabel(PrimaryActionProposal);
         public Visibility PrimaryActionVisibility => PrimaryActionProposal == null ? Visibility.Collapsed : Visibility.Visible;
 
         public bool HasLatestAnswer => Advisor.HasAiAnswer;
@@ -798,6 +800,12 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 return "Review trusted lift weights";
             }
 
+            if (text.Contains("RUN OPTIMIZER", StringComparison.OrdinalIgnoreCase))
+                return "Verify optimizer readiness";
+
+            if (text.Contains("LIFT SUMMARY", StringComparison.OrdinalIgnoreCase))
+                return "Review Lift Summary";
+
             var arrowIndex = text.LastIndexOf('→');
             if (arrowIndex >= 0 && arrowIndex < text.Length - 1)
                 text = text[(arrowIndex + 1)..].Trim();
@@ -896,14 +904,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             }
 
             var targetTab = GuessTargetTab(NextAction, snapshot.CurrentStage);
+            var targetDisplayName = GetNavigationTargetDisplayName(targetTab);
             ActionProposals.Add(new AiActionProposalViewModel
             {
-                Title = $"Open {targetTab} tab",
-                Description = $"Go to {targetTab} to continue: {NextAction}",
+                Title = $"Open {targetDisplayName}",
+                Description = $"Go to {targetDisplayName} to continue: {NextAction}",
                 ActionType = "NavigateTab",
                 Target = targetTab,
                 Risk = "Low — navigation only; no project data is changed.",
-                ConfirmLabel = $"Open {targetTab}",
+                ConfirmLabel = $"Open {targetDisplayName}",
                 ConfirmCommand = ConfirmActionCommand
             });
 
@@ -1067,9 +1076,32 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (text.Contains("DXF")) return "DXF";
             if (text.Contains("ZONE")) return "ZONES";
             if (text.Contains("CRANE") || text.Contains("LOAD CHART")) return "CRANES";
-            if (text.Contains("OPTIM") || text.Contains("ANALYZE")) return "ANALYZE";
+            if (text.Contains("LIFT SUMMARY") || text.Contains("ANALYSIS") || text.Contains("OPTIM") || text.Contains("ANALYZE")) return "ANALYZE";
             if (text.Contains("REPORT")) return "REPORTS";
             return "HOME";
+        }
+
+        private static string GetNavigationTargetDisplayName(string targetTab)
+        {
+            return targetTab.ToUpperInvariant() switch
+            {
+                "ANALYZE" => "Analysis",
+                "IFC MODEL" => "IFC Model",
+                "DXF" => "DXF",
+                "ZONES" => "Zones",
+                "CRANES" => "Cranes",
+                "REPORTS" => "Reports",
+                "HOME" => "Home",
+                _ => targetTab
+            };
+        }
+
+        private static string BuildPrimaryActionLabel(AiActionProposalViewModel proposal)
+        {
+            if (proposal.ActionType.Equals("NavigateTab", StringComparison.OrdinalIgnoreCase))
+                return $"Open {GetNavigationTargetDisplayName(proposal.Target)}";
+
+            return proposal.ConfirmLabel;
         }
 
         private void ExecutePrimaryAction()
