@@ -212,10 +212,10 @@ namespace CraneOptimizer.AI.Agents.Readiness
             var steps = new List<(string Tool, string Purpose, string Input)>
             {
                 ("get_project_overview", "Capture one immutable project and workflow baseline.", "{}"),
-                ("get_bim_readiness", "Inspect BIM object scope and trusted GA-ready lift-unit evidence.", "{}"),
+                ("get_bim_readiness", "Inspect BIM object scope and AI-visible import/readiness candidate evidence without replacing the optimizer preflight.", "{}"),
                 ("get_zone_summary", "Verify allowed and forbidden placement-zone prerequisites.", "{}"),
                 ("get_crane_setup", "Verify crane selection and load-chart evidence.", "{}"),
-                ("get_ga_readiness", "Evaluate deterministic GA pre-run eligibility and result availability.", "{}")
+                ("get_ga_readiness", "Inspect AI-visible optimizer prerequisites, advisory candidate evidence, and result availability without replacing the optimizer preflight.", "{}")
             };
 
             if (context.ScreenContexts.Any(screen => screen.Issues.Count > 0)
@@ -251,8 +251,8 @@ namespace CraneOptimizer.AI.Agents.Readiness
             AiAgentRunStatus status,
             string nextAction)
         {
-            var conclusion = BuildConclusion(context, readiness, results);
-            var actions = BuildActions(readiness, results, nextAction);
+            var conclusion = BuildConclusion(context, readiness, results, question);
+            var actions = BuildActions(context, readiness, results, nextAction, question);
             var citations = results
                 .SelectMany(result => result.Citations)
                 .GroupBy(citation => citation.Id, StringComparer.OrdinalIgnoreCase)
@@ -295,54 +295,155 @@ namespace CraneOptimizer.AI.Agents.Readiness
             };
         }
 
+        private enum ReadinessQuestionIntent
+        {
+            General,
+            RunEligibility,
+            NextStep
+        }
+
         private static string BuildConclusion(
             AiWorkflowContextSnapshot context,
             WorkflowReadinessSnapshot readiness,
-            IReadOnlyList<AiToolExecutionResult> results)
+            IReadOnlyList<AiToolExecutionResult> results,
+            string question)
         {
-            var bim = Find(results, "get_bim_readiness");
-            var ga = Find(results, "get_ga_readiness");
-            var trusted = ReadFactInt(bim, "TrustedGaLiftUnits");
-            var hasGaBlocker = ReadFactBool(ga, "HasNoCandidateBlocker");
+            var assessment = AiOptimizerEvidenceAssessor.Assess(context);
+            var intent = ClassifyReadinessQuestion(question);
 
             if (!context.HasProject)
                 return "The workflow is not ready because no active project workspace is available.";
             if (context.ElementCount == 0)
                 return "The workflow is not ready because no IFC/BIM model objects are loaded.";
-            if (trusted == 0 || hasGaBlocker)
-                return "Optimization is blocked because the current snapshot exposes zero trusted GA-ready grouped lift units. Visible or estimated weights are not accepted as trusted optimization evidence.";
             if (context.ZoneCount == 0)
-                return "Optimization is not ready because no crane-placement zones are defined.";
+                return "The next visible prerequisite is to define crane-placement zones.";
             if (context.CraneCount == 0)
-                return "Optimization is not ready because no crane is selected or present in the project.";
-            if (!context.HasLoadChartEvidence)
-                return "Core scene inputs exist, but capacity-based optimization is not ready because load-chart evidence is missing.";
-            if (readiness.MissingCriticalCount > 0)
-                return $"The project still has {readiness.MissingCriticalCount:N0} critical prerequisite(s) to resolve before reliable optimization or reporting.";
+                return "The next visible prerequisite is to add or select a crane.";
+            if (!assessment.HasCurrentLoadChartEvidence)
+                return "The next visible prerequisite is to verify current crane/load-chart evidence. Historical result capacity/radius values are not treated as proof of the current crane setup.";
 
-            return "The deterministic project snapshot satisfies the core readiness prerequisites. Proceed with engineering review and the optimizer while preserving the captured evidence trail.";
+            if (intent == ReadinessQuestionIntent.NextStep)
+            {
+                if (context.OptimizationResult.HasResult)
+                {
+                    return "AI-captured optimization result evidence is available, but the strict host contract does not identify which saved Analysis result is currently selected. " +
+                           "The next workflow step is ANALYSIS → Lift Summary so the user can review the result selected in the application. " +
+                           "If another run is desired afterward, its current eligibility must still be checked in the optimizer's built-in readiness indicator.";
+                }
+
+                return BuildOptimizerVerificationConclusion(assessment, leadWithEligibilityAnswer: false);
+            }
+
+            if (intent == ReadinessQuestionIntent.RunEligibility)
+                return BuildOptimizerVerificationConclusion(assessment, leadWithEligibilityAnswer: true);
+
+            if (context.OptimizationResult.HasResult)
+            {
+                return "Core project prerequisites are visible and AI-captured optimization result evidence exists. " +
+                       "The strict host contract does not bind that evidence to the current Analysis UI selection, so the AI does not attribute its captured percentage to that UI selection. " +
+                       "Result review and current rerun eligibility are separate; the AI does not certify the optimizer's current preflight.";
+            }
+
+            return BuildOptimizerVerificationConclusion(assessment, leadWithEligibilityAnswer: false);
+        }
+
+        private static string BuildOptimizerVerificationConclusion(
+            AiOptimizerEvidenceAssessment assessment,
+            bool leadWithEligibilityAnswer)
+        {
+            var prefix = leadWithEligibilityAnswer
+                ? "The AI cannot certify the optimizer's current run eligibility from this snapshot. "
+                : "Core project prerequisites visible to AI are present. ";
+
+            if (assessment.CandidateEvidenceConflict)
+            {
+                return prefix +
+                       $"AI import/readiness evidence reports a zero-candidate condition while a completed optimization result previously evaluated {assessment.HistoricalEvaluatedLiftUnits:N0} lift unit(s). " +
+                       "Those signals conflict or use different scopes, so the AI must not declare the optimizer blocked from them. Open ANALYSIS → Run Optimizer and use Current Run Readiness as the definitive decision.";
+            }
+
+            if (assessment.HasNoCandidateAdvisory)
+            {
+                var countText = assessment.AdvisoryTrustedLiftUnits.HasValue
+                    ? $" (reported count {assessment.AdvisoryTrustedLiftUnits.Value:N0})"
+                    : string.Empty;
+                return prefix +
+                       "The AI-visible import/readiness context contains a no-candidate warning" + countText + ", but that warning is troubleshooting evidence rather than the optimizer dialog's authoritative current-run preflight. " +
+                       "Open ANALYSIS → Run Optimizer and use Current Run Readiness. If the optimizer itself reports a blocker, then use the IFC/weight evidence to troubleshoot it; do not bypass the optimizer.";
+            }
+
+            return prefix +
+                   "The current AI host contract does not expose the optimizer dialog's authoritative current-run preflight. Open ANALYSIS → Run Optimizer and use Current Run Readiness as the source of truth.";
         }
 
         private static IReadOnlyList<string> BuildActions(
+            AiWorkflowContextSnapshot context,
             WorkflowReadinessSnapshot readiness,
             IReadOnlyList<AiToolExecutionResult> results,
-            string nextAction)
+            string nextAction,
+            string question)
         {
+            var assessment = AiOptimizerEvidenceAssessor.Assess(context);
+            var intent = ClassifyReadinessQuestion(question);
             var actions = new List<string>();
-            actions.AddRange(readiness.Items
+
+            var missingCore = readiness.Items
                 .Where(item => item.IsCritical && !item.IsComplete)
-                .Select(item => string.IsNullOrWhiteSpace(item.NextClick)
+                .ToArray();
+
+            if (missingCore.Length > 0)
+            {
+                actions.AddRange(missingCore.Select(item => string.IsNullOrWhiteSpace(item.NextClick)
                     ? item.Recommendation
                     : $"{item.NextClick} — {item.Recommendation}"));
-            actions.AddRange(results.SelectMany(result => result.RecommendedActions));
-            if (!string.IsNullOrWhiteSpace(nextAction))
-                actions.Add(nextAction.Trim());
+            }
+            else if (intent == ReadinessQuestionIntent.NextStep && context.OptimizationResult.HasResult)
+            {
+                actions.Add("ANALYSIS → Lift Summary — review the result selected in the application and inspect unresolved lifts and dominant failure modes.");
+            }
+            else
+            {
+                actions.Add("ANALYSIS → Run Optimizer — use the optimizer's built-in Current Run Readiness for the definitive run decision.");
+            }
+
+            if (assessment.HasNoCandidateAdvisory || assessment.HasEstimatedWeightAdvisory)
+                actions.Add("Keep IFC/import readiness warnings as secondary troubleshooting evidence; review them if the optimizer itself confirms a blocker.");
+
+            if (context.OptimizationResult.HasResult
+                && intent != ReadinessQuestionIntent.NextStep
+                && context.OptimizationResult.CoverageRatio < 0.95)
+            {
+                actions.Add("ANALYSIS → Lift Summary — review the captured result before deciding whether a rerun is useful.");
+            }
 
             return actions
                 .Where(action => !string.IsNullOrWhiteSpace(action))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(6)
                 .ToArray();
+        }
+
+        private static ReadinessQuestionIntent ClassifyReadinessQuestion(string? question)
+        {
+            var normalized = question?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (normalized.Contains("can i run", StringComparison.Ordinal)
+                || normalized.Contains("can we run", StringComparison.Ordinal)
+                || normalized.Contains("can i rerun", StringComparison.Ordinal)
+                || normalized.Contains("can we rerun", StringComparison.Ordinal)
+                || normalized.Contains("run the optimizer now", StringComparison.Ordinal)
+                || normalized.Contains("run ga now", StringComparison.Ordinal))
+            {
+                return ReadinessQuestionIntent.RunEligibility;
+            }
+
+            if (normalized.Contains("what should i do next", StringComparison.Ordinal)
+                || normalized.Contains("next step", StringComparison.Ordinal)
+                || normalized.Contains("what next", StringComparison.Ordinal))
+            {
+                return ReadinessQuestionIntent.NextStep;
+            }
+
+            return ReadinessQuestionIntent.General;
         }
 
         private static string BuildVisibleAnswer(

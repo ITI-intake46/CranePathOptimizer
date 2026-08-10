@@ -2,6 +2,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using CraneOptimizer.AI.Host;
+using CraneOptimizer.AI.Workflow;
 
 namespace CraneOptimizer.AI.Services
 {
@@ -602,10 +603,11 @@ namespace CraneOptimizer.AI.Services
                 return false;
 
             var facts = MergeFacts(context);
-            var hasZeroTrustedBlocker = HasZeroTrustedLiftUnitBlocker(context, facts);
-            var trusted = GetFirstInt(facts, AiWorkflowFactKeys.TrustedGroupedLiftUnits, AiWorkflowFactKeys.TrustedGaLiftUnits);
-            if (!trusted.HasValue)
-                trusted = hasZeroTrustedBlocker ? 0 : GetFirstInt(facts, AiWorkflowFactKeys.GaCandidateElements);
+            var optimizerEvidence = AiOptimizerEvidenceAssessor.Assess(context);
+            var hasZeroSignal = optimizerEvidence.HasNoCandidateAdvisory;
+            var advisory = optimizerEvidence.AdvisoryTrustedLiftUnits;
+            if (!advisory.HasValue)
+                advisory = hasZeroSignal ? 0 : GetFirstInt(facts, AiWorkflowFactKeys.GaCandidateElements);
             var raw = GetFirstInt(facts, AiWorkflowFactKeys.RawCandidateLikeElements, AiWorkflowFactKeys.GaCandidateElements);
             var blocked = GetFirstInt(facts, AiWorkflowFactKeys.GaBlockedElements);
             var estimated = GetFirstInt(facts, AiWorkflowFactKeys.EstimatedWeightBlockedCount);
@@ -613,34 +615,34 @@ namespace CraneOptimizer.AI.Services
 
             var builder = new StringBuilder();
             builder.AppendLine("## Answer");
-            if (trusted.HasValue)
-                builder.AppendLine($"There are {trusted.Value:N0} trusted GA-ready lift unit candidate(s) in the captured deterministic readiness context.");
+            if (advisory.HasValue)
+                builder.AppendLine($"The AI-visible import/readiness context reports {advisory.Value:N0} candidate-like/trusted-unit signal(s). This number is **not** the optimizer dialog's authoritative Current Run Readiness count.");
             else
-                builder.AppendLine("The current AI context does not expose a trusted GA-ready lift-unit count.");
+                builder.AppendLine("The current AI context does not expose the optimizer dialog's authoritative current-run candidate count.");
             builder.AppendLine();
 
             builder.AppendLine("## Evidence");
             AppendModelEvidence(builder, context, activeScreen);
             if (raw.HasValue)
                 builder.AppendLine($"- Raw/import-screen candidate-like elements: {raw.Value:N0}");
-            if (trusted.HasValue)
-                builder.AppendLine($"- Trusted GA-ready lift units: {trusted.Value:N0}");
+            if (advisory.HasValue)
+                builder.AppendLine($"- AI import/readiness candidate signal: {advisory.Value:N0}");
             if (blocked.HasValue)
-                builder.AppendLine($"- Deterministically blocked elements: {blocked.Value:N0}");
+                builder.AppendLine($"- AI-visible blocked-element signal: {blocked.Value:N0}");
             if (estimated.HasValue)
-                builder.AppendLine($"- Estimated/fallback-weight elements blocked from GA: {estimated.Value:N0}");
+                builder.AppendLine($"- Estimated/fallback-weight advisory count: {estimated.Value:N0}");
             if (missingTrusted.HasValue)
-                builder.AppendLine($"- Elements missing trusted weight evidence: {missingTrusted.Value:N0}");
+                builder.AppendLine($"- Missing trusted-weight advisory count: {missingTrusted.Value:N0}");
+            if (context.OptimizationResult.HasResult && context.OptimizationResult.TotalElementCount > 0)
+                builder.AppendLine($"- Selected historical result evaluated scope: {context.OptimizationResult.TotalElementCount:N0} lift(s); this is result evidence, not current rerun eligibility.");
             builder.AppendLine();
 
-            builder.AppendLine("## Caveat");
-            builder.AppendLine("Raw candidate-like element counts are not the same as trusted grouped lift units. The optimizer may still block GA when grouping, trusted-weight, COG, or role evidence is insufficient.");
+            builder.AppendLine("## Authority boundary");
+            builder.AppendLine("Do not infer that GA is ready or blocked from these AI-side counts. Open **ANALYSIS → Run Optimizer** and use the optimizer's built-in **Current Run Readiness** for the definitive current-run decision. Never bypass a blocker reported there.");
             builder.AppendLine();
             builder.AppendLine("## Next Click");
-            builder.AppendLine(trusted.GetValueOrDefault() > 0 ? "ANALYSIS → Run Optimizer after zones, crane, and load-chart evidence are complete" : "IFC MODEL → Export Element List / trusted weight-source review");
-            builder.AppendLine();
-            builder.AppendLine("## Confidence");
-            builder.AppendLine(trusted.HasValue ? "High — this answer used deterministic readiness facts." : "Medium — total element context exists, but trusted lift-unit facts were not exposed.");
+            builder.AppendLine("ANALYSIS → Run Optimizer → Current Run Readiness");
+
             answer = builder.ToString().Trim();
             return true;
         }
@@ -1269,23 +1271,6 @@ namespace CraneOptimizer.AI.Services
             }
 
             return null;
-        }
-
-        private static bool HasZeroTrustedLiftUnitBlocker(AiWorkflowContextSnapshot context, IReadOnlyDictionary<string, string> facts)
-        {
-            if (facts.TryGetValue("OptimizerPrecheckStatus", out var optimizerPrecheck)
-                && optimizerPrecheck.Equals("BlockedNoGaCandidates", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            if (facts.TryGetValue("PreRunStatus", out var preRun)
-                && preRun.Equals("BlockedNoGaCandidates", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            return context.ScreenContexts
-                .SelectMany(screen => screen.Issues)
-                .Any(issue => issue.Code.Equals("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase)
-                              || issue.Code.Equals("GaPreRunNoCandidates", StringComparison.OrdinalIgnoreCase)
-                              || issue.Code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase));
         }
 
         private static IReadOnlyDictionary<string, string> MergeFacts(AiWorkflowContextSnapshot context)

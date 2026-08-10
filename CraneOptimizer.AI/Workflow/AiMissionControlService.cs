@@ -40,17 +40,7 @@ namespace CraneOptimizer.AI.Workflow
         private static string BuildRecommendedAction(AiWorkflowContextSnapshot context, WorkflowReadinessSnapshot readiness, AiWorkflowState state)
         {
             var immediate = readiness.Items.FirstOrDefault(item => !item.IsComplete && item.IsCritical && IsCorePrerequisiteName(item.Name));
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked && immediate != null)
-            {
-                return $"Immediate workflow step: {immediate.NextClick}. Known downstream optimizer data blocker: IFC MODEL → Export Element List / trusted weight-source review, then request explicit trusted mass/weight, stable assembly/lift marks, and COG/geometry evidence.";
-            }
-
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
-            {
-                return "Optimizer data blocker: IFC MODEL → Export Element List / trusted weight-source review, then request explicit trusted mass/weight, stable assembly/lift marks, and COG/geometry evidence.";
-            }
-
-            return state.RecommendedAction;
+            return immediate != null ? $"Immediate workflow step: {immediate.NextClick}." : state.RecommendedAction;
         }
 
         private static bool IsCorePrerequisiteName(string? name)
@@ -76,15 +66,13 @@ namespace CraneOptimizer.AI.Workflow
             if (context.OptimizationResult.HasResult)
             {
                 var result = context.OptimizationResult;
-                builder.Append($" Latest result: {result.CoverageRatio:P2}, {result.LiftedElementCount:N0}/{result.TotalElementCount:N0} lifted, {result.PositionCount:N0} setup position(s).");
-            }
-            else if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
-            {
-                builder.Append(" No completed optimization result exists because pre-run lift-unit readiness is blocked.");
+                builder.Append($" Captured result: {result.CoverageRatio:P2}, {result.LiftedElementCount:N0}/{result.TotalElementCount:N0} lifted, {result.PositionCount:N0} setup position(s).");
             }
             else
             {
                 builder.Append(" No completed optimization result is attached to this session.");
+                if (state.CanProceedToOptimizerCheck)
+                    builder.Append(" Current run eligibility must be verified in the optimizer's built-in Current Run Readiness; AI import/readiness candidate signals are not that preflight.");
             }
 
             if (priorityIssues.Count > 0)
@@ -110,12 +98,12 @@ namespace CraneOptimizer.AI.Workflow
             AddFact(labels, facts, AiWorkflowFactKeys.ReadinessElementCount, "readiness/planning elements");
             AddFact(labels, facts, AiWorkflowFactKeys.ReferenceGeometryExcludedCount, "IFC reference geometry excluded from readiness");
             AddFact(labels, facts, AiWorkflowFactKeys.RawCandidateLikeElements, "raw/import-screen candidate-like elements");
-            AddFact(labels, facts, AiWorkflowFactKeys.TrustedGroupedLiftUnits, "trusted GA-ready lift units");
-            AddFact(labels, facts, AiWorkflowFactKeys.TrustedGaLiftUnits, "trusted GA-ready lift units");
+            AddFact(labels, facts, AiWorkflowFactKeys.TrustedGroupedLiftUnits, "AI import/readiness grouped-candidate signal");
+            AddFact(labels, facts, AiWorkflowFactKeys.TrustedGaLiftUnits, "AI import/readiness candidate signal");
             if (!facts.ContainsKey(AiWorkflowFactKeys.RawCandidateLikeElements) && !facts.ContainsKey(AiWorkflowFactKeys.TrustedGroupedLiftUnits) && !facts.ContainsKey(AiWorkflowFactKeys.TrustedGaLiftUnits))
-                AddFact(labels, facts, AiWorkflowFactKeys.GaCandidateElements, "legacy GA-candidate/readiness count");
-            AddFact(labels, facts, AiWorkflowFactKeys.GaBlockedElements, "deterministically blocked elements");
-            AddFact(labels, facts, AiWorkflowFactKeys.EstimatedWeightBlockedCount, "estimated/fallback blocked");
+                AddFact(labels, facts, AiWorkflowFactKeys.GaCandidateElements, "legacy AI candidate/readiness signal");
+            AddFact(labels, facts, AiWorkflowFactKeys.GaBlockedElements, "AI host blocked-element signal");
+            AddFact(labels, facts, AiWorkflowFactKeys.EstimatedWeightBlockedCount, "estimated/fallback weight advisory");
             AddFact(labels, facts, AiWorkflowFactKeys.MissingTrustedWeightCount, "missing trusted weight");
 
             if (labels.Count > 0)
@@ -168,63 +156,64 @@ namespace CraneOptimizer.AI.Workflow
             yield return new AiMissionControlInsight
             {
                 Title = "Weight Trust Intelligence",
-                Status = state.HasEstimatedWeightBlocker ? "Blocked" : state.HasNoGaCandidateBlocker ? "Review" : "Monitor",
+                Status = state.HasEstimatedWeightBlocker || state.HasNoGaCandidateBlocker ? "Review" : "Monitor",
                 Finding = state.HasEstimatedWeightBlocker
-                    ? "Estimated/fallback weight evidence is blocked from GA."
+                    ? "AI import/readiness evidence flags estimated or fallback weight data for review."
                     : state.HasNoGaCandidateBlocker
-                        ? "GA candidate creation is blocked; trusted weight evidence should be verified."
-                        : "No estimated-weight blocker is currently exposed by the AI context.",
+                        ? "AI import/readiness evidence reports no candidate units. Treat this as troubleshooting evidence, not the optimizer's run decision."
+                        : "No weight-specific advisory is currently exposed by the AI context.",
                 Evidence = state.HasEstimatedWeightBlocker
-                    ? FirstIssueEvidence(priorityIssues, "Weight", "EstimatedWeightBlockedFromGA or equivalent issue is present.")
-                    : FirstIssueEvidence(priorityIssues, "Weight", "No weight-specific blocker found in priority issues."),
-                WhyItMatters = "Crane capacity feasibility depends on explicit trusted mass/weight, not display-only estimates.",
-                NextAction = state.HasNoGaCandidateBlocker || state.HasEstimatedWeightBlocker ? "Export element list and request explicit mass/weight quantities." : "Keep weight-source evidence in the QA pack.",
-                Risk = state.HasEstimatedWeightBlocker ? "High if bypassed." : "Medium if source evidence is not auditable.",
-                Confidence = state.HasNoGaCandidateBlocker || state.HasEstimatedWeightBlocker ? "High" : "Medium"
+                    ? FirstIssueEvidence(priorityIssues, "Weight", "EstimatedWeightBlockedFromGA or equivalent advisory is present in host evidence.")
+                    : FirstIssueEvidence(priorityIssues, "Weight", "No weight-specific advisory found in priority issues."),
+                WhyItMatters = "Weight provenance can matter to engineering review, but only the optimizer's built-in preflight decides current run eligibility.",
+                NextAction = state.CanProceedToOptimizerCheck
+                    ? "Verify Current Run Readiness in the optimizer. If it reports a blocker, use the AI evidence to troubleshoot weight/source data."
+                    : recommendedAction,
+                Risk = "Do not bypass a blocker reported by the optimizer, and do not invent one from AI candidate counts.",
+                Confidence = "High for the evidence boundary; optimizer eligibility requires built-in preflight"
             };
 
             yield return new AiMissionControlInsight
             {
                 Title = "GA Feasibility Intelligence",
-                Status = state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked ? "Blocked" : context.OptimizationResult.HasResult ? "Result available" : state.CanRunOptimizerNow ? "Ready" : "Prerequisite missing",
-                Finding = state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked
-                    ? "GA cannot start because zero trusted GA-ready lift candidates are available."
-                    : context.OptimizationResult.HasResult
-                        ? $"Latest coverage is {context.OptimizationResult.CoverageRatio:P2}."
-                        : state.CanRunOptimizerNow
-                            ? "Core prerequisites are present for a controlled optimizer run."
-                            : "GA should wait until the current prerequisite is completed.",
-                Evidence = state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked
-                    ? "NoGaCandidates / GaCannotStartNoCandidates / GaPreRunNoCandidates in screen evidence after IFC elements are loaded."
-                    : context.OptimizationResult.HasResult
-                        ? $"{context.OptimizationResult.LiftedElementCount:N0}/{context.OptimizationResult.TotalElementCount:N0} lifted over {context.OptimizationResult.PositionCount:N0} setup position(s)."
-                        : readiness.Summary,
-                WhyItMatters = "This separates data-readiness problems from actual crane reach/capacity optimization problems.",
+                Status = context.OptimizationResult.HasResult ? "Result available" : state.CanProceedToOptimizerCheck ? "Verify in optimizer" : "Prerequisite missing",
+                Finding = context.OptimizationResult.HasResult
+                    ? "AI-captured optimization result evidence is available, but the strict host contract does not identify it as the saved Analysis result currently selected on screen. A completed result also does not establish current rerun eligibility."
+                    : state.CanProceedToOptimizerCheck
+                        ? "Visible project prerequisites are present; the optimizer's built-in Current Run Readiness must make the current run decision."
+                        : "Complete the visible project prerequisite before checking optimizer readiness.",
+                Evidence = context.OptimizationResult.HasResult
+                    ? $"{context.OptimizationResult.LiftedElementCount:N0}/{context.OptimizationResult.TotalElementCount:N0} evaluated lift(s) completed over {context.OptimizationResult.PositionCount:N0} setup position(s)."
+                    : readiness.Summary,
+                WhyItMatters = "This keeps AI guidance separate from the untouched optimizer's authoritative preflight.",
                 NextAction = recommendedAction,
-                Risk = state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked ? "High if treated as a crane-position issue." : "Advisory; deterministic optimizer remains source of truth.",
-                Confidence = "High"
+                Risk = "AI must not certify ready or blocked from import/readiness candidate signals; never bypass a blocker reported by the optimizer.",
+                Confidence = "High for workflow guidance; optimizer eligibility requires built-in preflight"
             };
 
+            var optimizerEvidence = AiOptimizerEvidenceAssessor.Assess(context);
             yield return new AiMissionControlInsight
             {
                 Title = "Crane Capacity Intelligence",
-                Status = context.HasLoadChartEvidence ? "Evidence present" : "Missing evidence",
-                Finding = context.HasLoadChartEvidence ? "Load-chart/capacity evidence is visible to AI." : "No active load-chart evidence was detected.",
-                Evidence = context.HasLoadChartEvidence ? "Host context reports load-chart evidence or result capacity/radius values." : "HasLoadChartEvidence is false and no result capacity/radius is attached.",
-                WhyItMatters = "Capacity/radius checks need manufacturer load-chart evidence before they can support engineering decisions.",
-                NextAction = context.HasLoadChartEvidence ? "Keep the load-chart source in the QA pack." : "CRANES → Import Load Chart / verify capacity table.",
-                Risk = context.HasLoadChartEvidence ? "Low after review." : "High if reports imply capacity verification without a chart source.",
+                Status = optimizerEvidence.HasCurrentLoadChartEvidence ? "Current evidence present" : "Missing current evidence",
+                Finding = optimizerEvidence.HasCurrentLoadChartEvidence ? "Current crane specification/capacity evidence is visible to AI." : "Current crane context does not expose active specification/capacity evidence.",
+                Evidence = optimizerEvidence.HasCurrentLoadChartEvidence
+                    ? "Current crane context exposes an active specification, radius, or capacity value."
+                    : "A historical optimization result is not accepted by AI as proof of the current crane's load-chart evidence.",
+                WhyItMatters = "Capacity/radius checks need current manufacturer load-chart evidence before they can support engineering decisions.",
+                NextAction = optimizerEvidence.HasCurrentLoadChartEvidence ? "Keep the current load-chart source in the QA pack." : "CRANES → Import Load Chart / verify the current capacity table.",
+                Risk = optimizerEvidence.HasCurrentLoadChartEvidence ? "Low after review." : "High if reports imply current capacity verification without a current chart source.",
                 Confidence = "Medium"
             };
 
             yield return new AiMissionControlInsight
             {
                 Title = "Report Readiness Intelligence",
-                Status = context.OptimizationResult.HasResult && context.OptimizationResult.CoverageRatio >= 0.95 ? "Candidate" : "Not final",
+                Status = context.OptimizationResult.HasResult ? "Review required" : "Not final",
                 Finding = context.OptimizationResult.HasResult
-                    ? $"Report narrative can describe {context.OptimizationResult.CoverageRatio:P2} coverage."
-                    : state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked
-                        ? "No final optimization result exists; AI can draft a blocker/resolution note instead of a lift-plan conclusion."
+                    ? "AI-captured result evidence can support a draft narrative, but result selection identity is not exposed to AI. Review the result selected in Analysis before reporting any exact coverage value."
+                    : state.CanProceedToOptimizerCheck
+                        ? "No final optimization result exists; current optimizer eligibility still requires the optimizer's built-in readiness check."
                         : "No optimization result exists for final report narrative yet.",
                 Evidence = context.OptimizationResult.HasResult ? "Optimization result snapshot is attached." : "Result snapshot HasResult is false.",
                 WhyItMatters = "AI-generated wording is useful for reports, but only after deterministic evidence is reviewed.",
@@ -271,8 +260,8 @@ namespace CraneOptimizer.AI.Workflow
                 .SelectMany(screen => screen.Issues.Select(issue => (screen.ScreenName, Issue: issue)))
                 .Where(item => item.Issue.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase)
                                || item.Issue.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(item => IsNoCandidateCode(item.Issue.Code) && context.ElementCount > 0)
-                .ThenByDescending(item => SeverityRank(item.Issue.Severity))
+                .OrderByDescending(item => SeverityRank(item.Issue.Severity))
+                .ThenBy(item => IsNoCandidateCode(item.Issue.Code) && context.ElementCount > 0)
                 .ThenByDescending(item => item.Issue.AffectedCount)
                 .ThenBy(item => item.ScreenName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(item => item.Issue.Code, StringComparer.OrdinalIgnoreCase);

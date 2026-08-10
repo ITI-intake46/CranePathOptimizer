@@ -76,7 +76,7 @@ namespace CraneOptimizer.Application.Tests.AI
             var markdown = await File.ReadAllTextAsync(execution.ArtifactPath);
             Assert.Contains("# Project Readiness Remediation Draft", markdown, StringComparison.Ordinal);
             Assert.Contains("Project: Bahy", markdown, StringComparison.Ordinal);
-            Assert.Contains("zero trusted GA-ready", markdown, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Current Run Readiness", markdown, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("[E1]", markdown, StringComparison.Ordinal);
             Assert.Contains("explicit one-time user approval", markdown, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("start optimization", markdown, StringComparison.OrdinalIgnoreCase);
@@ -279,18 +279,18 @@ namespace CraneOptimizer.Application.Tests.AI
             {
                 RunId = "run-readiness-draft-1",
                 AgentName = "Project Readiness Agent",
-                Goal = "Why is optimization blocked, which evidence proves it, and what should I do next?",
+                Goal = "Which visible prerequisite is missing before I verify optimizer readiness?",
                 Status = AiAgentRunStatus.Succeeded,
                 StartedAt = DateTimeOffset.UtcNow.AddSeconds(-1),
                 CompletedAt = DateTimeOffset.UtcNow,
                 ModelRevision = 7,
                 ModelFingerprint = "model:rev:7:project:bahy",
-                Conclusion = "Optimization is blocked because there are zero trusted GA-ready grouped lift units.",
+                Conclusion = "A visible project prerequisite is missing. After fixing it, use the optimizer built-in Current Run Readiness for the run decision.",
                 GovernanceSummary = "All diagnostic tools were read-only and no project state was modified.",
                 RecommendedActions = new[]
                 {
                     "CRANES → MOBILE CRANE — Add or select a mobile crane.",
-                    "IFC MODEL → Export Element List — Review trusted weight sources."
+                    "ANALYSIS → Run Optimizer — use Current Run Readiness after the visible prerequisites are complete."
                 },
                 Plan = new[]
                 {
@@ -337,6 +337,20 @@ namespace CraneOptimizer.Application.Tests.AI
                         {
                             ["TrustedGaLiftUnits"] = "0",
                             ["EstimatedWeightBlocked"] = "327"
+                        }
+                    },
+                    new AiToolExecutionResult
+                    {
+                        ToolName = "get_ga_readiness",
+                        Succeeded = true,
+                        Summary = "Visible project prerequisites are incomplete; optimizer eligibility is not certified by AI.",
+                        Evidence = "One or more core prerequisites are missing. Current Run Readiness remains optimizer-owned.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            ["MissingCorePrerequisiteCount"] = "2",
+                            ["CorePrerequisitesComplete"] = "False",
+                            ["HasAdvisoryNoCandidateSignal"] = "True",
+                            ["CandidateEvidenceConflict"] = "False"
                         }
                     }
                 },

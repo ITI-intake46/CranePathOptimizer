@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using CraneOptimizer.AI.Host;
+using CraneOptimizer.AI.Workflow;
 
 namespace CraneOptimizer.AI.Knowledge.Rag
 {
@@ -53,7 +54,9 @@ namespace CraneOptimizer.AI.Knowledge.Rag
             builder.AppendLine($"Zones: {snapshot.ZoneCount:N0}; allowed {snapshot.AllowedZoneCount:N0}; forbidden {snapshot.ForbiddenZoneCount:N0}");
             builder.AppendLine($"Zone areas: allowed {Format(snapshot.AllowedZoneArea)}; forbidden {Format(snapshot.ForbiddenZoneArea)}");
             builder.AppendLine($"Cranes: {snapshot.CraneCount:N0}");
-            builder.AppendLine($"Load-chart evidence sources: {snapshot.LoadChartEvidenceCount:N0}; available {snapshot.HasLoadChartEvidence}");
+            var currentLoadChart = AiOptimizerEvidenceAssessor.HasCurrentLoadChartEvidence(snapshot);
+            builder.AppendLine($"Current crane load-chart evidence visible to AI: {currentLoadChart}");
+            builder.AppendLine("Authority note: historical optimization capacity/radius values are not proof of the current crane load-chart setup.");
             builder.AppendLine($"Building area: {Format(snapshot.BuildingArea)} {snapshot.BuildingAreaUnit}");
             builder.AppendLine($"Building height: {Format(snapshot.BuildingHeight)} {snapshot.BuildingLengthUnit}");
 
@@ -159,8 +162,12 @@ namespace CraneOptimizer.AI.Knowledge.Rag
             builder.AppendLine($"Area: {issue.Area}");
             builder.AppendLine($"Screen: {screen.ScreenName}");
             builder.AppendLine($"Stage: {screen.Stage}");
+            if (IsOptimizerAdvisoryIssue(issue.Code))
+                builder.AppendLine("AI authority classification: advisory import/readiness troubleshooting evidence only; this issue is not the optimizer dialog's authoritative Current Run Readiness decision.");
             builder.AppendLine($"Evidence: {issue.Evidence}");
             builder.AppendLine($"Recommendation: {issue.Recommendation}");
+            if (IsOptimizerAdvisoryIssue(issue.Code))
+                builder.AppendLine("AI handling rule: do not declare the optimizer ready or blocked from this issue alone; verify ANALYSIS -> Run Optimizer -> Current Run Readiness and never bypass a blocker reported there.");
             builder.AppendLine($"Next click: {issue.NextClick}");
             builder.AppendLine($"Affected count: {issue.AffectedCount:N0}");
             builder.AppendLine($"Source confidence: {issue.Confidence}");
@@ -236,6 +243,18 @@ namespace CraneOptimizer.AI.Knowledge.Rag
                 ModelRevision = snapshot.ModelRevision,
                 Metadata = metadata
             };
+        }
+
+        private static bool IsOptimizerAdvisoryIssue(string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return false;
+            return code.Equals("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("GaPreRunNoCandidates", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("EstimatedWeightBlockedFromGA", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("MissingTrustedWeight", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("ElementWeightReviewNeeded", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("SelectedElementWeightNotTrusted", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string Slug(string? value)

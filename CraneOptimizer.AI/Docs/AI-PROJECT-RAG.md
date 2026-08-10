@@ -26,7 +26,7 @@ AI-owned workflow snapshot
 - No Domain, Application, Infrastructure, or UI assembly is referenced by the AI project.
 - Retrieval never changes project state.
 - Workflow issues and action hints remain deterministic host evidence.
-- The LLM is instructed not to bypass weight, load-chart, crane, or GA-readiness gates.
+- The LLM is instructed not to bypass crane/load-chart prerequisites or any blocker reported by the optimizer's built-in Current Run Readiness. AI-side candidate/weight warnings remain advisory unless the host explicitly identifies an authoritative optimizer gate.
 - Answers append a visible evidence trace when project evidence is retrieved.
 - Model revision and fingerprint are captured so stale answers can be recognized.
 
@@ -55,11 +55,12 @@ This baseline remains available even when Ollama is stopped. A later implementat
 
 Question:
 
-> Why is optimization blocked, which evidence proves it, and what should I do next?
+> Can I run the optimizer now, and what evidence should I review?
 
 Expected behavior:
 
 1. Retrieve the highest-ranked workflow issue and relevant crane/weight/readiness evidence.
-2. Preserve the deterministic blocker recommendation.
+2. Separate visible project prerequisites from advisory import/readiness candidate signals.
 3. Append citations such as `[E1]` with source locator, relevance, confidence, and model revision.
-4. Never recommend forcing GA, bypassing eligibility, or using estimated weights as trusted engineering evidence.
+4. If current optimizer eligibility is not explicitly exposed by the host, state that the AI cannot certify `Ready` or `Blocked` and direct the user to **ANALYSIS → Run Optimizer → Current Run Readiness**.
+5. Never recommend forcing GA, bypassing a blocker reported by the optimizer, or treating estimated weights as trusted engineering evidence.

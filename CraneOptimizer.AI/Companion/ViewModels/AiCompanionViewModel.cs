@@ -557,8 +557,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             ? "Model context: not evaluated"
             : $"Model context rev {_currentModelRevision:N0}";
         public AiActionProposalViewModel? PrimaryActionProposal => ActionProposals.FirstOrDefault(proposal => proposal.ActionType.Equals("NavigateTab", StringComparison.OrdinalIgnoreCase));
-        public string PrimaryActionLabel => PrimaryActionProposal?.ConfirmLabel ?? "Open recommended tab";
-        public Visibility PrimaryActionVisibility => PrimaryActionProposal == null ? Visibility.Collapsed : Visibility.Visible;
+        public string PrimaryActionLabel => PrimaryActionProposal == null
+            ? "Open recommended tab"
+            : BuildPrimaryActionLabel(PrimaryActionProposal);
+        public Visibility PrimaryActionVisibility => PrimaryActionProposal is { } proposal
+            && !IsNavigationTargetAlreadyActive(proposal.Target, _uiContext.ActiveTabName)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         public bool HasLatestAnswer => Advisor.HasAiAnswer;
         public Visibility LatestAnswerVisibility => HasLatestAnswer ? Visibility.Visible : Visibility.Collapsed;
@@ -798,6 +803,12 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 return "Review trusted lift weights";
             }
 
+            if (text.Contains("RUN OPTIMIZER", StringComparison.OrdinalIgnoreCase))
+                return "Verify optimizer readiness";
+
+            if (text.Contains("LIFT SUMMARY", StringComparison.OrdinalIgnoreCase))
+                return "Review Lift Summary";
+
             var arrowIndex = text.LastIndexOf('→');
             if (arrowIndex >= 0 && arrowIndex < text.Length - 1)
                 text = text[(arrowIndex + 1)..].Trim();
@@ -832,9 +843,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             body.AppendLine();
             var liveContext = _workflowContextProvider.GetSnapshot();
             var state = AiWorkflowStateClassifier.Classify(liveContext);
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            if (state.Kind == AiWorkflowStateKind.OptimizerVerificationRequired)
             {
-                body.AppendLine("Optimizer note: GA is blocked because deterministic readiness has zero trusted GA-ready lift units. Review trusted weight/lift-unit evidence before running optimization.");
+                body.AppendLine("Optimizer note: visible project prerequisites are complete, but AI does not certify the current run. Use ANALYSIS → Run Optimizer → Current Run Readiness for the authoritative decision.");
+                if (state.HasNoGaCandidateBlocker)
+                    body.AppendLine("AI import/readiness candidate warnings are troubleshooting evidence only and must not be treated as the optimizer's preflight.");
                 body.AppendLine();
             }
             body.AppendLine($"Next: {NextAction}");
@@ -894,14 +907,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             }
 
             var targetTab = GuessTargetTab(NextAction, snapshot.CurrentStage);
+            var targetDisplayName = GetNavigationTargetDisplayName(targetTab);
             ActionProposals.Add(new AiActionProposalViewModel
             {
-                Title = $"Open {targetTab} tab",
-                Description = $"Go to {targetTab} to continue: {NextAction}",
+                Title = $"Open {targetDisplayName}",
+                Description = $"Go to {targetDisplayName} to continue: {NextAction}",
                 ActionType = "NavigateTab",
                 Target = targetTab,
                 Risk = "Low — navigation only; no project data is changed.",
-                ConfirmLabel = $"Open {targetTab}",
+                ConfirmLabel = $"Open {targetDisplayName}",
                 ConfirmCommand = ConfirmActionCommand
             });
 
@@ -1065,9 +1079,54 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (text.Contains("DXF")) return "DXF";
             if (text.Contains("ZONE")) return "ZONES";
             if (text.Contains("CRANE") || text.Contains("LOAD CHART")) return "CRANES";
-            if (text.Contains("OPTIM") || text.Contains("ANALYZE")) return "ANALYZE";
+            if (text.Contains("LIFT SUMMARY") || text.Contains("ANALYSIS") || text.Contains("OPTIM") || text.Contains("ANALYZE")) return "ANALYZE";
             if (text.Contains("REPORT")) return "REPORTS";
             return "HOME";
+        }
+
+        private static string GetNavigationTargetDisplayName(string targetTab)
+        {
+            return targetTab.ToUpperInvariant() switch
+            {
+                "ANALYZE" => "Analysis",
+                "IFC MODEL" => "IFC Model",
+                "DXF" => "DXF",
+                "ZONES" => "Zones",
+                "CRANES" => "Cranes",
+                "REPORTS" => "Reports",
+                "HOME" => "Home",
+                _ => targetTab
+            };
+        }
+
+        private static bool IsNavigationTargetAlreadyActive(string targetTab, string activeTab)
+        {
+            var target = NormalizeNavigationTabName(targetTab);
+            var active = NormalizeNavigationTabName(activeTab);
+
+            return !string.IsNullOrWhiteSpace(target)
+                   && target.Equals(active, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeNavigationTabName(string? tabName)
+        {
+            var normalized = (tabName ?? string.Empty).Trim().ToUpperInvariant();
+            if (normalized.Contains("ANALY", StringComparison.Ordinal)) return "ANALYSIS";
+            if (normalized.Contains("IFC", StringComparison.Ordinal)) return "IFC MODEL";
+            if (normalized.Contains("CRANE", StringComparison.Ordinal)) return "CRANES";
+            if (normalized.Contains("ZONE", StringComparison.Ordinal)) return "ZONES";
+            if (normalized.Contains("REPORT", StringComparison.Ordinal)) return "REPORTS";
+            if (normalized.Contains("DXF", StringComparison.Ordinal)) return "DXF";
+            if (normalized.Contains("HOME", StringComparison.Ordinal)) return "HOME";
+            return normalized;
+        }
+
+        private static string BuildPrimaryActionLabel(AiActionProposalViewModel proposal)
+        {
+            if (proposal.ActionType.Equals("NavigateTab", StringComparison.OrdinalIgnoreCase))
+                return $"Open {GetNavigationTargetDisplayName(proposal.Target)}";
+
+            return proposal.ConfirmLabel;
         }
 
         private void ExecutePrimaryAction()
@@ -1179,13 +1238,14 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (context.AllowedZoneArea > 0 || context.ForbiddenZoneArea > 0)
                 builder.AppendLine($"Zone stored areas: allowed {context.AllowedZoneArea:0.##} m²; forbidden {context.ForbiddenZoneArea:0.##} m²");
             builder.AppendLine($"Cranes in scene: {context.CraneCount}");
-            builder.AppendLine($"Active load-chart evidence sources: {context.LoadChartEvidenceCount}; has load chart evidence: {context.HasLoadChartEvidence}");
+            var hasCurrentLoadChartEvidence = AiOptimizerEvidenceAssessor.HasCurrentLoadChartEvidence(context);
+            builder.AppendLine($"Host load-chart evidence source count: {context.LoadChartEvidenceCount}; current crane load-chart evidence visible to AI: {hasCurrentLoadChartEvidence}");
             if (context.BuildingArea > 0 || context.BuildingHeight > 0)
                 builder.AppendLine($"Building/model metrics: area {context.BuildingArea:0.##} {context.BuildingAreaUnit}; height {context.BuildingHeight:0.##} {context.BuildingLengthUnit}");
 
             if (result.HasResult)
             {
-                builder.AppendLine($"Latest coverage: {result.CoverageRatio:P2}");
+                builder.AppendLine($"Captured result coverage: {result.CoverageRatio:P2}");
                 builder.AppendLine($"Lifted elements: {result.LiftedElementCount}/{result.TotalElementCount}");
                 builder.AppendLine($"Setup positions: {result.PositionCount}");
                 if (!string.IsNullOrWhiteSpace(result.DiagnosticsPath))
@@ -1193,7 +1253,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             }
             else
             {
-                builder.AppendLine("Latest optimization: none in current session");
+                builder.AppendLine("Captured optimization result: none in current session");
             }
 
             if (context.ScreenContexts.Count > 0)
@@ -1231,7 +1291,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             builder.AppendLine("- Demo prompts: " + string.Join(" | ", AiShowcasePrompts.Take(4).Select(prompt => prompt.Label)));
 
             var workflowState = AiWorkflowStateClassifier.Classify(context, snapshot);
-            if (workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked
+            if (workflowState.Kind == AiWorkflowStateKind.OptimizerVerificationRequired
                 || workflowState.Kind == AiWorkflowStateKind.NoIfcModel)
             {
                 builder.AppendLine();
@@ -1486,13 +1546,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(liveContext, requested, _uiContext.ActiveTabName))
             {
                 if (requested.Equals("What should I do next from this screen?", StringComparison.OrdinalIgnoreCase))
-                    requested = "What is the exact next step to resolve the zero-GA-candidate blocker?";
+                    requested = "What is the exact next step, and is the AI-visible zero-candidate evidence authoritative or only advisory?";
                 else if (requested.Equals("Explain this screen and its important buttons.", StringComparison.OrdinalIgnoreCase))
-                    requested = "Explain why the optimizer is blocked on this screen and why visible weights are not enough.";
+                    requested = "Explain this screen and distinguish AI import/readiness warnings from the optimizer's built-in Current Run Readiness.";
                 else if (requested.Equals("Troubleshoot the current workflow state and tell me what to check.", StringComparison.OrdinalIgnoreCase))
-                    requested = "Troubleshoot the zero-GA-candidate blocker without suggesting a bypass.";
+                    requested = "Troubleshoot the AI-visible zero-candidate warning, explain its authority boundary, and tell me where to verify the real optimizer run state.";
                 else if (requested.StartsWith("What-if:", StringComparison.OrdinalIgnoreCase))
-                    requested = "What-if advisor: should I fix trusted BIM lift-unit data before changing crane, zone, or load-chart settings?";
+                    requested = "What-if advisor: which visible prerequisite or advisory should I review first, and what must be verified in the optimizer itself?";
             }
 
             QuestionText = requested;

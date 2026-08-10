@@ -1,4 +1,5 @@
 using CraneOptimizer.AI.Agents.Contracts;
+using CraneOptimizer.AI.Workflow;
 
 namespace CraneOptimizer.AI.Agents.Tools
 {
@@ -7,9 +8,9 @@ namespace CraneOptimizer.AI.Agents.Tools
         public override AiToolDefinition Definition { get; } = new()
         {
             Name = "get_crane_setup",
-            Description = "Reads crane count and load-chart evidence for the active project.",
+            Description = "Reads crane count and current crane/load-chart evidence from the AI host snapshot.",
             InputSchema = "{\"type\":\"object\",\"properties\":{}}",
-            OutputSchema = "{\"cranes\":\"integer\",\"loadChartEvidence\":\"integer\"}",
+            OutputSchema = "{\"cranes\":\"integer\",\"hasCurrentLoadChartEvidence\":\"boolean\"}",
             AccessMode = AiToolAccessMode.ReadOnly,
             PermissionLevel = "ProjectRead"
         };
@@ -18,24 +19,32 @@ namespace CraneOptimizer.AI.Agents.Tools
         {
             cancellationToken.ThrowIfCancellationRequested();
             var workflow = context.Workflow;
+            var assessment = AiOptimizerEvidenceAssessor.Assess(workflow);
+            var hasCurrentLoadChart = assessment.HasCurrentLoadChartEvidence;
+
             var facts = new Dictionary<string, string>
             {
                 ["CraneCount"] = workflow.CraneCount.ToString(),
                 ["LoadChartEvidenceCount"] = workflow.LoadChartEvidenceCount.ToString(),
-                ["HasLoadChartEvidence"] = workflow.HasLoadChartEvidence.ToString()
+                ["HasLoadChartEvidence"] = hasCurrentLoadChart.ToString(),
+                ["HasCurrentLoadChartEvidence"] = hasCurrentLoadChart.ToString()
             };
 
-            var evidence = $"Crane instances: {workflow.CraneCount:N0}; load-chart evidence sources: {workflow.LoadChartEvidenceCount:N0}; " +
-                           $"load-chart evidence available: {workflow.HasLoadChartEvidence}.";
+            var evidence = $"Crane instances: {workflow.CraneCount:N0}; current crane specification/capacity evidence visible to AI: {hasCurrentLoadChart}. " +
+                           "Historical optimization-result capacity/radius values are not treated as proof of current load-chart readiness.";
 
             var actions = new List<string>();
             if (workflow.CraneCount == 0)
                 actions.Add("Add or select a mobile crane from CRANES → MOBILE CRANE.");
-            if (!workflow.HasLoadChartEvidence)
-                actions.Add("Import or verify manufacturer load-chart evidence before capacity-based optimization.");
+            if (!hasCurrentLoadChart)
+                actions.Add("Import or verify the current manufacturer load chart before relying on capacity-based conclusions.");
 
             return Task.FromResult(Success(
-                workflow.CraneCount > 0 ? "A crane is present in the project." : "No crane is selected or present in the project.",
+                workflow.CraneCount == 0
+                    ? "No crane is selected or present in the project."
+                    : hasCurrentLoadChart
+                        ? "A crane and current crane/load-chart evidence are visible to the AI."
+                        : "A crane is present, but current crane/load-chart evidence is not confirmed by the AI snapshot.",
                 evidence,
                 facts,
                 actions));

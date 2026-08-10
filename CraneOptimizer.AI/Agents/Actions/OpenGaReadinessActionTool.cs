@@ -10,10 +10,10 @@ namespace CraneOptimizer.AI.Agents.Actions
         public override AiAgentActionToolDefinition Definition { get; } = new()
         {
             Name = "open_ga_readiness",
-            Title = "Review optimizer readiness",
-            Description = "Open the analysis workspace to review deterministic GA pre-run eligibility and blocker diagnostics.",
+            Title = "Verify optimizer readiness",
+            Description = "Open the analysis workspace so the user can reach Run Optimizer and inspect the application-owned Current Run Readiness indicator.",
             Target = "ANALYZE",
-            ButtonLabel = "Open Readiness"
+            ButtonLabel = "Open Analysis"
         };
     }
 }

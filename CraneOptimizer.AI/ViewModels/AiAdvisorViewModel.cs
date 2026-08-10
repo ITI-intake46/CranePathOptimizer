@@ -549,7 +549,7 @@ namespace CraneOptimizer.AI.ViewModels
             _lastAdvisorResponse = _advisorService.Analyze(_lastContext);
 
             var workflowState = _lastWorkflowContext == null ? null : AiWorkflowStateClassifier.Classify(_lastWorkflowContext);
-            if (!_lastContext.HasOptimizationResult && workflowState != null && !workflowState.CanRunOptimizerNow)
+            if (!_lastContext.HasOptimizationResult && workflowState != null && !workflowState.CanProceedToOptimizerCheck)
             {
                 _lastAdvisorResponse = new AiAdvisorResponseDto
                 {
@@ -559,7 +559,7 @@ namespace CraneOptimizer.AI.ViewModels
                     {
                         new AiRecommendationDto
                         {
-                            Severity = workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked ? AiRecommendationSeverity.Critical : AiRecommendationSeverity.Warning,
+                            Severity = AiRecommendationSeverity.Warning,
                             Title = workflowState.Title.Replace("AI Diagnosis: ", string.Empty),
                             Detail = workflowState.RootCause,
                             SuggestedAction = workflowState.RecommendedAction
@@ -572,12 +572,12 @@ namespace CraneOptimizer.AI.ViewModels
                     }
                 };
             }
-            HealthLabel = workflowState is { Kind: AiWorkflowStateKind.LiftUnitReadinessBlocked }
-                ? "Blocked before GA"
+            HealthLabel = workflowState is { Kind: AiWorkflowStateKind.OptimizerVerificationRequired }
+                ? "Verify in optimizer"
                 : workflowState is { Kind: AiWorkflowStateKind.NoIfcModel }
                     ? "Needs IFC"
                     : _lastAdvisorResponse.HealthLabel;
-            AdvisorSummary = workflowState is { Kind: AiWorkflowStateKind.LiftUnitReadinessBlocked or AiWorkflowStateKind.NoIfcModel or AiWorkflowStateKind.ZonesMissing or AiWorkflowStateKind.CraneMissing or AiWorkflowStateKind.LoadChartMissing }
+            AdvisorSummary = workflowState is { Kind: AiWorkflowStateKind.OptimizerVerificationRequired or AiWorkflowStateKind.NoIfcModel or AiWorkflowStateKind.ZonesMissing or AiWorkflowStateKind.CraneMissing or AiWorkflowStateKind.LoadChartMissing }
                 ? workflowState.RootCause + " Next: " + workflowState.RecommendedAction
                 : _lastAdvisorResponse.Summary;
 
@@ -598,7 +598,7 @@ namespace CraneOptimizer.AI.ViewModels
             ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext, _lastGroundingPacket, _lastAgentRun);
             StatusText = _lastContext.HasOptimizationResult
                 ? "Analysis complete. AI context includes result metrics and deterministic findings."
-                : workflowState != null && !workflowState.CanRunOptimizerNow
+                : workflowState != null && !workflowState.CanProceedToOptimizerCheck
                     ? "No optimizer result is available because the current workflow state must be resolved first: " + workflowState.RecommendedAction
                     : "No optimizer result found yet. The AI can still answer workflow, IFC metadata, and software-navigation questions.";
         }
@@ -1537,9 +1537,9 @@ namespace CraneOptimizer.AI.ViewModels
                 Value = context.HasOptimizationResult ? $"{context.CoverageRatio:P0} coverage" : "No completed run",
                 Detail = context.HasOptimizationResult
                     ? $"{context.LiftedElementCount}/{context.TotalElementCount} elements lifted"
-                    : workflowState != null && !workflowState.CanRunOptimizerNow
+                    : workflowState != null && !workflowState.CanProceedToOptimizerCheck
                         ? workflowState.RootCause + " Next: " + workflowState.RecommendedAction
-                        : "Run ANALYSIS -> Run Optimizer only after readiness is complete."
+                        : "Open ANALYSIS -> Run Optimizer and use its built-in Current Run Readiness for the authoritative run decision."
             });
             ContextCards.Add(new AiContextCardViewModel
             {
@@ -1835,7 +1835,8 @@ namespace CraneOptimizer.AI.ViewModels
                 builder.AppendLine(includeDetailedWorkflowEvidence
                     ? "DETERMINISTIC SCREEN CONTEXTS — allowed because the intent asks about workflow/blockers/scenarios/reports"
                     : "CONCISE PROJECT GAP EVIDENCE — use only as supporting context after the direct answer");
-                builder.AppendLine($"Project workflow: {workflowContext.ProjectDisplayName}; elements {workflowContext.ElementCount}; zones {workflowContext.ZoneCount} ({workflowContext.AllowedZoneCount} allowed/green, {workflowContext.ForbiddenZoneCount} forbidden); cranes {workflowContext.CraneCount}; load-chart evidence {workflowContext.LoadChartEvidenceCount}.");
+                var currentLoadChartEvidence = AiOptimizerEvidenceAssessor.HasCurrentLoadChartEvidence(workflowContext);
+                builder.AppendLine($"Project workflow: {workflowContext.ProjectDisplayName}; elements {workflowContext.ElementCount}; zones {workflowContext.ZoneCount} ({workflowContext.AllowedZoneCount} allowed/green, {workflowContext.ForbiddenZoneCount} forbidden); cranes {workflowContext.CraneCount}; current crane load-chart evidence visible to AI {currentLoadChartEvidence}.");
                 foreach (var screen in workflowContext.ScreenContexts)
                 {
                     builder.AppendLine($"- {screen.ScreenName}: {screen.Stage} — {screen.Summary}");
@@ -1849,7 +1850,7 @@ namespace CraneOptimizer.AI.ViewModels
                 builder.AppendLine();
 
                 var workflowState = AiWorkflowStateClassifier.Classify(workflowContext);
-                if (includeDetailedWorkflowEvidence && (workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked || workflowState.Kind == AiWorkflowStateKind.NoIfcModel))
+                if (includeDetailedWorkflowEvidence && (workflowState.Kind == AiWorkflowStateKind.OptimizerVerificationRequired || workflowState.Kind == AiWorkflowStateKind.NoIfcModel))
                 {
                     builder.AppendLine("DETERMINISTIC WORKFLOW STATE SUMMARY — answer from this only when the visible question asks about workflow, blockers, GA, candidates, weights, or next steps");
                     builder.AppendLine(AiWorkflowEvidenceTextBuilder.BuildWorkflowBlockerSummary(workflowContext));
@@ -1868,8 +1869,8 @@ namespace CraneOptimizer.AI.ViewModels
                 builder.AppendLine("Answer the user's visible blocker/next-step question from current deterministic evidence and safety guardrails only. Do not print internal context labels or implementation notes.");
                 builder.AppendLine();
 
-                builder.AppendLine("CURRENT OPTIMIZATION RESULT");
-                builder.AppendLine("No completed optimization result is available because deterministic pre-run evidence reports zero trusted GA-ready lift units. Do not tell the user to simply rerun or bypass the optimizer. Explain the element-readiness blocker and direct them to IFC import readiness / trusted weight-source review.");
+                builder.AppendLine("CURRENT OPTIMIZATION AUTHORITY BOUNDARY");
+                builder.AppendLine("AI-visible import/readiness candidate or weight signals are advisory troubleshooting evidence. They are not the optimizer dialog's authoritative current-run preflight. Never declare the optimizer ready or blocked from those signals alone. Direct the user to ANALYSIS -> Run Optimizer and its built-in Current Run Readiness for the definitive decision. If that built-in check reports a blocker, do not suggest bypassing it.");
                 builder.AppendLine();
 
                 builder.AppendLine("DETERMINISTIC ADVISOR FINDINGS");
@@ -1936,9 +1937,9 @@ namespace CraneOptimizer.AI.ViewModels
                 if (!context.HasOptimizationResult)
                 {
                     var workflowState = workflowContext == null ? null : AiWorkflowStateClassifier.Classify(workflowContext);
-                    if (workflowState != null && !workflowState.CanRunOptimizerNow)
+                    if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
                     {
-                        builder.AppendLine("No completed optimization result is currently available because the current workflow state is not ready for GA: " + workflowState.RootCause + " Next: " + workflowState.RecommendedAction);
+                        builder.AppendLine("No completed optimization result is currently available because a visible project prerequisite still needs attention: " + workflowState.RootCause + " Next: " + workflowState.RecommendedAction);
                     }
                     else
                     {
@@ -2030,10 +2031,10 @@ namespace CraneOptimizer.AI.ViewModels
                    "Give one concise recommended next click, why it matters, and what to verify afterward. " +
                    "When the user asks how to use the software, point to exact visible tab and button names from SoftwareContext, and say when a requested feature is not visible in the supplied context. " +
                    "When the user asks about optimization, explain the result in practical engineering language, identify the dominant failure mode, and suggest safe next actions. " +
-                   "When NoGaCandidates, GaPreRunNoCandidates, GaCannotStartNoCandidates, or EstimatedWeightBlockedFromGA appears and the user asks about optimization, next steps, blockers, weights, or GA, explain the lift-unit readiness blocker; never suggest bypassing eligibility, forcing a run, or using estimated weights for engineering decisions. " +
+                   "When NoGaCandidates, GaPreRunNoCandidates, GaCannotStartNoCandidates, or EstimatedWeightBlockedFromGA appears, treat it as AI-visible import/readiness troubleshooting evidence unless the supplied context explicitly identifies it as the optimizer's authoritative built-in preflight. Never infer that the optimizer is ready or blocked from those AI candidate counts alone. Direct run-eligibility questions to ANALYSIS -> Run Optimizer and its built-in Current Run Readiness, and never suggest bypassing a blocker reported there. " +
                    "For unrelated questions such as IFC metadata, building usage, UI navigation, delivery scope, quality/accuracy, model selection, or reports, answer the visible question first and mention optimization blockers only as a short separate caveat. " +
                    "If the question asks accuracy, validation, QA, deliverables, importance, or a construction concept, never begin with the current workflow state or GA blocker unless the prompt contract says the user is asking specifically about the current project/result. " +
-                   "For project-specific accuracy or delivery questions, start with live project verification priorities: readiness blocker, crane count, load-chart evidence, zone counts, model/lift evidence, and result availability; then explain the general method. " +
+                   "For project-specific accuracy or delivery questions, start with live project verification priorities: visible prerequisite state, crane count, current load-chart evidence, zone counts, model/lift evidence, and result availability; then explain the general method. " +
                    "For crane logistics or tight urban site questions, include crane-specific constraints such as access route, turning radius, outrigger/mat footprint, ground bearing, working radius, boom/hook height, tail swing, oversailing, staging, traffic, pedestrian protection, and utilities. " +
                    "Use structure only when it helps the specific intent. Do not force every answer into the same Answer/Evidence/Risk/Confidence template; conceptual and conversational questions should read naturally, while project facts and safety/accuracy questions may use short headings. " +
                    "Calibrate confidence: distinguish confidence in visible facts or method from confidence in a final crane plan or blocked optimization result. " +

@@ -30,39 +30,67 @@ namespace CraneOptimizer.AI.Agents.Runtime
             var requested = new List<string>();
             var corpus = string.Join("\n", new[]
             {
+                run.Goal,
                 run.Conclusion,
-                string.Join("\n", run.RecommendedActions),
-                string.Join("\n", run.ToolResults.Select(result => result.Evidence)),
-                string.Join("\n", run.Citations.Select(citation => citation.SourceLabel + " " + citation.Snippet))
+                string.Join("\n", run.RecommendedActions)
             }).ToLowerInvariant();
 
-            var criticalResult = FindResult(run, "get_critical_issues");
-            var criticalIssueCount = ReadInt(criticalResult, "CriticalIssueCount");
-            if (criticalIssueCount > 0
-                || corpus.Contains("blocked", StringComparison.Ordinal)
-                || corpus.Contains("not ready", StringComparison.Ordinal)
-                || corpus.Contains("critical", StringComparison.Ordinal)
-                || corpus.Contains("missing", StringComparison.Ordinal)
-                || corpus.Contains("zero trusted", StringComparison.Ordinal))
-            {
+            var gaResult = FindResult(run, "get_ga_readiness");
+            var missingCorePrerequisites = ReadInt(gaResult, "MissingCorePrerequisiteCount");
+            var corePrerequisitesComplete = ReadBool(gaResult, "CorePrerequisitesComplete");
+            var advisoryNoCandidate = ReadBool(gaResult, "HasAdvisoryNoCandidateSignal");
+            var candidateConflict = ReadBool(gaResult, "CandidateEvidenceConflict");
+            var hasOptimizationResult = ReadBool(gaResult, "HasOptimizationResult");
+
+            if (gaResult != null && missingCorePrerequisites > 0)
                 requested.Add("prepare_readiness_remediation_draft");
-            }
 
             var craneResult = FindResult(run, "get_crane_setup");
             var craneCount = ReadInt(craneResult, "CraneCount");
-            var hasLoadChart = ReadBool(craneResult, "HasLoadChartEvidence");
-            if (craneCount == 0 || corpus.Contains("no crane") || corpus.Contains("select the crane"))
+            var hasLoadChart = ReadBool(craneResult, "HasCurrentLoadChartEvidence")
+                               || ReadBool(craneResult, "HasLoadChartEvidence");
+            if (craneResult != null && craneCount == 0)
                 requested.Add("open_crane_setup");
-            if (!hasLoadChart || corpus.Contains("load-chart") || corpus.Contains("load chart"))
+            if (craneResult != null && craneCount > 0 && !hasLoadChart)
                 requested.Add("open_load_chart_import");
-            if (corpus.Contains("trusted weight") || corpus.Contains("estimated weight") || corpus.Contains("ga-ready") || corpus.Contains("export element list"))
-                requested.Add("open_element_export");
-            if (corpus.Contains("center of gravity") || corpus.Contains(" cog ") || corpus.Contains("assembly mark") || corpus.Contains("elementidentity"))
-                requested.Add("open_element_management");
-            if (corpus.Contains("zone") && (corpus.Contains("missing") || corpus.Contains("review") || corpus.Contains("placement")))
+
+            var zoneResult = FindResult(run, "get_zone_summary");
+            var zoneCount = ReadInt(zoneResult, "ZoneCount");
+            if (zoneResult != null && zoneCount == 0)
                 requested.Add("open_zone_manager");
-            if (corpus.Contains("ga ") || corpus.Contains("optimizer") || corpus.Contains("optimization") || corpus.Contains("pre-run"))
+
+            var asksForElementEvidence = corpus.Contains("weight", StringComparison.Ordinal)
+                                         || corpus.Contains("mass", StringComparison.Ordinal)
+                                         || corpus.Contains("element export", StringComparison.Ordinal)
+                                         || corpus.Contains("bim exporter", StringComparison.Ordinal);
+            if (asksForElementEvidence && advisoryNoCandidate && !candidateConflict)
+                requested.Add("open_element_export");
+
+            var goal = (run.Goal ?? string.Empty).ToLowerInvariant();
+            var asksExplicitRunEligibility = goal.Contains("can i run", StringComparison.Ordinal)
+                                             || goal.Contains("can we run", StringComparison.Ordinal)
+                                             || goal.Contains("can i rerun", StringComparison.Ordinal)
+                                             || goal.Contains("can we rerun", StringComparison.Ordinal)
+                                             || goal.Contains("run the optimizer now", StringComparison.Ordinal)
+                                             || goal.Contains("run ga now", StringComparison.Ordinal);
+            var asksAboutOptimizer = corpus.Contains("optimizer", StringComparison.Ordinal)
+                                     || corpus.Contains("optimization", StringComparison.Ordinal)
+                                     || corpus.Contains("ga ", StringComparison.Ordinal)
+                                     || asksExplicitRunEligibility;
+            if (gaResult != null
+                && corePrerequisitesComplete
+                && (asksExplicitRunEligibility || (!hasOptimizationResult && asksAboutOptimizer)))
+            {
                 requested.Add("open_ga_readiness");
+            }
+
+            if (corpus.Contains("center of gravity", StringComparison.Ordinal)
+                || corpus.Contains(" cog ", StringComparison.Ordinal)
+                || corpus.Contains("assembly mark", StringComparison.Ordinal)
+                || corpus.Contains("elementidentity", StringComparison.Ordinal))
+            {
+                requested.Add("open_element_management");
+            }
 
             var proposals = new List<AiAgentActionProposal>();
             foreach (var toolName in requested.Distinct(StringComparer.OrdinalIgnoreCase))
