@@ -175,7 +175,9 @@ namespace CraneOptimizer.Application.Tests.AI
             var run = await service.RunAsync(context, "What should I do next from this screen?", "ANALYSIS", string.Empty);
 
             Assert.Contains("Lift Summary", run.Conclusion, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("3.92", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("AI-captured", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("selected optimization result", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("3.92", run.Conclusion, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("optimizer", run.Conclusion, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(run.RecommendedActions, action => action.Contains("Lift Summary", StringComparison.OrdinalIgnoreCase));
         }

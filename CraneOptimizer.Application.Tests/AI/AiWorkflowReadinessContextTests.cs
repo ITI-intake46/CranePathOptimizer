@@ -141,5 +141,41 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("Allowed Zone", cards[0].NextClick);
             Assert.Contains(cards, card => card.Finding.Contains("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase));
         }
+        [Fact]
+        public void WorkflowReadiness_ResultSnapshotWithoutSelectionIdentity_DoesNotClaimSelectedPercentage()
+        {
+            var service = new WorkflowReadinessService();
+            var context = new AiWorkflowContextSnapshot
+            {
+                HasProject = true,
+                CurrentProjectName = "Result Provenance",
+                ElementCount = 357,
+                ZoneCount = 2,
+                AllowedZoneCount = 2,
+                CraneCount = 1,
+                HasLoadChartEvidence = true,
+                LoadChartEvidenceCount = 1,
+                OptimizationResult = new AiOptimizationResultSnapshot
+                {
+                    HasResult = true,
+                    CoverageRatio = 0.1933,
+                    LiftedElementCount = 69,
+                    TotalElementCount = 357,
+                    PositionCount = 2
+                }
+            };
+
+            var snapshot = service.Evaluate(context, new UiInteractionContextService());
+
+            Assert.Equal("Result review", snapshot.CurrentStage);
+            Assert.DoesNotContain("selected result", snapshot.Summary, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("19.33", snapshot.Summary, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Lift Summary", snapshot.Summary, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(snapshot.Items, item =>
+                item.Name == "Result review"
+                && item.NextClick.Contains("Lift Summary", StringComparison.OrdinalIgnoreCase)
+                && item.Evidence.Contains("does not expose", StringComparison.OrdinalIgnoreCase));
+        }
+
     }
 }

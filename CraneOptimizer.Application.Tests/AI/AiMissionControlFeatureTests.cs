@@ -2,6 +2,7 @@ using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Services;
 using CraneOptimizer.AI.Workflow;
 using Xunit;
+using CraneOptimizer.AI.Companion.ViewModels;
 
 namespace CraneOptimizer.Application.Tests.AI
 {
@@ -305,5 +306,23 @@ namespace CraneOptimizer.Application.Tests.AI
 
             return null;
         }
+        [Fact]
+        public void CompanionNavigation_ResultReviewTargetsAnalysisAndUsesHumanLabel()
+        {
+            var vmType = typeof(AiCompanionViewModel);
+            var guessTarget = vmType.GetMethod("GuessTargetTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var compactAction = vmType.GetMethod("BuildCompactNextAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var displayName = vmType.GetMethod("GetNavigationTargetDisplayName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            Assert.NotNull(guessTarget);
+            Assert.NotNull(compactAction);
+            Assert.NotNull(displayName);
+
+            Assert.Equal("ANALYZE", guessTarget!.Invoke(null, new object[] { "ANALYSIS → Lift Summary", "Result review" }));
+            Assert.Equal("Analysis", displayName!.Invoke(null, new object[] { "ANALYZE" }));
+            Assert.Equal("Review Lift Summary", compactAction!.Invoke(null, new object[] { "ANALYSIS → Lift Summary" }));
+            Assert.Equal("Verify optimizer readiness", compactAction.Invoke(null, new object[] { "ANALYSIS → Run Optimizer" }));
+        }
+
     }
 }
