@@ -16,7 +16,7 @@ namespace CraneOptimizer.AI.Configuration
 
         public bool IsCompanionVisible { get; set; } = true;
         public bool IsAiAssistDockVisible { get; set; }
-        public bool IsSectionRailExpanded { get; set; } = true;
+        public bool IsSectionRailExpanded { get; set; } = false;
         public string DockPreference { get; set; } = "Right";
         public bool AutoCheckOllamaOnStartup { get; set; }
         public bool ShowContextInspectorByDefault { get; set; }
