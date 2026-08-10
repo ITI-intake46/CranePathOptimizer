@@ -29,7 +29,7 @@ namespace CraneOptimizer.AI.Companion.Views
             nameof(IsSectionRailExpanded),
             typeof(bool),
             typeof(AiCompanionPanel),
-            new PropertyMetadata(true, OnSectionRailExpandedChanged));
+            new PropertyMetadata(false, OnSectionRailExpandedChanged));
 
         public static readonly DependencyProperty ShowHeaderProperty = DependencyProperty.Register(
             nameof(ShowHeader),

@@ -31,11 +31,23 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Equal("prepare_readiness_remediation_draft", proposals[0].ToolName);
             Assert.Contains(proposals, proposal => proposal.ToolName == "prepare_readiness_remediation_draft" && proposal.RequiresExplicitApproval);
             Assert.Contains(proposals, proposal => proposal.ToolName == "open_crane_setup");
-            Assert.Contains(proposals, proposal => proposal.ToolName == "open_load_chart_import");
             Assert.Contains(proposals, proposal => proposal.ToolName == "open_element_export");
-            Assert.Contains(proposals, proposal => proposal.ToolName == "open_ga_readiness");
+            Assert.DoesNotContain(proposals, proposal => proposal.ToolName == "open_load_chart_import");
+            Assert.DoesNotContain(proposals, proposal => proposal.ToolName == "open_ga_readiness");
             Assert.All(proposals, proposal => Assert.Equal(7, proposal.ModelRevision));
             Assert.All(proposals, proposal => Assert.NotEmpty(proposal.EvidenceIds));
+        }
+
+        [Fact]
+        public void BuildProposals_ResultReviewNextStep_DoesNotReplaceLiftSummaryWithOptimizerNavigation()
+        {
+            var service = CreateService(new CapturingUiContext(), out _);
+
+            var nextStepProposals = service.BuildProposals(BuildResultReviewRun("What should I do next from this screen?"));
+            var rerunProposals = service.BuildProposals(BuildResultReviewRun("Can I run the optimizer now?"));
+
+            Assert.DoesNotContain(nextStepProposals, proposal => proposal.ToolName == "open_ga_readiness");
+            Assert.Contains(rerunProposals, proposal => proposal.ToolName == "open_ga_readiness");
         }
 
         [Fact]
@@ -65,7 +77,7 @@ namespace CraneOptimizer.Application.Tests.AI
             var ui = new CapturingUiContext();
             var service = CreateService(ui, out var auditStore);
             var run = BuildBlockedRun();
-            var proposal = service.BuildProposals(run).First(item => item.ToolName == "open_ga_readiness");
+            var proposal = service.BuildProposals(run).First(item => item.ToolName == "open_crane_setup");
 
             var execution = await service.ExecuteAsync(proposal, run, userApproved: false, initiatedBy: string.Empty);
 
@@ -187,7 +199,7 @@ namespace CraneOptimizer.Application.Tests.AI
                 Status = AiAgentRunStatus.Succeeded,
                 ModelRevision = 7,
                 ModelFingerprint = "model:rev:7:project:bahy",
-                Conclusion = "Optimization is blocked because there are zero trusted GA-ready lift units, no crane is selected, and load-chart evidence is missing.",
+                Conclusion = "A crane is missing. AI-visible zero-candidate/weight evidence is advisory; optimizer eligibility is verified only after core prerequisites are complete.",
                 RecommendedActions = new[]
                 {
                     "CRANES → MOBILE CRANE — Add or select a mobile crane.",
@@ -227,6 +239,28 @@ namespace CraneOptimizer.Application.Tests.AI
                         ToolName = "get_bim_readiness",
                         Succeeded = true,
                         Evidence = "Zero trusted GA-ready lift units; 327 estimated weights are blocked."
+                    },
+                    new AiToolExecutionResult
+                    {
+                        ToolName = "get_ga_readiness",
+                        Succeeded = true,
+                        Evidence = "Visible core prerequisites are incomplete; AI does not certify optimizer eligibility.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            ["MissingCorePrerequisiteCount"] = "2",
+                            ["CorePrerequisitesComplete"] = "False",
+                            ["HasAdvisoryNoCandidateSignal"] = "True",
+                            ["CandidateEvidenceConflict"] = "False"
+                        }
+                    },
+                    new AiToolExecutionResult
+                    {
+                        ToolName = "get_zone_summary",
+                        Succeeded = true,
+                        Facts = new Dictionary<string, string>
+                        {
+                            ["ZoneCount"] = "5"
+                        }
                     }
                 },
                 Citations = new[]
@@ -251,6 +285,65 @@ namespace CraneOptimizer.Application.Tests.AI
                         SourceLabel = "IFC weight evidence",
                         Snippet = "Estimated weight is blocked from GA.",
                         ModelRevision = 7
+                    }
+                }
+            };
+        }
+
+        private static AiAgentRunSnapshot BuildResultReviewRun(string goal)
+        {
+            return new AiAgentRunSnapshot
+            {
+                RunId = "run-result-review-1",
+                Goal = goal,
+                Status = AiAgentRunStatus.Succeeded,
+                ModelRevision = 8,
+                ModelFingerprint = "model:rev:8:project:bahy",
+                Conclusion = "The captured result needs review at 3.92%. Current rerun eligibility remains owned by the optimizer's built-in Current Run Readiness.",
+                RecommendedActions = new[]
+                {
+                    "ANALYSIS → Lift Summary — inspect unresolved lifts and dominant failure modes."
+                },
+                Plan = new[]
+                {
+                    new AiAgentPlanStep { Sequence = 1, ToolName = "get_ga_readiness", Purpose = "Inspect AI-visible optimizer evidence." }
+                },
+                Trace = new[]
+                {
+                    new AiAgentTraceEntry
+                    {
+                        Sequence = 1,
+                        ToolName = "get_ga_readiness",
+                        Purpose = "Inspect AI-visible optimizer evidence.",
+                        Status = AiAgentStepStatus.Succeeded,
+                        Summary = "Captured result available; optimizer eligibility not exposed to AI."
+                    }
+                },
+                ToolResults = new[]
+                {
+                    new AiToolExecutionResult
+                    {
+                        ToolName = "get_ga_readiness",
+                        Succeeded = true,
+                        Evidence = "Core prerequisites are complete; captured result 14/357; current optimizer eligibility requires the built-in preflight.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            ["MissingCorePrerequisiteCount"] = "0",
+                            ["CorePrerequisitesComplete"] = "True",
+                            ["HasAdvisoryNoCandidateSignal"] = "True",
+                            ["CandidateEvidenceConflict"] = "True",
+                            ["HasOptimizationResult"] = "True"
+                        }
+                    }
+                },
+                Citations = new[]
+                {
+                    new AiKnowledgeCitation
+                    {
+                        Id = "E1",
+                        SourceLabel = "Captured optimization result",
+                        Snippet = "14 of 357 evaluated lifts completed.",
+                        ModelRevision = 8
                     }
                 }
             };

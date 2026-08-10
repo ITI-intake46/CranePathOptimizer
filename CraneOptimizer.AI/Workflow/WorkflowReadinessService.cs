@@ -1,115 +1,140 @@
 using CraneOptimizer.AI.Host;
-using CraneOptimizer.AI.Services;
 
 namespace CraneOptimizer.AI.Workflow
 {
     /// <summary>
-    /// Deterministic workflow-completeness engine. It transforms live shell state
-    /// into an auditable checklist that the AI can explain but not override.
+    /// Deterministic AI workflow-completeness engine.
+    ///
+    /// This service classifies visible project prerequisites and review work. It does
+    /// not reimplement the GA engine and never treats import/readiness candidate signals
+    /// as the optimizer dialog's authoritative current-run preflight.
     /// </summary>
     public sealed class WorkflowReadinessService : IWorkflowReadinessService
     {
         public WorkflowReadinessSnapshot Evaluate(AiWorkflowContextSnapshot context, IUiInteractionContextService uiContext)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (uiContext == null) throw new ArgumentNullException(nameof(uiContext));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(uiContext);
 
-            var elementCount = context.ElementCount;
-            var zoneCount = context.ZoneCount;
-            var craneCount = context.CraneCount;
-            var hasProject = context.HasProject;
+            var assessment = AiOptimizerEvidenceAssessor.Assess(context);
             var result = context.OptimizationResult ?? new AiOptimizationResultSnapshot();
             var hasResult = result.HasResult;
             var hasDiagnostics = hasResult && !string.IsNullOrWhiteSpace(result.DiagnosticsPath);
-            var hasLoadChartEvidence = context.HasLoadChartEvidence
-                || (hasResult && result.MaxCapacity > 0 && result.MaxRadius > 0);
-            var resultIsReportReady = hasResult && result.CoverageRatio >= 0.95;
-            var hasNoGaCandidateBlocker = elementCount > 0 && AiWorkflowEvidenceTextBuilder.HasNoGaCandidateBlocker(context);
 
             var items = new List<WorkflowReadinessItem>
             {
                 Item(
                     "Project workspace",
-                    hasProject,
+                    assessment.HasProject,
                     true,
-                    hasProject ? "OK" : "Warning",
-                    hasProject ? $"Active project: {context.CurrentProjectName}" : "No active project session detected.",
-                    "Open or create a project before importing IFC data or running optimization.",
+                    assessment.HasProject ? "OK" : "Warning",
+                    assessment.HasProject ? $"Active project: {context.CurrentProjectName}" : "No active project session detected.",
+                    "Open or create a project before importing IFC data or reviewing optimization readiness.",
                     "HOME → Open Project or New Project"),
 
                 Item(
                     "IFC model and elements",
-                    elementCount > 0,
+                    assessment.HasIfcElements,
                     true,
-                    elementCount > 0 ? "OK" : "Warning",
-                    elementCount > 0 ? $"{elementCount:N0} element(s) loaded in the scene." : "No IFC elements are available in the current scene.",
-                    elementCount > 0
-                        ? "Review import readiness, trusted weights, COG markers, and coordinate assumptions. The IFC is loaded; remaining warnings are data-quality issues, not a load-model failure."
-                        : "Load an IFC model and verify element categories, weights, COG markers, and coordinate assumptions.",
-                    elementCount > 0 ? "IFC MODEL → review import readiness" : "IFC MODEL → Load IFC"),
+                    assessment.HasIfcElements ? "OK" : "Warning",
+                    assessment.HasIfcElements ? $"{context.ElementCount:N0} BIM/model object(s) loaded in the scene." : "No IFC elements are available in the current scene.",
+                    assessment.HasIfcElements
+                        ? "Review import/data-quality warnings separately from the optimizer's own run-readiness decision."
+                        : "Load an IFC model and verify model content before continuing.",
+                    assessment.HasIfcElements ? "IFC MODEL → review import readiness" : "IFC MODEL → Load IFC"),
 
                 Item(
                     "Placement zones",
-                    zoneCount > 0,
+                    assessment.HasZones,
                     true,
-                    zoneCount > 0 ? "OK" : "Warning",
-                    zoneCount > 0 ? $"{zoneCount:N0} zone(s) defined." : "No allowed/forbidden placement zones are defined.",
-                    "Define at least one allowed zone and any required forbidden zones before running GA placement.",
+                    assessment.HasZones ? "OK" : "Warning",
+                    assessment.HasZones ? $"{context.ZoneCount:N0} zone(s) defined." : "No allowed/forbidden placement zones are defined.",
+                    "Define at least one allowed zone and any required forbidden zones before checking an optimizer run.",
                     "ZONES → Allowed Zone"),
 
                 Item(
                     "Crane setup",
-                    craneCount > 0,
+                    assessment.HasCrane,
                     true,
-                    craneCount > 0 ? "OK" : "Warning",
-                    craneCount > 0 ? $"{craneCount:N0} crane instance(s) exist in the scene." : "No crane is available in the scene.",
-                    "Add or select the crane model to be used for manual inspection and optimization.",
+                    assessment.HasCrane ? "OK" : "Warning",
+                    assessment.HasCrane ? $"{context.CraneCount:N0} crane instance(s) exist in the scene." : "No crane is available in the scene.",
+                    "Add or select the crane model to be used for inspection and optimization.",
                     "CRANES → MOBILE CRANE"),
 
                 Item(
-                    "Load chart evidence",
-                    hasLoadChartEvidence,
+                    "Current load chart evidence",
+                    assessment.HasCurrentLoadChartEvidence,
                     true,
-                    hasLoadChartEvidence ? "OK" : "Warning",
-                    hasLoadChartEvidence ? "Crane capacity/radius data is visible in the current crane/result context." : "No active load-chart/capacity evidence was detected from the current UI context.",
-                    "Import or verify manufacturer load chart data before relying on capacity-based feasibility results.",
-                    "CRANES → Import Load Chart..."),
-
-                Item(
-                    "Optimization result",
-                    hasResult,
-                    false,
-                    hasResult ? "OK" : "Info",
-                    hasResult ? $"Latest result coverage: {result.CoverageRatio:P2}; lifted {result.LiftedElementCount:N0}/{result.TotalElementCount:N0}." : hasNoGaCandidateBlocker ? "No optimization result is available because deterministic pre-run evidence has zero trusted GA-ready lift units." : "No optimization result is currently available.",
-                    hasNoGaCandidateBlocker
-                        ? "Resolve import/lift-unit readiness first; keep the optimizer gate closed until trusted lift-unit evidence is available."
-                        : "Run the GA optimizer after IFC, zones, crane, and load chart inputs are ready.",
-                    hasNoGaCandidateBlocker ? "IFC MODEL → Export Element List / trusted weight-source review" : "ANALYSIS → Run Optimizer"),
-
-                Item(
-                    "Diagnostics available",
-                    hasDiagnostics,
-                    false,
-                    hasDiagnostics ? "OK" : "Info",
-                    hasDiagnostics ? $"Diagnostics path: {result.DiagnosticsPath}" : "No diagnostics path is attached to the latest result.",
-                    "Use diagnostics to distinguish geometry/reachability issues from GA convergence issues.",
-                    "ANALYSIS → Lift Summary"),
-
-                Item(
-                    "Report readiness",
-                    resultIsReportReady,
-                    false,
-                    resultIsReportReady ? "OK" : hasResult ? "Warning" : "Info",
-                    hasResult ? $"Coverage is {result.CoverageRatio:P2}." : "No result is available for report generation.",
-                    hasResult ? "Review unresolved elements and assumptions before generating final reports." : "Generate reports after a completed optimization run.",
-                    "ANALYSIS → Lifting Summary Report")
+                    assessment.HasCurrentLoadChartEvidence ? "OK" : "Warning",
+                    assessment.HasCurrentLoadChartEvidence
+                        ? "The active crane context exposes a specification, current radius, or current capacity value."
+                        : "The AI cannot confirm current crane specification/capacity evidence from the active crane context.",
+                    "Import or verify the current manufacturer load chart before relying on capacity-based conclusions. A historical result is not treated as proof of current chart evidence.",
+                    "CRANES → Import Load Chart...")
             };
+
+            if (assessment.CorePrerequisitesComplete && !hasResult)
+            {
+                items.Add(Item(
+                    "Optimizer built-in readiness verification",
+                    false,
+                    false,
+                    assessment.HasNoCandidateAdvisory || assessment.CandidateEvidenceConflict ? "Warning" : "Info",
+                    BuildOptimizerVerificationEvidence(assessment),
+                    "Open the optimizer and use its built-in Current Run Readiness as the definitive run decision. AI import/readiness counts are advisory only.",
+                    "ANALYSIS → Run Optimizer"));
+            }
+
+            items.Add(Item(
+                "Optimization result",
+                hasResult,
+                false,
+                hasResult ? "OK" : "Info",
+                hasResult
+                    ? $"AI-captured result evidence reports {result.CoverageRatio:P2} coverage and {result.LiftedElementCount:N0}/{result.TotalElementCount:N0} completed. The strict host contract does not identify this snapshot as the saved Analysis result currently selected on screen."
+                    : "No completed optimization result is currently attached.",
+                hasResult
+                    ? "Open Lift Summary and review the result selected in the application before reporting or choosing a rerun strategy."
+                    : assessment.CorePrerequisitesComplete
+                        ? "Use ANALYSIS → Run Optimizer and rely on the optimizer's built-in readiness check before starting a run."
+                        : "Complete the visible project prerequisites before opening the optimizer workflow.",
+                hasResult ? "ANALYSIS → Lift Summary" : "ANALYSIS → Run Optimizer"));
+
+            if (hasResult)
+            {
+                items.Add(Item(
+                    "Result review",
+                    false,
+                    false,
+                    "Warning",
+                    "AI-captured result evidence exists, but the strict host contract does not expose the current Analysis UI selection. Review Lift Summary in the application directly before relying on any captured percentage.",
+                    "Inspect Lift Summary and unresolved failure modes before deciding whether to change inputs, report, or rerun.",
+                    "ANALYSIS → Lift Summary"));
+
+                items.Add(Item(
+                    "Optimizer rerun eligibility",
+                    true,
+                    false,
+                    "Info",
+                    "A completed result does not establish current rerun eligibility. The AI snapshot does not expose the optimizer dialog's authoritative current-run preflight.",
+                    "If another run is desired, reopen Run Optimizer and use its built-in Current Run Readiness.",
+                    "ANALYSIS → Run Optimizer"));
+            }
+
+            items.Add(Item(
+                "Diagnostics available",
+                hasDiagnostics,
+                false,
+                hasDiagnostics ? "OK" : "Info",
+                hasDiagnostics ? $"Diagnostics path from AI-captured result evidence: {result.DiagnosticsPath}" : "No diagnostics path is attached to the AI-captured result evidence.",
+                "Use diagnostics to distinguish geometry/reachability, capacity, and convergence issues.",
+                "ANALYSIS → Lift Summary"));
 
             items.AddRange(BuildScreenContextEvidenceItems(context));
 
             var complete = items.Count(item => item.IsComplete);
             var missingCritical = items.Count(item => item.IsCritical && !item.IsComplete);
-            var stage = InferStage(items, hasResult, result.CoverageRatio);
+            var stage = InferStage(items, hasResult, assessment.CorePrerequisitesComplete);
 
             return new WorkflowReadinessSnapshot
             {
@@ -119,18 +144,14 @@ namespace CraneOptimizer.AI.Workflow
                 TotalCount = items.Count,
                 CompletionRatio = items.Count == 0 ? 0 : complete / (double)items.Count,
                 MissingCriticalCount = missingCritical,
-                Summary = missingCritical == 0
-                    ? (hasNoGaCandidateBlocker
-                        ? "Core scene inputs exist, but GA is blocked by element readiness. Review trusted GA-ready lift-unit data before optimization."
-                        : "Core inputs are available. Review diagnostics and reporting readiness before issuing deliverables.")
-                    : $"{missingCritical} critical workflow prerequisite(s) still need attention before optimization/reporting.",
+                Summary = BuildSummary(missingCritical, hasResult, assessment),
                 Items = items
             };
         }
 
         public IReadOnlyList<StructuredRecommendationCard> BuildStructuredCards(WorkflowReadinessSnapshot snapshot)
         {
-            if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            ArgumentNullException.ThrowIfNull(snapshot);
 
             var cards = snapshot.Items
                 .Where(item => !item.IsComplete || item.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase))
@@ -141,17 +162,17 @@ namespace CraneOptimizer.AI.Workflow
                 .Take(6)
                 .Select(item => new StructuredRecommendationCard
                 {
-                    Status = item.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase)
+                    Status = item.IsCritical && item.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase)
                         ? "Blocked"
-                        : item.IsComplete ? "Review" : (item.IsCritical ? "Needs action" : "Optional"),
+                        : item.IsComplete ? "Review" : item.IsCritical ? "Needs action" : "Review",
                     Finding = item.Name,
                     Evidence = item.Evidence,
                     Recommendation = item.Recommendation,
                     NextClick = item.NextClick,
                     Risk = item.IsCritical
-                        ? "Blocking prerequisite for reliable optimization or report interpretation."
-                        : "May reduce explainability, reproducibility, or reporting quality if ignored.",
-                    Confidence = "High"
+                        ? "Visible prerequisite required before the workflow can continue."
+                        : "Advisory/review item. It does not replace the optimizer's built-in current-run preflight.",
+                    Confidence = item.IsCritical ? "High" : "High for the exposed evidence; optimizer eligibility is checked by the optimizer itself"
                 })
                 .ToList();
 
@@ -162,15 +183,51 @@ namespace CraneOptimizer.AI.Workflow
             {
                 new StructuredRecommendationCard
                 {
-                    Status = "Ready",
-                    Finding = "Workflow prerequisites look complete",
+                    Status = "Review",
+                    Finding = "No pending AI workflow card",
                     Evidence = snapshot.Summary,
-                    Recommendation = "Proceed with engineering review, diagnostics inspection, and report generation.",
-                    NextClick = "ANALYSIS → Lifting Summary Report",
-                    Risk = "AI guidance remains advisory and does not certify crane-planning safety.",
+                    Recommendation = "Use the visible application workflow and the optimizer's own readiness indicator for run decisions.",
+                    NextClick = "ANALYSIS",
+                    Risk = "AI guidance remains advisory and does not certify crane-planning safety or optimizer eligibility.",
                     Confidence = "High"
                 }
             };
+        }
+
+        private static string BuildOptimizerVerificationEvidence(AiOptimizerEvidenceAssessment assessment)
+        {
+            if (assessment.CandidateEvidenceConflict)
+            {
+                return $"AI import/readiness signals include a zero-candidate warning, while a completed optimization result previously evaluated {assessment.HistoricalEvaluatedLiftUnits:N0} lift unit(s). The evidence is contradictory or scope-mismatched and cannot be used to declare the current optimizer blocked.";
+            }
+
+            if (assessment.HasNoCandidateAdvisory)
+            {
+                var countText = assessment.AdvisoryTrustedLiftUnits.HasValue
+                    ? $" (reported candidate count {assessment.AdvisoryTrustedLiftUnits.Value:N0})"
+                    : string.Empty;
+                return "AI import/readiness evidence reports a no-candidate signal" + countText + ". This signal is advisory to the AI and is not the optimizer dialog's authoritative current-run preflight.";
+            }
+
+            return assessment.AuthorityNote;
+        }
+
+        private static string BuildSummary(int missingCritical, bool hasResult, AiOptimizerEvidenceAssessment assessment)
+        {
+            if (missingCritical > 0)
+                return $"{missingCritical:N0} visible project prerequisite(s) still need attention before checking an optimizer run.";
+
+            if (hasResult)
+            {
+                return "Core project prerequisites are visible and AI-captured optimization result evidence exists. " +
+                       "Because the strict host contract does not identify the current Analysis UI selection, review Lift Summary in the application rather than attributing the AI-captured percentage to that UI selection. " +
+                       "Result quality does not establish current rerun eligibility; use the optimizer's built-in readiness check.";
+            }
+
+            if (assessment.HasNoCandidateAdvisory)
+                return "Core project prerequisites are visible. AI import/readiness evidence contains a no-candidate warning, but the AI cannot use that advisory signal as the optimizer's authoritative run gate. Verify Current Run Readiness in Run Optimizer.";
+
+            return "Core project prerequisites are visible. The AI cannot certify current optimizer eligibility from this snapshot; verify Current Run Readiness in Run Optimizer.";
         }
 
         private static int CorePrerequisiteOrder(string? name)
@@ -180,7 +237,11 @@ namespace CraneOptimizer.AI.Workflow
             if (name.Contains("IFC model", StringComparison.OrdinalIgnoreCase)) return 1;
             if (name.Contains("Placement zones", StringComparison.OrdinalIgnoreCase)) return 2;
             if (name.Contains("Crane setup", StringComparison.OrdinalIgnoreCase)) return 3;
-            if (name.Contains("Load chart evidence", StringComparison.OrdinalIgnoreCase)) return 4;
+            if (name.Contains("Current load chart", StringComparison.OrdinalIgnoreCase)) return 4;
+            if (name.Contains("Result review", StringComparison.OrdinalIgnoreCase)) return 5;
+            if (name.Contains("Report review", StringComparison.OrdinalIgnoreCase)) return 5;
+            if (name.Contains("Optimizer built-in readiness", StringComparison.OrdinalIgnoreCase)) return 6;
+            if (name.Contains("Optimization result", StringComparison.OrdinalIgnoreCase)) return 10;
             return 50;
         }
 
@@ -198,7 +259,6 @@ namespace CraneOptimizer.AI.Workflow
             };
         }
 
-
         private static IEnumerable<WorkflowReadinessItem> BuildScreenContextEvidenceItems(AiWorkflowContextSnapshot context)
         {
             if (context.ScreenContexts.Count == 0)
@@ -206,54 +266,41 @@ namespace CraneOptimizer.AI.Workflow
 
             var yieldedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var prioritized in context.ScreenContexts
-                         .SelectMany(screen => screen.Issues.Select(issue => new { screen, issue }))
-                         .Where(item => context.ElementCount > 0 && IsNoGaCandidateBlocker(item.issue.Code))
-                         .OrderByDescending(item => SeverityRank(item.issue.Severity))
-                         .ThenByDescending(item => item.issue.AffectedCount)
-                         .Take(2))
-            {
-                var key = $"{prioritized.screen.ScreenName}|{prioritized.issue.Code}";
-                if (!yieldedKeys.Add(key))
-                    continue;
-
-                yield return Item(
-                    $"{prioritized.screen.ScreenName}: {prioritized.issue.Code}",
-                    false,
-                    true,
-                    "Error",
-                    string.IsNullOrWhiteSpace(prioritized.issue.Evidence) ? prioritized.screen.Summary : prioritized.issue.Evidence,
-                    string.IsNullOrWhiteSpace(prioritized.issue.Recommendation)
-                        ? "Review trusted BIM lift-unit data before running GA. Do not bypass optimizer eligibility."
-                        : prioritized.issue.Recommendation,
-                    string.IsNullOrWhiteSpace(prioritized.issue.NextClick)
-                        ? "IFC MODEL → Export Element List / trusted weight-source review"
-                        : prioritized.issue.NextClick);
-            }
-
             foreach (var screenContext in context.ScreenContexts)
             {
                 foreach (var issue in screenContext.Issues
                              .Where(issue => issue.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase)
                                              || issue.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase))
-                             .Where(issue => !IsNoGaCandidateBlocker(issue.Code))
-                             .OrderByDescending(issue => IsEstimatedWeightBlocker(issue.Code))
+                             .OrderByDescending(issue => IsCandidateOrWeightSignal(issue.Code))
                              .ThenByDescending(issue => SeverityRank(issue.Severity))
                              .ThenByDescending(issue => issue.AffectedCount)
-                             .Take(2))
+                             .Take(3))
                 {
                     var key = $"{screenContext.ScreenName}|{issue.Code}";
                     if (!yieldedKeys.Add(key))
                         continue;
 
-                    var isError = issue.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase);
+                    var candidateSignal = IsCandidateOrWeightSignal(issue.Code);
+                    var evidence = string.IsNullOrWhiteSpace(issue.Evidence) ? screenContext.Summary : issue.Evidence;
+                    var recommendation = string.IsNullOrWhiteSpace(issue.Recommendation)
+                        ? "Review deterministic feature diagnostics before proceeding."
+                        : issue.Recommendation;
+
+                    if (candidateSignal)
+                    {
+                        evidence = "AI advisory import/readiness signal (not the optimizer's authoritative current-run preflight): " + evidence;
+                        recommendation = "Review this data-quality signal, but do not infer that the optimizer is ready or blocked from it alone. Open Run Optimizer and use Current Run Readiness; if the optimizer confirms a blocker, use this evidence for troubleshooting.";
+                    }
+
                     yield return Item(
-                        $"{screenContext.ScreenName}: {issue.Code}",
+                        candidateSignal
+                            ? $"Advisory: {screenContext.ScreenName}: {issue.Code}"
+                            : $"{screenContext.ScreenName}: {issue.Code}",
                         false,
-                        isError,
-                        issue.Severity,
-                        string.IsNullOrWhiteSpace(issue.Evidence) ? screenContext.Summary : issue.Evidence,
-                        string.IsNullOrWhiteSpace(issue.Recommendation) ? "Review deterministic feature diagnostics before proceeding." : issue.Recommendation,
+                        false,
+                        candidateSignal ? "Warning" : issue.Severity,
+                        evidence,
+                        recommendation,
                         string.IsNullOrWhiteSpace(issue.NextClick) ? screenContext.ScreenName : issue.NextClick);
                 }
             }
@@ -274,13 +321,11 @@ namespace CraneOptimizer.AI.Workflow
             }
         }
 
-        private static bool IsNoGaCandidateBlocker(string? code) => code != null &&
+        private static bool IsCandidateOrWeightSignal(string? code) => code != null &&
             (code.Equals("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase)
              || code.Equals("GaPreRunNoCandidates", StringComparison.OrdinalIgnoreCase)
-             || code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase));
-
-        private static bool IsEstimatedWeightBlocker(string? code) => code != null &&
-            (code.Equals("EstimatedWeightBlockedFromGA", StringComparison.OrdinalIgnoreCase)
+             || code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase)
+             || code.Equals("EstimatedWeightBlockedFromGA", StringComparison.OrdinalIgnoreCase)
              || code.Equals("MissingTrustedWeight", StringComparison.OrdinalIgnoreCase)
              || code.Equals("ElementWeightReviewNeeded", StringComparison.OrdinalIgnoreCase)
              || code.Equals("SelectedElementWeightNotTrusted", StringComparison.OrdinalIgnoreCase));
@@ -293,16 +338,16 @@ namespace CraneOptimizer.AI.Workflow
             _ => 0
         };
 
-        private static string InferStage(IReadOnlyList<WorkflowReadinessItem> items, bool hasResult, double coverage)
+        private static string InferStage(IReadOnlyList<WorkflowReadinessItem> items, bool hasResult, bool coreComplete)
         {
             var firstMissingCritical = items.FirstOrDefault(item => item.IsCritical && !item.IsComplete);
             if (firstMissingCritical != null)
                 return firstMissingCritical.Name;
 
-            if (!hasResult)
-                return "Optimization";
+            if (hasResult)
+                return "Result review";
 
-            return coverage >= 0.95 ? "Reporting" : "Result review";
+            return coreComplete ? "Optimizer verification" : "Project setup";
         }
     }
 }

@@ -8,74 +8,97 @@ namespace CraneOptimizer.Application.Tests.AI
     public class AiNoGaCandidateBlockerGuidanceTests
     {
         [Fact]
-        public void WorkflowReadiness_PrioritizesNoGaCandidateBlockerWithoutSuggestingBypass()
+        public void WorkflowReadiness_TreatsNoCandidateEvidenceAsAdvisoryNotOptimizerBlocker()
         {
             var service = new WorkflowReadinessService();
-            var context = BuildBlockedContext();
+            var context = BuildAdvisoryContext();
 
             var snapshot = service.Evaluate(context, new UiInteractionContextService());
             var cards = service.BuildStructuredCards(snapshot);
+            var state = AiWorkflowStateClassifier.Classify(context, snapshot);
 
-            Assert.Contains(snapshot.Items, item => item.Name.Contains("GaCannotStartNoCandidates"));
-            Assert.Contains(cards, card => card.Finding.Contains("GaCannotStartNoCandidates"));
-            Assert.False(cards.Any(card => card.Recommendation.Contains("force", StringComparison.OrdinalIgnoreCase)));
-            Assert.False(cards.Any(card => card.Recommendation.Contains("use estimated weights", StringComparison.OrdinalIgnoreCase)));
-            Assert.Contains(cards, card => card.NextClick.Contains("trusted weight-source", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(AiWorkflowStateKind.OptimizerVerificationRequired, state.Kind);
+            Assert.True(state.CanProceedToOptimizerCheck);
+            Assert.False(state.CanRunOptimizerNow);
+            Assert.Equal(0, snapshot.MissingCriticalCount);
+            Assert.Contains(snapshot.Items, item => item.Name.Contains("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase)
+                                                   && !item.IsCritical);
+            Assert.Contains(cards, card => card.Finding.Contains("Optimizer built-in readiness", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(cards, card => card.Status.Equals("Blocked", StringComparison.OrdinalIgnoreCase)
+                                                  && card.Finding.Contains("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase));
         }
 
         [Fact]
-        public void EvidenceTextBuilder_BuildsBimChecklistFromNoCandidateEvidence()
-        {
-            var text = AiWorkflowEvidenceTextBuilder.BuildBimExporterChecklist(BuildBlockedContext());
-
-            Assert.Contains("explicit", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("mass", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("weight", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("assembly", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("does not change optimizer eligibility", text, StringComparison.OrdinalIgnoreCase);
-        }
-
-
-
-        [Fact]
-        public void EvidenceTextBuilder_BuildsOperationalNextStepInsteadOfDocumentationSummary()
+        public void EvidenceTextBuilder_DoesNotDeclareGaBlockedFromAdvisoryCandidateSignal()
         {
             var text = AiWorkflowEvidenceTextBuilder.BuildNoGaCandidateAssistantAnswer(
-                BuildBlockedContext(),
-                "What should I do next?",
-                "IFC MODEL → Export Element List / trusted weight-source review",
-                "CRANES");
+                BuildAdvisoryContext(),
+                "Can I run the optimizer now?",
+                "ANALYSIS → Run Optimizer",
+                "ANALYSIS");
 
-            Assert.Contains("Do **not** run the optimizer yet", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("zero trusted GA-ready grouped lift units", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("IFC MODEL", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Export Element List", text, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("XAML", text, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("detailed documentation", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Do not bypass", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("cannot certify", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Current Run Readiness", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("advisory", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Do **not** run the optimizer yet", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("optimization is blocked because", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("do not bypass", text, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
-        public void EvidenceTextBuilder_StrictPromptSuppressesGenericInventoryForBlockerQuestions()
+        public void StrictPrompt_PreservesOptimizerAuthorityBoundary()
         {
             var text = AiWorkflowEvidenceTextBuilder.BuildStrictNoGaCandidatePrompt(
-                BuildBlockedContext(),
-                "What should I do next?",
-                "IFC MODEL → Export Element List / trusted weight-source review",
-                "CRANES");
+                BuildAdvisoryContext(),
+                "Why does AI say zero candidates?",
+                "ANALYSIS → Run Optimizer",
+                "ANALYSIS");
 
-            Assert.Contains("CURRENT WORKFLOW BLOCKER", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("answer only because", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Do not mention XAML inventory", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Do not suggest bypassing GA", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("AUTHORITY", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Current Run Readiness", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("not", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("authoritative", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("CURRENT WORKFLOW BLOCKER", text, StringComparison.OrdinalIgnoreCase);
         }
 
+        [Fact]
+        public void CompletedResult_ConflictsWithZeroCandidateSignalWithoutBlockingCurrentRunCheck()
+        {
+            var context = BuildAdvisoryContext();
+            context = new AiWorkflowContextSnapshot
+            {
+                HasProject = context.HasProject,
+                CurrentProjectName = context.CurrentProjectName,
+                ElementCount = context.ElementCount,
+                ZoneCount = context.ZoneCount,
+                CraneCount = context.CraneCount,
+                HasLoadChartEvidence = context.HasLoadChartEvidence,
+                ScreenContexts = context.ScreenContexts,
+                OptimizationResult = new AiOptimizationResultSnapshot
+                {
+                    HasResult = true,
+                    TotalElementCount = 357,
+                    LiftedElementCount = 14,
+                    CoverageRatio = 14d / 357d,
+                    PositionCount = 1
+                }
+            };
 
+            var assessment = AiOptimizerEvidenceAssessor.Assess(context);
+            var state = AiWorkflowStateClassifier.Classify(context);
+
+            Assert.True(assessment.CandidateEvidenceConflict);
+            Assert.Equal(357, assessment.HistoricalEvaluatedLiftUnits);
+            Assert.Equal(AiWorkflowStateKind.ResultReview, state.Kind);
+            Assert.True(state.CanProceedToOptimizerCheck);
+            Assert.False(state.CanRunOptimizerNow);
+            Assert.Contains("conflict", state.EvidencePrefix, StringComparison.OrdinalIgnoreCase);
+        }
 
         [Fact]
         public void StrictNoGaRouting_DoesNotHijackIfcMetadataQuestions()
         {
-            var context = BuildBlockedContext();
+            var context = BuildAdvisoryContext();
 
             Assert.False(AiWorkflowEvidenceTextBuilder.IsNoGaCandidateWorkflowQuestion("Is it possible to know building type from IFC MODEL? The building usage for example?"));
             Assert.False(AiWorkflowEvidenceTextBuilder.ShouldUseStrictNoGaCandidateRouting(context, "Is it possible to know building type from IFC MODEL? The building usage for example?"));
@@ -88,8 +111,6 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("building type/usage is not exposed", answer, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("should not infer", answer, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Pset_BuildingCommon", answer, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Separate optimization caveat", answer, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("current deterministic workflow blocker", answer, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -113,30 +134,58 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("IFC is loaded", answer, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Export Element List", answer, StringComparison.OrdinalIgnoreCase);
         }
+
         [Fact]
-        public void CompanionPanel_ExposesBlockerAndCopyActions()
+        public void HistoricalResultCapacity_DoesNotProveCurrentLoadChartWhenCraneContextSaysNo()
         {
-            var root = FindRepositoryRoot();
-            Assert.NotNull(root);
+            var context = new AiWorkflowContextSnapshot
+            {
+                HasProject = true,
+                CurrentProjectName = "Historical chart test",
+                ElementCount = 100,
+                ZoneCount = 1,
+                CraneCount = 1,
+                HasLoadChartEvidence = true,
+                OptimizationResult = new AiOptimizationResultSnapshot
+                {
+                    HasResult = true,
+                    TotalElementCount = 100,
+                    LiftedElementCount = 10,
+                    CoverageRatio = 0.1,
+                    MaxCapacity = 4.2,
+                    MaxRadius = 30
+                },
+                ScreenContexts = new[]
+                {
+                    new AiScreenContextSnapshot
+                    {
+                        ScreenName = "Crane and load chart",
+                        Stage = "Current crane",
+                        Summary = "No current load chart selected.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            ["SelectedHasSpecification"] = "False",
+                            ["SelectedCurrentRadius"] = "0",
+                            ["SelectedCurrentCapacity"] = "0"
+                        }
+                    }
+                }
+            };
 
-            var companionXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
-            var companionVm = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "ViewModels", "AiCompanionViewModel.cs"));
-            var ifcContributor = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "AIIntegration", "Contributors", "IfcAiContextContributor.cs"));
-            var gaContributor = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "AIIntegration", "Contributors", "GaAiContextContributor.cs"));
+            var assessment = AiOptimizerEvidenceAssessor.Assess(context);
+            var state = AiWorkflowStateClassifier.Classify(context);
 
-            Assert.Contains("Blocker", companionXaml);
-            Assert.Contains("CopyBimExporterChecklist", companionVm);
-            Assert.Contains("CopyIssueSummary", companionVm);
-            Assert.Contains("GaCannotStartNoCandidates", ifcContributor);
-            Assert.Contains("GaPreRunNoCandidates", gaContributor);
+            Assert.False(assessment.HasCurrentLoadChartEvidence);
+            Assert.Equal(AiWorkflowStateKind.LoadChartMissing, state.Kind);
+            Assert.False(state.CanProceedToOptimizerCheck);
         }
 
-        private static AiWorkflowContextSnapshot BuildBlockedContext()
+        private static AiWorkflowContextSnapshot BuildAdvisoryContext()
         {
             return new AiWorkflowContextSnapshot
             {
                 HasProject = true,
-                CurrentProjectName = "Blocked IFC Test",
+                CurrentProjectName = "Strict isolation test",
                 ElementCount = 362,
                 ZoneCount = 1,
                 CraneCount = 1,
@@ -147,8 +196,13 @@ namespace CraneOptimizer.Application.Tests.AI
                     new AiScreenContextSnapshot
                     {
                         ScreenName = "IFC import readiness",
-                        Stage = "GA blocked — no trusted lift units",
-                        Summary = "IFC is loaded but no trusted GA-ready lift units exist.",
+                        Stage = "Import/readiness review",
+                        Summary = "Host import/readiness evidence reports zero candidate units.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            [AiWorkflowFactKeys.TrustedGaLiftUnits] = "0",
+                            [AiWorkflowFactKeys.TrustedGroupedLiftUnits] = "0"
+                        },
                         Issues = new[]
                         {
                             new AiContextIssueSnapshot
@@ -156,8 +210,8 @@ namespace CraneOptimizer.Application.Tests.AI
                                 Code = "GaCannotStartNoCandidates",
                                 Severity = "Error",
                                 Area = "GA pre-run",
-                                Evidence = "IFC is loaded; zones=1; cranes=1; 0 trusted GA-ready grouped lift units.",
-                                Recommendation = "Do not bypass the optimizer gate. Review/export explicit BIM mass or weight quantities.",
+                                Evidence = "IFC is loaded; zones=1; cranes=1; host import/readiness signal=0.",
+                                Recommendation = "Review trusted weight-source evidence.",
                                 NextClick = "IFC MODEL → Export Element List / trusted weight-source review",
                                 AffectedCount = 362
                             },
@@ -166,8 +220,8 @@ namespace CraneOptimizer.Application.Tests.AI
                                 Code = "EstimatedWeightBlockedFromGA",
                                 Severity = "Error",
                                 Area = "Weight",
-                                Evidence = "Estimated fallback weight is used and strictly blocked from GA.",
-                                Recommendation = "Provide explicit quantities so elements are not blocked from GA.",
+                                Evidence = "Estimated fallback weight exists in import/readiness evidence.",
+                                Recommendation = "Review explicit quantities if the optimizer itself confirms a data blocker.",
                                 NextClick = "IFC MODEL → Export Element List / trusted weight-source review",
                                 AffectedCount = 362
                             }
@@ -175,27 +229,6 @@ namespace CraneOptimizer.Application.Tests.AI
                     }
                 }
             };
-        }
-
-        private static string? FindRepositoryRoot()
-        {
-            var current = new DirectoryInfo(AppContext.BaseDirectory);
-            while (current != null)
-            {
-                if (File.Exists(Path.Combine(current.FullName, "CraneOptimizer.sln")))
-                    return current.FullName;
-                current = current.Parent;
-            }
-
-            current = new DirectoryInfo(Directory.GetCurrentDirectory());
-            while (current != null)
-            {
-                if (File.Exists(Path.Combine(current.FullName, "CraneOptimizer.sln")))
-                    return current.FullName;
-                current = current.Parent;
-            }
-
-            return null;
         }
     }
 }

@@ -18,11 +18,16 @@ namespace CraneOptimizer.AI.Services
             "NoGaCandidates"
         };
 
-        public static bool HasNoGaCandidateBlocker(AiWorkflowContextSnapshot? context)
+        public static bool HasNoGaCandidateSignal(AiWorkflowContextSnapshot? context)
         {
-            return FindIssues(context)
-                .Any(issue => NoCandidateCodes.Any(code => issue.Code.Equals(code, StringComparison.OrdinalIgnoreCase)));
+            return context != null && AiOptimizerEvidenceAssessor.Assess(context).HasNoCandidateAdvisory;
         }
+
+        // Legacy name retained so older AI-only callers/tests still compile. The current
+        // strict-isolation policy treats this as an advisory host signal, not an
+        // authoritative optimizer blocker.
+        public static bool HasNoGaCandidateBlocker(AiWorkflowContextSnapshot? context)
+            => HasNoGaCandidateSignal(context);
 
         public static bool HasEstimatedWeightBlocker(AiWorkflowContextSnapshot? context)
         {
@@ -74,20 +79,15 @@ namespace CraneOptimizer.AI.Services
             {
                 builder.AppendLine("Interpretation: no IFC elements are loaded, so GA-candidate readiness should not be framed as a BIM weight/grouping blocker yet. Load IFC first.");
             }
-            else if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            else if (state.CanProceedToOptimizerCheck)
             {
-                builder.AppendLine("Interpretation: IFC elements are loaded and displayable, but the optimizer has zero trusted GA-ready grouped lift units. This is an element-readiness blocker, not a zone-placement or crane-placement bypass request.");
-                if (state.HasEstimatedWeightBlocker)
-                    builder.AppendLine("Likely cause from deterministic evidence: displayed weights are estimated/fallback values rather than trusted explicit BIM mass or weight quantities, so the GA safety gate correctly blocks them.");
-                builder.AppendLine("AI action boundary: explain the blocker, copy evidence, and prepare a BIM/export checklist; do not relax GA eligibility or use estimated weights for engineering optimization.");
-            }
-            else if (state.CanRunOptimizerNow)
-            {
-                builder.AppendLine("Interpretation: core prerequisites are present. A controlled optimizer run is the next deterministic step, followed by diagnostics review.");
+                builder.AppendLine("Interpretation: core project prerequisites are visible to AI, but current optimizer eligibility is not exposed as an authoritative AI fact. Open Run Optimizer and use its built-in Current Run Readiness.");
+                if (state.HasNoGaCandidateBlocker)
+                    builder.AppendLine("AI boundary: zero-candidate/import-readiness signals are troubleshooting evidence only. They must not be used by AI to declare the optimizer ready or blocked, especially when they conflict with completed-run evidence.");
             }
             else
             {
-                builder.AppendLine("Interpretation: complete the state-specific prerequisite above before treating this as an optimizer-result question.");
+                builder.AppendLine("Interpretation: complete the visible state-specific prerequisite above before checking the optimizer's own readiness indicator.");
             }
 
             return builder.ToString().Trim();
@@ -106,13 +106,13 @@ namespace CraneOptimizer.AI.Services
             if (context.OptimizationResult.HasResult)
             {
                 var result = context.OptimizationResult;
-                builder.AppendLine($"Latest result: {result.CoverageRatio:P2} coverage, {result.LiftedElementCount:N0}/{result.TotalElementCount:N0} lifted, {result.PositionCount:N0} setup position(s).");
+                builder.AppendLine($"Captured result: {result.CoverageRatio:P2} coverage, {result.LiftedElementCount:N0}/{result.TotalElementCount:N0} lifted, {result.PositionCount:N0} setup position(s).");
                 if (!string.IsNullOrWhiteSpace(result.DiagnosticsPath))
                     builder.AppendLine($"Diagnostics path: {result.DiagnosticsPath}");
             }
             else
             {
-                builder.AppendLine("Latest result: none available in this session.");
+                builder.AppendLine("Captured result: none available in this session.");
             }
 
             builder.AppendLine();
@@ -144,10 +144,10 @@ namespace CraneOptimizer.AI.Services
             if (context == null) throw new ArgumentNullException(nameof(context));
 
             var builder = new StringBuilder();
-            builder.AppendLine("BIM / IFC export checklist for CranePathOptimizer GA readiness");
+            builder.AppendLine("BIM / IFC export checklist for optimizer input review");
             builder.AppendLine();
             builder.AppendLine("Purpose");
-            builder.AppendLine("Provide explicit, trusted lift-unit data so CranePathOptimizer can create GA-ready lift units without relying on estimated fallback weights.");
+            builder.AppendLine("Provide explicit, trusted lift-unit data for engineering and optimizer troubleshooting without relying on estimated fallback weights. This checklist does not certify current optimizer readiness.");
             builder.AppendLine();
             builder.AppendLine("Detected application state");
             builder.AppendLine($"- Model context: {NormalizeInline(context.ModelDisplayName, string.IsNullOrWhiteSpace(context.CurrentProjectName) ? "Imported IFC model" : context.CurrentProjectName)}");
@@ -188,11 +188,19 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine();
             builder.AppendLine("Exporter request wording");
             if (state.Kind == AiWorkflowStateKind.NoIfcModel)
+            {
                 builder.AppendLine("Please provide/load the IFC model so CranePathOptimizer can inspect elements, metadata, weights, COG, and assembly/lift-unit readiness. No optimization conclusion can be made from the current zero-element state.");
+            }
+            else if (HasNoGaCandidateSignal(context) || HasEstimatedWeightBlocker(context))
+            {
+                builder.AppendLine("Please review the IFC export for explicit precast lift-unit mass/weight properties, stable assembly marks, source identifiers, and auditable COG/geometry evidence. The AI context currently exposes import/readiness warnings about lift-unit trust. Those warnings are troubleshooting evidence only; the optimizer's own built-in Current Run Readiness remains authoritative for whether a run can start.");
+            }
             else
-                builder.AppendLine("Please re-export the IFC with explicit precast lift-unit weight or mass properties and stable assembly marks. The current import can be displayed, but deterministic readiness indicates zero trusted GA-ready lift candidates because required trusted lift-unit data is missing or blocked. Do not rely on estimated fallback weights for crane optimization.");
+            {
+                builder.AppendLine("Please keep explicit lift-unit mass/weight properties, stable assembly marks, source identifiers, and COG/geometry evidence in the IFC export so future optimizer diagnostics remain auditable.");
+            }
             builder.AppendLine();
-            builder.AppendLine("AI scope note: this checklist is advisory text only. It does not change optimizer eligibility, safety factors, load-chart capacity, or report validity rules.");
+            builder.AppendLine("AI scope note: this checklist is advisory text only. It does not change optimizer eligibility, safety factors, load-chart capacity, or report validity rules. It must not be used as a substitute for the optimizer's built-in preflight.");
             return builder.ToString().Trim();
         }
 
@@ -200,24 +208,29 @@ namespace CraneOptimizer.AI.Services
 
         public static string BuildNoGaCandidateAssistantAnswer(AiWorkflowContextSnapshot context, string visibleQuestion, string deterministicNextAction, string activeScreen)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var state = AiWorkflowStateClassifier.Classify(context);
             if (state.Kind == AiWorkflowStateKind.NoIfcModel)
                 return BuildNoIfcAssistantAnswer(context, activeScreen);
 
+            var assessment = AiOptimizerEvidenceAssessor.Assess(context);
             var questionMode = ClassifyBlockerQuestion(visibleQuestion);
             var priorityIssues = GetPriorityIssues(context).Take(5).ToList();
             var builder = new StringBuilder();
 
             builder.AppendLine("## Status");
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            if (!state.CanProceedToOptimizerCheck)
             {
-                builder.AppendLine("Do **not** run the optimizer yet. IFC elements are loaded, but GA is blocked because deterministic readiness found **zero trusted GA-ready grouped lift units**.");
+                builder.AppendLine($"Current visible workflow state: **{state.Status}** — {state.RootCause}");
+            }
+            else if (assessment.CandidateEvidenceConflict)
+            {
+                builder.AppendLine("The AI must **not** declare the optimizer blocked from the current import/readiness candidate signal. The AI-visible evidence is contradictory or scope-mismatched with completed optimizer-result evidence.");
             }
             else
             {
-                builder.AppendLine($"Do **not** treat this as a completed optimization result yet. Current deterministic state: **{state.Status}** — {state.RootCause}");
+                builder.AppendLine("The AI cannot certify the optimizer's current run eligibility from its snapshot. A zero-candidate/import-readiness warning is visible, but it is **advisory troubleshooting evidence**, not the optimizer dialog's authoritative current-run preflight.");
             }
             builder.AppendLine();
 
@@ -225,79 +238,63 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine($"- Current screen: {NormalizeInline(activeScreen, "unknown")}");
             builder.AppendLine($"- Model context: {NormalizeInline(context.ModelDisplayName, string.IsNullOrWhiteSpace(context.CurrentProjectName) ? "Imported IFC model" : context.CurrentProjectName)}");
             builder.AppendLine($"- Model revision: {context.ModelRevision:N0}");
-            builder.AppendLine($"- Project inputs: {context.ElementCount:N0} total BIM object(s), {context.ZoneCount:N0} zone(s), {context.CraneCount:N0} crane(s).");
+            builder.AppendLine($"- Project inputs visible to AI: {context.ElementCount:N0} BIM/model object(s), {context.ZoneCount:N0} zone(s), {context.CraneCount:N0} crane(s).");
             if (context.ElementTableTotalCount > 0)
                 builder.AppendLine($"- Element table scope: {context.ElementTableVisibleCount:N0} visible of {context.ElementTableTotalCount:N0} table item(s).");
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
-            {
-                builder.AppendLine("- Blocker: `NoGaCandidates` / `GaCannotStartNoCandidates` after IFC elements are loaded.");
-                if (state.HasEstimatedWeightBlocker)
-                    builder.AppendLine("- Weight issue: visible weights are being treated as estimated or fallback values, not trusted BIM mass/weight evidence for GA.");
-                else
-                    builder.AppendLine("- Lift-unit issue: no imported element group is currently eligible to become a GA lift candidate.");
-            }
+            if (assessment.AdvisoryTrustedLiftUnits.HasValue)
+                builder.AppendLine($"- AI import/readiness candidate signal: {assessment.AdvisoryTrustedLiftUnits.Value:N0} reported lift unit(s). This is not an authoritative optimizer preflight value.");
+            if (context.OptimizationResult.HasResult)
+                builder.AppendLine($"- Completed result evidence: {context.OptimizationResult.LiftedElementCount:N0}/{context.OptimizationResult.TotalElementCount:N0} completed at {context.OptimizationResult.CoverageRatio:P2} coverage. A completed result proves a prior evaluated scope, not current rerun eligibility.");
+            if (assessment.CandidateEvidenceConflict)
+                builder.AppendLine("- Evidence conflict: a zero-candidate AI import/readiness signal coexists with a completed result that evaluated a non-zero lift-unit scope. AI therefore cannot use the zero-candidate signal as a run blocker.");
+            if (assessment.HasEstimatedWeightAdvisory)
+                builder.AppendLine("- Data-quality advisory: estimated/fallback or missing-trusted-weight warnings are exposed for review. They remain relevant troubleshooting evidence if the optimizer itself confirms a blocker.");
 
             foreach (var item in priorityIssues)
                 builder.AppendLine($"- {item.ScreenName}: `{item.Issue.Code}` — {NormalizeInline(item.Issue.Evidence, "no evidence text")}");
             builder.AppendLine();
 
             builder.AppendLine("## Recommendation");
-            if (state.Kind != AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            if (!state.CanProceedToOptimizerCheck)
             {
                 builder.AppendLine(state.RecommendedAction);
-                builder.AppendLine();
             }
-            else if (questionMode == "Explain")
+            else if (questionMode == "Troubleshoot" || questionMode == "Blocker")
             {
-                builder.AppendLine("The displayed weight column is not the same thing as trusted engineering weight evidence. The app can display calculated or fallback weights for review, but the optimizer correctly requires explicit, trusted lift-unit quantities before it performs crane-capacity optimization.");
-                builder.AppendLine();
-            }
-            else if (questionMode == "Troubleshoot")
-            {
-                builder.AppendLine("Treat this as an element-readiness problem, not a crane-position or load-chart problem yet. First prove that each intended lift unit has trusted weight/mass evidence and a stable assembly/lift mark.");
-                builder.AppendLine();
-            }
-            else if (questionMode == "Blocker")
-            {
-                builder.AppendLine("Ask the BIM/export owner to provide explicit mass or weight quantities at the element/assembly level, stable assembly/lift marks, source identifiers, and COG or enough auditable geometry for COG review. Then re-import and re-check readiness.");
-                builder.AppendLine();
+                builder.AppendLine("First verify the current run in **ANALYSIS → Run Optimizer** using its built-in **Current Run Readiness**. If that authoritative check confirms a blocker, use the IFC/import evidence to investigate explicit mass/weight quantities, assembly/lift marks, COG/geometry, and source traceability. Do not bypass the optimizer's own gate.");
             }
             else
             {
-                builder.AppendLine("Review the IFC import/element readiness evidence and fix the trusted-weight source before trying GA again.");
-                builder.AppendLine();
+                builder.AppendLine("Open **ANALYSIS → Run Optimizer** and use the optimizer's built-in **Current Run Readiness** as the definitive run decision. Treat the IFC/import warnings as secondary review evidence, not as AI authority to say ready or blocked. Do not bypass a blocker reported by the optimizer.");
             }
+            builder.AppendLine();
 
             builder.AppendLine("## Next Click");
-            var nextClick = string.IsNullOrWhiteSpace(deterministicNextAction) ? state.RecommendedAction : deterministicNextAction.Trim();
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked && nextClick.Contains("Run Optimizer", StringComparison.OrdinalIgnoreCase))
-                nextClick = "IFC MODEL → Export Element List / trusted weight-source review";
-            builder.AppendLine(nextClick);
+            builder.AppendLine(state.CanProceedToOptimizerCheck ? "ANALYSIS → Run Optimizer" : state.RecommendedAction);
             builder.AppendLine();
 
             builder.AppendLine("## What to verify afterward");
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            if (state.CanProceedToOptimizerCheck)
             {
-                builder.AppendLine("1. The exported element list identifies which elements are blocked and why.");
-                builder.AppendLine("2. The IFC/BIM source contains explicit mass or weight quantities, not only geometry-derived estimates.");
-                builder.AppendLine("3. Assembly/lift marks are stable enough to group elements into lift units.");
-                builder.AppendLine("4. After re-import, the readiness card no longer reports zero trusted GA-ready lift units.");
-                builder.AppendLine("5. Only after that, verify crane setup and load-chart evidence before running GA.");
+                builder.AppendLine("1. Read the optimizer dialog's Current Run Readiness status and candidate count.");
+                builder.AppendLine("2. If it says Ready, that optimizer-owned result is the run decision; AI import/readiness warnings remain advisory review items.");
+                builder.AppendLine("3. If it reports a blocker, use the blocker reason plus IFC/load-chart evidence to troubleshoot; do not force or bypass the run.");
+                builder.AppendLine("4. After a completed run, review Lift Summary and diagnostics separately from rerun eligibility.");
             }
             else
             {
-                builder.AppendLine("1. Complete the recommended prerequisite.");
-                builder.AppendLine("2. Refresh AI Mission Control and confirm this state is no longer reported.");
-                builder.AppendLine("3. Run GA only when the state says the optimizer is ready.");
+                builder.AppendLine("1. Complete the visible prerequisite above.");
+                builder.AppendLine("2. Refresh AI context.");
+                builder.AppendLine("3. Then open Run Optimizer and use its built-in readiness check.");
             }
             builder.AppendLine();
 
             builder.AppendLine("## Risk");
-            builder.AppendLine(state.Risk);
+            builder.AppendLine("The main risk is treating an AI-side import/readiness signal as if it were the GA engine's current preflight. This AI implementation does not own or alter that engine.");
             builder.AppendLine();
 
             builder.AppendLine("## Confidence");
-            builder.AppendLine("High — this answer is based on deterministic live workflow evidence, not a model guess.");
+            builder.AppendLine("High for the visible project facts and the AI authority boundary; current optimizer eligibility remains unknown until the optimizer's built-in preflight is checked.");
 
             return builder.ToString().Trim();
         }
@@ -351,19 +348,18 @@ namespace CraneOptimizer.AI.Services
 
             builder.AppendLine("2. Do the next safe action");
             var immediate = readiness.Items.FirstOrDefault(item => !item.IsComplete && item.IsCritical && IsCorePrerequisiteName(item.Name));
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked && immediate != null)
+            if (immediate != null)
             {
                 builder.AppendLine($"- Immediate workflow step: {immediate.NextClick}");
-                builder.AppendLine($"- Known downstream optimizer data blocker: {state.RecommendedAction}");
             }
             else
             {
                 builder.AppendLine($"- {state.RecommendedAction}");
             }
-            if (!state.CanRunOptimizerNow)
-                builder.AppendLine("- Do not run GA until AI Mission Control no longer reports a blocking prerequisite.");
+            if (state.CanProceedToOptimizerCheck)
+                builder.AppendLine("- Open Run Optimizer and use its built-in Current Run Readiness. AI candidate/import-readiness signals do not replace that preflight.");
             else
-                builder.AppendLine("- Run GA as a controlled attempt, then review diagnostics and unresolved elements before reporting.");
+                builder.AppendLine("- Complete the visible prerequisite before checking optimizer readiness.");
             builder.AppendLine();
 
             builder.AppendLine("3. Gather the evidence pack");
@@ -390,9 +386,9 @@ namespace CraneOptimizer.AI.Services
                 case AiWorkflowStateKind.NoIfcModel:
                     builder.AppendLine("- BIM/model owner: provide or load the IFC model.");
                     break;
-                case AiWorkflowStateKind.LiftUnitReadinessBlocked:
-                    builder.AppendLine("- BIM/export owner: provide explicit mass/weight quantities, stable assembly/lift marks, source identifiers, and auditable COG/geometry evidence.");
-                    builder.AppendLine("- Crane planning owner: do not force GA and do not use estimated/fallback weights for engineering optimization.");
+                case AiWorkflowStateKind.OptimizerVerificationRequired:
+                    builder.AppendLine("- Crane planning reviewer: use the optimizer's built-in Current Run Readiness for the run decision.");
+                    builder.AppendLine("- BIM/export owner: review any AI-visible weight/identity warnings only as troubleshooting evidence if the optimizer itself reports a blocker.");
                     break;
                 case AiWorkflowStateKind.ZonesMissing:
                     builder.AppendLine("- Planner: define allowed and forbidden placement zones.");
@@ -411,8 +407,8 @@ namespace CraneOptimizer.AI.Services
 
             builder.AppendLine("5. Verify after the fix");
             builder.AppendLine("- Refresh or re-import project data.");
-            builder.AppendLine("- Confirm the same blocker/state is gone from AI Mission Control and readiness evidence.");
-            builder.AppendLine("- Run optimization only after the classifier says the optimizer is ready.");
+            builder.AppendLine("- Confirm visible project prerequisites and advisory issues are refreshed in AI Mission Control.");
+            builder.AppendLine("- Use the optimizer dialog's built-in Current Run Readiness as the authoritative run decision.");
             builder.AppendLine("- If GA runs, review coverage, unresolved elements, diagnostics, and report caveats.");
             builder.AppendLine();
 
@@ -441,12 +437,11 @@ namespace CraneOptimizer.AI.Services
                     builder.AppendLine("Primary question: should I change crane, zones, or load chart now?");
                     builder.AppendLine("Answer: no. Load IFC first. With zero elements, there are no lift units, weights, COGs, or building metadata for the optimizer or AI to inspect.");
                     break;
-                case AiWorkflowStateKind.LiftUnitReadinessBlocked:
-                    builder.AppendLine("Primary question: would a larger crane, different zone, or load-chart change help?");
-                    builder.AppendLine("Answer: not yet. The dominant blocker is data readiness, not crane reach or capacity. GA has zero trusted GA-ready lift candidates, so changing crane parameters cannot produce a reliable engineering optimization.");
+                case AiWorkflowStateKind.OptimizerVerificationRequired:
+                    builder.AppendLine("Primary question: should I change data, crane, zones, or load chart before checking the optimizer?");
+                    builder.AppendLine("Answer: the visible core prerequisites are present, but AI does not own the optimizer's current preflight. Open Run Optimizer and use Current Run Readiness first; treat data readiness as a troubleshooting lever only after the optimizer reports its own status.");
                     builder.AppendLine();
-                    builder.AppendLine("Best next lever: fix trusted lift-unit evidence — explicit mass/weight quantities, stable assembly/lift marks, source identifiers, and COG/geometry evidence.");
-                    builder.AppendLine("After the blocker clears, AI can compare whether remaining failures are radius, capacity, height, chart coverage, or zone-placement driven.");
+                    builder.AppendLine("If the optimizer itself reports a blocker, then use the AI-visible IFC/import warnings to rank the troubleshooting path. If it reports Ready, do not let advisory zero-candidate/import signals override that optimizer-owned decision.");
                     break;
                 case AiWorkflowStateKind.ZonesMissing:
                     builder.AppendLine("Primary question: what should be changed first?");
@@ -473,7 +468,7 @@ namespace CraneOptimizer.AI.Services
                     break;
                 default:
                     builder.AppendLine("Primary question: what should be tested first?");
-                    builder.AppendLine("Answer: run a controlled optimizer attempt only because the deterministic prerequisites are currently present. Then let AI classify the dominant failure mode from diagnostics.");
+                    builder.AppendLine("Answer: follow the state-specific application prerequisite or review step. For any new optimizer run, use the optimizer's built-in readiness indicator rather than an AI-inferred run gate.");
                     break;
             }
 
@@ -502,24 +497,23 @@ namespace CraneOptimizer.AI.Services
             {
                 builder.AppendLine("No IFC/model elements were available to the application when this AI narrative was generated. No crane optimization or lift-unit conclusion should be reported from this state.");
             }
-            else if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            else if (state.Kind == AiWorkflowStateKind.OptimizerVerificationRequired)
             {
-                builder.AppendLine("The IFC model elements were available to the application, but the optimizer was not run to a valid GA result because deterministic readiness reported zero trusted GA-ready grouped lift candidates. This condition indicates missing or untrusted lift-unit evidence rather than a proven crane-reach or crane-capacity failure.");
-                if (state.HasEstimatedWeightBlocker)
-                    builder.AppendLine("Visible weights should not be treated as engineering optimization inputs where they are classified as estimated or fallback values. Explicit trusted BIM mass or weight quantities must be provided and reviewed before optimization.");
+                builder.AppendLine("Core project prerequisites were visible to AI, but no authoritative current optimizer preflight was exposed to the AI snapshot. Any AI-side zero-candidate or weight-readiness signal should be reported only as advisory troubleshooting evidence, not as proof that the optimizer was blocked or ready.");
+                builder.AppendLine("The optimizer's own built-in Current Run Readiness remains the source of truth for whether a run can start.");
             }
             else if (context.OptimizationResult.HasResult)
             {
                 var result = context.OptimizationResult;
-                builder.AppendLine($"The latest optimization snapshot lifted {result.LiftedElementCount:N0} of {result.TotalElementCount:N0} target element(s), corresponding to {result.CoverageRatio:P2} coverage across {result.PositionCount:N0} crane setup position(s).");
+                builder.AppendLine($"The captured optimization snapshot lifted {result.LiftedElementCount:N0} of {result.TotalElementCount:N0} target element(s), corresponding to {result.CoverageRatio:P2} coverage across {result.PositionCount:N0} crane setup position(s).");
                 if (!string.IsNullOrWhiteSpace(result.DiagnosticsPath))
                     builder.AppendLine($"Diagnostics evidence path: {result.DiagnosticsPath}");
                 if (result.CoverageRatio < 0.95)
                     builder.AppendLine("Unresolved elements and diagnostics should be reviewed before issuing final lifting-route conclusions.");
             }
-            else if (state.CanRunOptimizerNow)
+            else if (state.CanProceedToOptimizerCheck)
             {
-                builder.AppendLine("Core deterministic prerequisites were present, but no completed optimization result was available when this AI narrative was generated. Any report should clearly distinguish setup/readiness review from completed optimization results.");
+                builder.AppendLine("Core visible project prerequisites were present, but no completed optimization result was available when this AI narrative was generated. The AI did not certify optimizer eligibility; any run decision must come from the optimizer's built-in Current Run Readiness.");
             }
             else
             {
@@ -697,10 +691,10 @@ namespace CraneOptimizer.AI.Services
             }
             builder.AppendLine();
 
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            if (HasNoGaCandidateSignal(context))
             {
                 builder.AppendLine("## Separate optimization caveat");
-                builder.AppendLine("Separately, GA optimization is still blocked by lift-unit readiness. That does not prevent answering IFC metadata questions, but it does prevent producing a crane optimization plan.");
+                builder.AppendLine("Separately, the AI context exposes a zero-candidate/import-readiness warning. This is troubleshooting evidence only; it does not authorize the AI to declare the optimizer blocked. Use the optimizer's built-in Current Run Readiness for the run decision.");
                 builder.AppendLine();
             }
 
@@ -721,15 +715,17 @@ namespace CraneOptimizer.AI.Services
         public static string BuildStrictNoGaCandidatePrompt(AiWorkflowContextSnapshot context, string visibleQuestion, string deterministicNextAction, string activeScreen)
         {
             var builder = new StringBuilder();
-            builder.AppendLine("CURRENT WORKFLOW BLOCKER — answer only because the visible user question is about next steps, troubleshooting, GA, candidates, or weights.");
+            builder.AppendLine("CURRENT AI READINESS SIGNAL — this is advisory host evidence, not the optimizer dialog's authoritative current-run preflight.");
             builder.AppendLine(BuildNoGaCandidateAssistantAnswer(context, visibleQuestion, deterministicNextAction, activeScreen));
             builder.AppendLine();
             builder.AppendLine("LLM response rules for this request:");
-            builder.AppendLine("- Start from the blocker above, not from product documentation or workflow inventory.");
-            builder.AppendLine("- Keep the response operational: status, evidence, recommendation, next click, risk, confidence.");
-            builder.AppendLine("- Do not mention XAML inventory, local documentation snippets, prompt templates, internal implementation details, or internal metadata unless the user explicitly asks for software implementation details.");
-            builder.AppendLine("- Do not suggest bypassing GA, forcing a run, or using estimated weights for engineering decisions.");
-            builder.AppendLine("- Tell the user exactly what to review/export and what to ask the BIM exporter to fix.");
+            builder.AppendLine("- Start from the authority boundary above, not from product documentation or workflow inventory.");
+            builder.AppendLine("- Keep the response operational: visible prerequisites, advisory evidence, optimizer verification step, risk, confidence.");
+            builder.AppendLine("- Never state that GA is blocked solely because an AI import/readiness signal says zero candidates.");
+            builder.AppendLine("- Never state that GA is ready solely because an AI candidate count is positive.");
+            builder.AppendLine("- Direct the user to ANALYSIS → Run Optimizer and its built-in Current Run Readiness for the definitive run decision when visible core prerequisites are present.");
+            builder.AppendLine("- If the optimizer itself confirms a blocker, use IFC/weight/identity evidence for troubleshooting; do not suggest bypassing or forcing the run.");
+            builder.AppendLine("- Do not mention XAML inventory, prompt templates, or internal implementation details unless explicitly asked.");
             return builder.ToString().Trim();
         }
 
@@ -768,8 +764,8 @@ namespace CraneOptimizer.AI.Services
                 .SelectMany(screen => screen.Issues.Select(issue => (screen.ScreenName, Issue: issue)))
                 .Where(item => item.Issue.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase)
                                || item.Issue.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(item => context.ElementCount > 0 && IsNoCandidateCode(item.Issue.Code))
-                .ThenByDescending(item => SeverityRank(item.Issue.Severity))
+                .OrderByDescending(item => SeverityRank(item.Issue.Severity))
+                .ThenBy(item => context.ElementCount > 0 && IsNoCandidateCode(item.Issue.Code))
                 .ThenByDescending(item => item.Issue.AffectedCount)
                 .ThenBy(item => item.ScreenName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(item => item.Issue.Code, StringComparer.OrdinalIgnoreCase);

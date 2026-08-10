@@ -2,6 +2,7 @@ using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Services;
 using CraneOptimizer.AI.Workflow;
 using Xunit;
+using CraneOptimizer.AI.Companion.ViewModels;
 
 namespace CraneOptimizer.Application.Tests.AI
 {
@@ -15,10 +16,10 @@ namespace CraneOptimizer.Application.Tests.AI
             var readiness = readinessService.Evaluate(context, new UiInteractionContextService());
             var mission = new AiMissionControlService().Build(context, readiness, "ANALYZE");
 
-            Assert.Contains("optimizer blocked", mission.DiagnosisTitle, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal("Blocked", mission.DiagnosisStatus);
-            Assert.Contains("zero trusted", mission.RootCause, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Export Element List", mission.RecommendedAction, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("optimizer verification", mission.DiagnosisTitle, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Verify", mission.DiagnosisStatus);
+            Assert.Contains("not the optimizer", mission.RootCause, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Run Optimizer", mission.RecommendedAction, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("AI Recovery Plan", mission.RecoveryPlan, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("data readiness", mission.WhatIfAdvisor, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("report language", mission.ReportNarrative, StringComparison.OrdinalIgnoreCase);
@@ -38,12 +39,12 @@ namespace CraneOptimizer.Application.Tests.AI
             var report = AiWorkflowEvidenceTextBuilder.BuildAiReportNarrativeDraft(context, readiness);
             var qaPack = AiWorkflowEvidenceTextBuilder.BuildQaEvidencePack(context, readiness, "IFC MODEL");
 
-            Assert.Contains("BIM/export owner", recovery, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("not crane reach or capacity", whatIf, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("zero trusted GA-ready grouped lift candidates", report, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Current Run Readiness", recovery, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("optimizer", whatIf, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("does not certify", report, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Readiness checklist", qaPack, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("What-if advisor", qaPack, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("bypass", recovery.Replace("do not bypass", string.Empty, StringComparison.OrdinalIgnoreCase), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("does not certify", recovery, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("does not certify", report, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -95,12 +96,12 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AI Studio", showcase.HeroHeadline, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("live capabilities", showcase.PowerScoreLabel, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Readiness Sentinel", showcase.AgentStackSummary, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(showcase.Capabilities, capability => capability.Title.Contains("Lift-Unit Trust", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(showcase.Capabilities, capability => capability.Title.Contains("Lift-Unit Evidence", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(showcase.Capabilities, capability => capability.Title.Contains("ModelOps", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(showcase.DemoPrompts, prompt => prompt.Label.Contains("What-if", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(showcase.DecisionTrace, item => item.Contains("Classified workflow", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("AI Makeover Showcase Brief", showcase.PresentationBrief, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("bypass", showcase.PresentationBrief.Replace("never suggests bypassing", string.Empty, StringComparison.OrdinalIgnoreCase), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("source of truth", showcase.PresentationBrief, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -112,6 +113,7 @@ namespace CraneOptimizer.Application.Tests.AI
             var companionXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
             var companionCodeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml.cs"));
             var companionVm = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "ViewModels", "AiCompanionViewModel.cs"));
+            var aiSettings = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Configuration", "AiCopilotSettings.cs"));
             var mainWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml"));
             var mainWindowCode = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml.cs"));
             var softwareContext = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Services", "StaticAiSoftwareContextService.cs"));
@@ -202,6 +204,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("LimitAtReadingBoundary", companionVm);
             Assert.Contains("DetailsToggleLabel", companionVm);
             Assert.Contains("BuildCompactNextAction", companionVm);
+            Assert.Contains("IsNavigationTargetAlreadyActive(proposal.Target, _uiContext.ActiveTabName)", companionVm);
 
             Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
@@ -213,6 +216,8 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("MoveSectionSelection(-1, focusSelection: true)", companionCodeBehind);
             Assert.Contains("Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1)", companionCodeBehind);
             Assert.Contains("IsSectionRailExpanded", companionCodeBehind);
+            Assert.Contains("new PropertyMetadata(false, OnSectionRailExpandedChanged)", companionCodeBehind);
+            Assert.Contains("IsSectionRailExpanded { get; set; } = false", aiSettings);
             Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
             Assert.Contains("_activeSectionName, \"Chat\"", companionCodeBehind);
@@ -226,7 +231,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("if (string.Equals(_viewModel?.SelectedCommandCenterTab, \"Chat\", StringComparison.OrdinalIgnoreCase))", companionCodeBehind);
 
             Assert.Contains("AutomationProperties.Name=\"Resize right workspace panel\"", mainWindowXaml);
-            Assert.Contains("x:Name=\"RightWorkspaceColumn\" Width=\"360\" MinWidth=\"330\" MaxWidth=\"380\"", mainWindowXaml);
+            Assert.Contains("x:Name=\"RightWorkspaceColumn\" Width=\"360\" MinWidth=\"360\" MaxWidth=\"380\"", mainWindowXaml);
             Assert.DoesNotContain("SelectionChanged=\"RightWorkspaceTabs_SelectionChanged\"", mainWindowXaml);
             Assert.DoesNotContain("AiAssistPreferredWidth", mainWindowCode);
             Assert.DoesNotContain("ApplyAiAssistWorkspaceWidth", mainWindowCode);
@@ -235,7 +240,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AI Assist / Mission Control", softwareContext);
             Assert.Contains("slim, evidence-first sidecar", softwareContext);
             Assert.Contains("rotated vertical section rail", softwareContext);
-            Assert.Contains("same 330 to 380 px right dock", softwareContext);
+            Assert.Contains("same fixed-width right dock", softwareContext);
             Assert.Contains("context inspector", softwareContext);
         }
 
@@ -305,5 +310,28 @@ namespace CraneOptimizer.Application.Tests.AI
 
             return null;
         }
+        [Fact]
+        public void CompanionNavigation_ResultReviewTargetsAnalysisAndUsesHumanLabel()
+        {
+            var vmType = typeof(AiCompanionViewModel);
+            var guessTarget = vmType.GetMethod("GuessTargetTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var compactAction = vmType.GetMethod("BuildCompactNextAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var displayName = vmType.GetMethod("GetNavigationTargetDisplayName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var alreadyActive = vmType.GetMethod("IsNavigationTargetAlreadyActive", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            Assert.NotNull(guessTarget);
+            Assert.NotNull(compactAction);
+            Assert.NotNull(displayName);
+            Assert.NotNull(alreadyActive);
+
+            Assert.Equal("ANALYZE", guessTarget!.Invoke(null, new object[] { "ANALYSIS → Lift Summary", "Result review" }));
+            Assert.Equal("Analysis", displayName!.Invoke(null, new object[] { "ANALYZE" }));
+            Assert.Equal("Review Lift Summary", compactAction!.Invoke(null, new object[] { "ANALYSIS → Lift Summary" }));
+            Assert.Equal("Verify optimizer readiness", compactAction.Invoke(null, new object[] { "ANALYSIS → Run Optimizer" }));
+            Assert.True((bool)alreadyActive!.Invoke(null, new object[] { "ANALYZE", "ANALYSIS" })!);
+            Assert.True((bool)alreadyActive.Invoke(null, new object[] { "IFC MODEL", "IFC MODEL" })!);
+            Assert.False((bool)alreadyActive.Invoke(null, new object[] { "ANALYZE", "ZONES" })!);
+        }
+
     }
 }

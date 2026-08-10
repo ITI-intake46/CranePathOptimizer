@@ -342,7 +342,7 @@ namespace CraneOptimizer.AI.Services
             if (decision.Intent == AiIntentFamily.BlockerDiagnosis && context != null)
             {
                 var workflowState = AiWorkflowStateClassifier.Classify(context, readiness);
-                if (!workflowState.CanRunOptimizerNow)
+                if (!workflowState.CanProceedToOptimizerCheck)
                 {
                     answer = BuildBlockerAnswer(context, visibleQuestion, activeScreen, nextAction);
                     source = "Intent-routed deterministic blocker answer produced from live readiness and screen-context evidence.";
@@ -465,7 +465,7 @@ namespace CraneOptimizer.AI.Services
                     builder.AppendLine($"  2) Site constraints: {facts.AllowedZoneCount:N0} allowed/green zone(s), {facts.ForbiddenZoneCount:N0} forbidden/no-go zone(s), {facts.ZoneCount:N0} total zone(s).");
                     builder.AppendLine($"  3) Model/lift evidence: {facts.ElementCount:N0} BIM/model object(s); table scope {facts.TableVisible:N0}/{facts.TableTotal:N0}; model area {(facts.BuildingArea > 0 ? facts.BuildingArea.ToString("0.##") + " " + facts.BuildingAreaUnit : "not exposed")}.");
                     if (workflowState != null)
-                        builder.AppendLine($"  4) Readiness state: {workflowState.Kind}; can run optimizer now: {workflowState.CanRunOptimizerNow}; root cause: {workflowState.RootCause}");
+                        builder.AppendLine($"  4) Readiness state: {workflowState.Kind}; can proceed to optimizer built-in readiness check: {workflowState.CanProceedToOptimizerCheck}; root cause: {workflowState.RootCause}");
                 }
             }
             else
@@ -604,7 +604,7 @@ namespace CraneOptimizer.AI.Services
                     builder.AppendLine($"- Zone readiness: {facts.AllowedZoneCount:N0} allowed/green zone(s), {facts.ForbiddenZoneCount:N0} forbidden/no-go zone(s), total {facts.ZoneCount:N0}.");
                     builder.AppendLine($"- Model evidence: {facts.ElementCount:N0} BIM/model object(s); element table {facts.TableVisible:N0}/{facts.TableTotal:N0}; optimization result available {facts.HasOptimizationResult}.");
                     if (workflowState != null)
-                        builder.AppendLine($"- Workflow readiness: {workflowState.Kind}; can run optimizer now {workflowState.CanRunOptimizerNow}; root cause {workflowState.RootCause}; recommended action {workflowState.RecommendedAction}.");
+                        builder.AppendLine($"- Workflow readiness: {workflowState.Kind}; can proceed to optimizer built-in readiness check {workflowState.CanProceedToOptimizerCheck}; root cause {workflowState.RootCause}; recommended action {workflowState.RecommendedAction}.");
                     builder.AppendLine("For project-specific QA/delivery questions, these risk priorities must drive the answer before any generic checklist.");
                 }
             }
@@ -618,7 +618,7 @@ namespace CraneOptimizer.AI.Services
 
             if (workflowState != null && ShouldIncludeDetailedWorkflowEvidence(decision))
             {
-                builder.AppendLine($"- Workflow state: {workflowState.Kind}; can run optimizer now: {workflowState.CanRunOptimizerNow}");
+                builder.AppendLine($"- Workflow state: {workflowState.Kind}; can proceed to optimizer built-in readiness check: {workflowState.CanProceedToOptimizerCheck}");
                 builder.AppendLine($"- Workflow root cause: {workflowState.RootCause}");
                 builder.AppendLine($"- Workflow recommended action: {workflowState.RecommendedAction}");
             }
@@ -638,9 +638,9 @@ namespace CraneOptimizer.AI.Services
             {
                 builder.AppendLine("- Field implementation caveat for later in the answer: the current software project is a planning model, not a certified field lift plan; mention unresolved readiness only after the real-world implementation sequence.");
             }
-            else if (workflowState != null && workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked && decision.NeedsProjectFacts)
+            else if (workflowState != null && workflowState.HasNoGaCandidateBlocker && decision.NeedsProjectFacts)
             {
-                builder.AppendLine("- Separate caveat only if relevant: optimization is blocked by lift-unit readiness; do not make this the main answer unless the user asks about workflow/GA/blockers/next steps.");
+                builder.AppendLine("- Separate caveat only if relevant: AI import/readiness evidence reports a candidate/weight advisory. Do not call this an optimizer blocker; current run eligibility belongs to the optimizer's built-in Current Run Readiness.");
             }
 
             if (!string.IsNullOrWhiteSpace(deterministicNextAction) && ShouldIncludeDetailedWorkflowEvidence(decision))
@@ -680,7 +680,7 @@ namespace CraneOptimizer.AI.Services
                     var workflowState = context == null ? null : AiWorkflowStateClassifier.Classify(context);
                     builder.AppendLine($"- Project risk priorities: cranes {facts.CraneCount:N0}; load-chart evidence {facts.LoadChartEvidenceCount:N0}; zones {facts.ZoneCount:N0} ({facts.AllowedZoneCount:N0} allowed, {facts.ForbiddenZoneCount:N0} forbidden); optimization result {facts.HasOptimizationResult}.");
                     if (workflowState != null)
-                        builder.AppendLine($"- Readiness root cause: {workflowState.Kind}; can run optimizer now {workflowState.CanRunOptimizerNow}; {workflowState.RootCause}");
+                        builder.AppendLine($"- Readiness root cause: {workflowState.Kind}; can proceed to optimizer built-in readiness check {workflowState.CanProceedToOptimizerCheck}; {workflowState.RootCause}");
                 }
                 if (!string.IsNullOrWhiteSpace(deterministicNextAction) && ShouldIncludeDetailedWorkflowEvidence(decision))
                     builder.AppendLine($"- Deterministic next action: {deterministicNextAction!.Trim()}");
@@ -910,10 +910,10 @@ namespace CraneOptimizer.AI.Services
 
             if (projectSpecific)
             {
-                builder.AppendLine("Before trusting this project result, verify the live blockers first. The exposed evidence shows the planning model is not ready for a trusted optimization result until lift-unit readiness, crane selection, load-chart evidence, and zone assumptions are checked and documented.");
+                builder.AppendLine("Before trusting this project result, verify the live project prerequisites and evidence first. Candidate/weight warnings exposed to AI are troubleshooting signals; the optimizer's built-in readiness check remains authoritative for the run decision.");
                 builder.AppendLine();
                 builder.AppendLine("## Current project verification priorities");
-                if (workflowState != null && !workflowState.CanRunOptimizerNow)
+                if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
                     builder.AppendLine($"1. **Readiness blocker:** {workflowState.Kind} — {workflowState.RootCause}");
                 else
                     builder.AppendLine("1. **Readiness state:** no active workflow blocker is exposed, but the result still requires evidence review before use.");
@@ -943,7 +943,7 @@ namespace CraneOptimizer.AI.Services
                 if (facts.BuildingArea > 0 || facts.BuildingHeight > 0)
                     builder.AppendLine($"- Building/model metrics: **{facts.BuildingArea:N2} {facts.BuildingAreaUnit}** area, **{facts.BuildingHeight:0.##} {facts.BuildingLengthUnit}** height.");
                 builder.AppendLine($"- Units: geometry **{facts.GeometryUnit}**, area **{facts.AreaUnit}**, element mass **{facts.StoredMassUnit}**, thresholds **{facts.ThresholdMassUnit}**, density **{facts.DensityUnit}**.");
-                if (workflowState != null && !workflowState.CanRunOptimizerNow)
+                if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
                     builder.AppendLine($"- Current readiness risk: **{workflowState.Kind}** — {workflowState.RootCause}");
             }
 
@@ -963,12 +963,12 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine("## Answer");
             if (projectSpecific)
             {
-                builder.AppendLine("For the current project, the delivery package is not complete yet: the model and zone evidence can be reported, but crane/load-chart evidence and trusted lift-unit readiness must be resolved before a defensible optimization-result delivery can be issued.");
+                builder.AppendLine("For the current project, separate the evidence already available from evidence still requiring review. AI-visible candidate/weight warnings do not by themselves establish whether the optimizer can run; use the optimizer's built-in readiness check for that decision.");
                 builder.AppendLine();
                 builder.AppendLine("## Current delivery readiness");
                 builder.AppendLine($"- **Ready to describe:** project/model context, **{facts.ElementCount:N0}** BIM/model object(s), building/model area **{(facts.BuildingArea > 0 ? facts.BuildingArea.ToString("0.##") + " " + facts.BuildingAreaUnit : "not exposed")}**, height **{(facts.BuildingHeight > 0 ? facts.BuildingHeight.ToString("0.##") + " " + facts.BuildingLengthUnit : "not exposed")}**, and **{facts.ZoneCount:N0}** zone(s) (**{facts.AllowedZoneCount:N0} allowed**, **{facts.ForbiddenZoneCount:N0} forbidden**).");
                 builder.AppendLine($"- **Missing for optimization delivery:** selected crane count **{facts.CraneCount:N0}**, active load-chart evidence sources **{facts.LoadChartEvidenceCount:N0}**, optimization result available **{facts.HasOptimizationResult}**.");
-                if (workflowState != null && !workflowState.CanRunOptimizerNow)
+                if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
                     builder.AppendLine($"- **Blocked item:** {workflowState.Kind} — {workflowState.RootCause}");
                 builder.AppendLine();
             }
@@ -990,12 +990,12 @@ namespace CraneOptimizer.AI.Services
                 builder.AppendLine("## Current project readiness");
                 builder.AppendLine($"- BIM/model objects: **{facts.ElementCount:N0}**; zones: **{facts.ZoneCount:N0}** total (**{facts.AllowedZoneCount:N0} allowed**, **{facts.ForbiddenZoneCount:N0} forbidden**).");
                 builder.AppendLine($"- Cranes: **{facts.CraneCount:N0}**; load-chart evidence sources: **{facts.LoadChartEvidenceCount:N0}**; optimization result available: **{facts.HasOptimizationResult}**.");
-                if (workflowState != null && !workflowState.CanRunOptimizerNow)
+                if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
                     builder.AppendLine($"- Blocked/missing: **{workflowState.RootCause}**");
                 builder.AppendLine();
             }
             builder.AppendLine("## Next action");
-            builder.AppendLine(string.IsNullOrWhiteSpace(nextAction) ? "Resolve the highest-risk missing crane/load-chart/lift-unit evidence, then run GA and export the diagnostics/report package." : nextAction!.Trim());
+            builder.AppendLine(string.IsNullOrWhiteSpace(nextAction) ? "Resolve any visible core prerequisite, then open Run Optimizer and use its built-in readiness check before producing diagnostics/report deliverables." : nextAction!.Trim());
             builder.AppendLine();
             builder.AppendLine("## Confidence");
             builder.AppendLine("High confidence in the delivery structure and visible readiness facts; incomplete confidence in final optimization deliverables until missing evidence is resolved and reviewed.");
@@ -1018,11 +1018,11 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine();
             builder.AppendLine("## Current project note");
             builder.AppendLine($"This project currently exposes **{facts.ElementCount:N0}** BIM/model objects, **{facts.ZoneCount:N0}** zone(s), **{facts.CraneCount:N0}** crane(s), and **{facts.LoadChartEvidenceCount:N0}** active load-chart evidence source(s).");
-            if (workflowState != null && !workflowState.CanRunOptimizerNow)
+            if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
                 builder.AppendLine($"The software planning model is not ready for a reviewed optimization result yet: {workflowState.RootCause}");
             builder.AppendLine();
             builder.AppendLine("## Next click");
-            builder.AppendLine(string.IsNullOrWhiteSpace(nextAction) ? "Start with **CRANES → MOBILE CRANE** and then verify load-chart evidence, zones, and trusted lift-unit data before running GA." : nextAction!.Trim());
+            builder.AppendLine(string.IsNullOrWhiteSpace(nextAction) ? "Complete the visible project prerequisites, then open **ANALYSIS → Run Optimizer** and use its built-in Current Run Readiness for the run decision." : nextAction!.Trim());
             return builder.ToString().Trim();
         }
 
@@ -1039,8 +1039,8 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine();
             builder.AppendLine("## Current project note");
             builder.AppendLine($"The open project has **{facts.ElementCount:N0}** BIM/model objects, **{facts.ZoneCount:N0}** zone(s), **{facts.CraneCount:N0}** crane(s), and **{facts.LoadChartEvidenceCount:N0}** active load-chart evidence source(s).");
-            if (workflowState != null && !workflowState.CanRunOptimizerNow)
-                builder.AppendLine($"Current readiness issue: {workflowState.RootCause}");
+            if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
+                builder.AppendLine($"Visible prerequisite issue: {workflowState.RootCause}");
             return builder.ToString().Trim();
         }
 
@@ -1115,8 +1115,8 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine($"- Project: **{facts.ProjectName}**; BIM/model objects: **{facts.ElementCount:N0}**; zones: **{facts.ZoneCount:N0}**; cranes: **{facts.CraneCount:N0}**; load-chart evidence sources: **{facts.LoadChartEvidenceCount:N0}**.");
             if (facts.BuildingArea > 0 || facts.BuildingHeight > 0)
                 builder.AppendLine($"- Building/model metrics: **{facts.BuildingArea:N2} {facts.BuildingAreaUnit}**, height **{facts.BuildingHeight:0.##} {facts.BuildingLengthUnit}**.");
-            if (workflowState != null && !workflowState.CanRunOptimizerNow)
-                builder.AppendLine($"- Readiness caveat: {workflowState.RootCause}");
+            if (workflowState != null && !workflowState.CanProceedToOptimizerCheck)
+                builder.AppendLine($"- Visible prerequisite caveat: {workflowState.RootCause}");
             builder.AppendLine();
             builder.AppendLine("## Next step");
             builder.AppendLine("Ask for a specific project count, concept explanation, workflow status, or report/action recommendation and I will route the answer to the right evidence source.");
@@ -1262,9 +1262,11 @@ namespace CraneOptimizer.AI.Services
             var state = context == null ? null : AiWorkflowStateClassifier.Classify(context, readiness);
             var status = state == null
                 ? "No live project is attached."
-                : state.CanRunOptimizerNow
-                    ? "The core workflow appears ready for the next controlled optimization step."
-                    : state.RootCause;
+                : state.Kind == AiWorkflowStateKind.OptimizerVerificationRequired
+                    ? "Visible project prerequisites are complete, but AI cannot certify the current optimizer run. Verify the optimizer's built-in Current Run Readiness."
+                    : state.Kind is AiWorkflowStateKind.ResultReview or AiWorkflowStateKind.ReportCandidate
+                        ? state.RootCause + " Current rerun eligibility is a separate optimizer-owned check."
+                        : state.RootCause;
             var recommended = !string.IsNullOrWhiteSpace(nextAction)
                 ? nextAction!.Trim()
                 : state?.RecommendedAction ?? "Open or create a project, then load IFC data.";
@@ -1310,7 +1312,7 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine(recommended);
             builder.AppendLine();
             builder.AppendLine("## Risk");
-            builder.AppendLine("Do not bypass optimizer eligibility, force GA, or use estimated/fallback weights for engineering optimization. Fix the deterministic missing input first.");
+            builder.AppendLine("Fix the visible missing project prerequisite first. For run eligibility, use the optimizer's built-in Current Run Readiness and never bypass a blocker it reports.");
             builder.AppendLine();
             builder.AppendLine("## Confidence");
             builder.AppendLine("High — this is grounded in live readiness and screen-context evidence.");
@@ -1334,9 +1336,8 @@ namespace CraneOptimizer.AI.Services
                     ? context.CurrentProjectName.Trim()
                     : context.ElementCount > 0 ? "Imported IFC model" : "No IFC model loaded";
 
-            var loadChartEvidenceCount = context.LoadChartEvidenceCount;
-            if (loadChartEvidenceCount <= 0 && GetBool(facts, "HasLoadChartEvidence"))
-                loadChartEvidenceCount = 1;
+            var hasCurrentLoadChartEvidence = AiOptimizerEvidenceAssessor.HasCurrentLoadChartEvidence(context);
+            var loadChartEvidenceCount = hasCurrentLoadChartEvidence ? Math.Max(1, context.LoadChartEvidenceCount) : 0;
 
             return new ProjectFacts
             {
@@ -1354,7 +1355,7 @@ namespace CraneOptimizer.AI.Services
                 ForbiddenZoneArea = context.ForbiddenZoneArea,
                 CraneCount = context.CraneCount,
                 LoadChartEvidenceCount = Math.Max(0, loadChartEvidenceCount),
-                HasLoadChartEvidence = context.HasLoadChartEvidence || loadChartEvidenceCount > 0 || GetBool(facts, "HasLoadChartEvidence"),
+                HasLoadChartEvidence = hasCurrentLoadChartEvidence,
                 BuildingArea = context.BuildingArea,
                 BuildingAreaUnit = string.IsNullOrWhiteSpace(context.BuildingAreaUnit) ? "m²" : context.BuildingAreaUnit,
                 BuildingHeight = context.BuildingHeight,
