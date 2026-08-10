@@ -113,6 +113,7 @@ namespace CraneOptimizer.Application.Tests.AI
             var companionXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
             var companionCodeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml.cs"));
             var companionVm = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "ViewModels", "AiCompanionViewModel.cs"));
+            var aiSettings = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Configuration", "AiCopilotSettings.cs"));
             var mainWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml"));
             var mainWindowCode = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml.cs"));
             var softwareContext = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Services", "StaticAiSoftwareContextService.cs"));
@@ -215,6 +216,8 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("MoveSectionSelection(-1, focusSelection: true)", companionCodeBehind);
             Assert.Contains("Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1)", companionCodeBehind);
             Assert.Contains("IsSectionRailExpanded", companionCodeBehind);
+            Assert.Contains("new PropertyMetadata(false, OnSectionRailExpandedChanged)", companionCodeBehind);
+            Assert.Contains("IsSectionRailExpanded { get; set; } = false", aiSettings);
             Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
             Assert.Contains("_activeSectionName, \"Chat\"", companionCodeBehind);
