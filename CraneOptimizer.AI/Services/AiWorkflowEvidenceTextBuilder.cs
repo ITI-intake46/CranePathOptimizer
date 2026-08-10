@@ -265,7 +265,7 @@ namespace CraneOptimizer.AI.Services
             }
             else
             {
-                builder.AppendLine("Open **ANALYSIS → Run Optimizer** and use the optimizer's built-in **Current Run Readiness** as the definitive run decision. Treat the IFC/import warnings as secondary review evidence, not as AI authority to say ready or blocked.");
+                builder.AppendLine("Open **ANALYSIS → Run Optimizer** and use the optimizer's built-in **Current Run Readiness** as the definitive run decision. Treat the IFC/import warnings as secondary review evidence, not as AI authority to say ready or blocked. Do not bypass a blocker reported by the optimizer.");
             }
             builder.AppendLine();
 
@@ -439,7 +439,7 @@ namespace CraneOptimizer.AI.Services
                     break;
                 case AiWorkflowStateKind.OptimizerVerificationRequired:
                     builder.AppendLine("Primary question: should I change data, crane, zones, or load chart before checking the optimizer?");
-                    builder.AppendLine("Answer: the visible core prerequisites are present, but AI does not own the optimizer's current preflight. Open Run Optimizer and use Current Run Readiness first.");
+                    builder.AppendLine("Answer: the visible core prerequisites are present, but AI does not own the optimizer's current preflight. Open Run Optimizer and use Current Run Readiness first; treat data readiness as a troubleshooting lever only after the optimizer reports its own status.");
                     builder.AppendLine();
                     builder.AppendLine("If the optimizer itself reports a blocker, then use the AI-visible IFC/import warnings to rank the troubleshooting path. If it reports Ready, do not let advisory zero-candidate/import signals override that optimizer-owned decision.");
                     break;
