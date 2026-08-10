@@ -560,7 +560,10 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public string PrimaryActionLabel => PrimaryActionProposal == null
             ? "Open recommended tab"
             : BuildPrimaryActionLabel(PrimaryActionProposal);
-        public Visibility PrimaryActionVisibility => PrimaryActionProposal == null ? Visibility.Collapsed : Visibility.Visible;
+        public Visibility PrimaryActionVisibility => PrimaryActionProposal is { } proposal
+            && !IsNavigationTargetAlreadyActive(proposal.Target, _uiContext.ActiveTabName)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         public bool HasLatestAnswer => Advisor.HasAiAnswer;
         public Visibility LatestAnswerVisibility => HasLatestAnswer ? Visibility.Visible : Visibility.Collapsed;
@@ -1094,6 +1097,28 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 "HOME" => "Home",
                 _ => targetTab
             };
+        }
+
+        private static bool IsNavigationTargetAlreadyActive(string targetTab, string activeTab)
+        {
+            var target = NormalizeNavigationTabName(targetTab);
+            var active = NormalizeNavigationTabName(activeTab);
+
+            return !string.IsNullOrWhiteSpace(target)
+                   && target.Equals(active, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeNavigationTabName(string? tabName)
+        {
+            var normalized = (tabName ?? string.Empty).Trim().ToUpperInvariant();
+            if (normalized.Contains("ANALY", StringComparison.Ordinal)) return "ANALYSIS";
+            if (normalized.Contains("IFC", StringComparison.Ordinal)) return "IFC MODEL";
+            if (normalized.Contains("CRANE", StringComparison.Ordinal)) return "CRANES";
+            if (normalized.Contains("ZONE", StringComparison.Ordinal)) return "ZONES";
+            if (normalized.Contains("REPORT", StringComparison.Ordinal)) return "REPORTS";
+            if (normalized.Contains("DXF", StringComparison.Ordinal)) return "DXF";
+            if (normalized.Contains("HOME", StringComparison.Ordinal)) return "HOME";
+            return normalized;
         }
 
         private static string BuildPrimaryActionLabel(AiActionProposalViewModel proposal)
