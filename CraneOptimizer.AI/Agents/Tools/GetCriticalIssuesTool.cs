@@ -7,7 +7,7 @@ namespace CraneOptimizer.AI.Agents.Tools
         public override AiToolDefinition Definition { get; } = new()
         {
             Name = "get_critical_issues",
-            Description = "Collects deterministic error and warning issues from all AI host screen snapshots.",
+            Description = "Collects deterministic host-reported error and warning issues for review. Severity alone does not establish optimizer run eligibility.",
             InputSchema = "{\"type\":\"object\",\"properties\":{}}",
             OutputSchema = "{\"criticalIssues\":\"array\"}",
             AccessMode = AiToolAccessMode.ReadOnly,
@@ -31,7 +31,9 @@ namespace CraneOptimizer.AI.Agents.Tools
             var evidence = top.Length == 0
                 ? "No deterministic error or warning issues are currently exposed by host screen snapshots."
                 : string.Join(Environment.NewLine, top.Select((item, index) =>
-                    $"{index + 1}. [{item.Issue.Severity}] {item.Issue.Code} ({item.Screen}) — {item.Issue.Evidence}"));
+                    $"{index + 1}. [{item.Issue.Severity}] {item.Issue.Code} ({item.Screen})" +
+                    (IsOptimizerAdvisoryIssue(item.Issue.Code) ? " [AI advisory for optimizer eligibility]" : string.Empty) +
+                    $" — {item.Issue.Evidence}"));
 
             var facts = new Dictionary<string, string>
             {
@@ -50,10 +52,22 @@ namespace CraneOptimizer.AI.Agents.Tools
                 .ToArray();
 
             return Task.FromResult(Success(
-                issues.Length == 0 ? "No critical host-reported issues were found." : $"{issues.Length:N0} error/warning issue(s) require review.",
+                issues.Length == 0 ? "No host-reported error/warning issues were found." : $"{issues.Length:N0} host-reported error/warning issue(s) require review; not all are optimizer blockers.",
                 evidence,
                 facts,
                 actions));
+        }
+
+        private static bool IsOptimizerAdvisoryIssue(string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return false;
+            return code.Equals("GaCannotStartNoCandidates", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("GaPreRunNoCandidates", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("EstimatedWeightBlockedFromGA", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("MissingTrustedWeight", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("ElementWeightReviewNeeded", StringComparison.OrdinalIgnoreCase)
+                   || code.Equals("SelectedElementWeightNotTrusted", StringComparison.OrdinalIgnoreCase);
         }
 
         private static int SeverityRank(string severity) => severity.Equals("Error", StringComparison.OrdinalIgnoreCase) ? 2 : 1;

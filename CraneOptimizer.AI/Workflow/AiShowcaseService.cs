@@ -51,17 +51,14 @@ namespace CraneOptimizer.AI.Workflow
 
         private static string BuildHeroHeadline(AiWorkflowState state, WorkflowReadinessSnapshot readiness)
         {
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked && readiness.Items.Any(item => !item.IsComplete && item.IsCritical && IsCorePrerequisiteName(item.Name)))
-                return "AI Studio: IFC loaded, setup + lift-unit trust blockers detected";
-
             return state.Kind switch
             {
                 AiWorkflowStateKind.NoProject => "AI Studio: project-aware crane-planning copilot",
                 AiWorkflowStateKind.NoIfcModel => "AI Studio: BIM intake copilot is ready",
-                AiWorkflowStateKind.LiftUnitReadinessBlocked => "AI Studio: lift-unit readiness agent caught a blocker",
+                AiWorkflowStateKind.OptimizerVerificationRequired => "AI Studio: optimizer verification is the next authority check",
                 AiWorkflowStateKind.ResultReview => "AI Studio: optimization result explainer is active",
                 AiWorkflowStateKind.ReportCandidate => "AI Studio: report narrative agent is ready",
-                _ when state.CanRunOptimizerNow => "AI Studio: optimizer-readiness copilot is green",
+                _ when state.CanProceedToOptimizerCheck => "AI Studio: project prerequisites complete; verify optimizer readiness",
                 _ => "AI Studio: mission-control intelligence is active"
             };
         }
@@ -90,7 +87,7 @@ namespace CraneOptimizer.AI.Workflow
             {
                 "Readiness Sentinel",
                 "BIM/IFC Intelligence",
-                "Lift-Unit Trust Agent",
+                "Lift-Unit Evidence Reviewer",
                 "What-If Advisor",
                 "Report Narrative Generator",
                 "Local RAG Assistant",
@@ -99,8 +96,6 @@ namespace CraneOptimizer.AI.Workflow
 
             if (hasResult)
                 agents.Insert(3, "Optimization Failure Explainer");
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
-                agents.Insert(0, "Safety Blocker Guardian");
 
             return string.Join(" · ", agents.Distinct(StringComparer.OrdinalIgnoreCase));
         }
@@ -115,12 +110,12 @@ namespace CraneOptimizer.AI.Workflow
             yield return new AiShowcaseCapability
             {
                 Title = "Readiness Sentinel",
-                Badge = state.CanRunOptimizerNow ? "READY" : "GUIDE",
-                Purpose = "Continuously classifies the workflow and prevents the AI from recommending unsafe or impossible next steps.",
+                Badge = state.CanProceedToOptimizerCheck ? "VERIFY" : "GUIDE",
+                Purpose = "Classifies visible workflow prerequisites while preserving the optimizer as the authority for current-run readiness.",
                 Evidence = $"State={state.Kind}; readiness={readiness.CompleteCount}/{readiness.TotalCount}; active screen={Normalize(activeScreen, readiness.ActiveScreen)}.",
                 VisiblePower = "The assistant changes its diagnosis, next click, and risk language as the project moves through IFC, zones, crane, load-chart, GA, and reports.",
                 DemoPrompt = "What should I do next from this screen?",
-                RiskBoundary = "It can guide navigation and explanation only; it does not modify project data."
+                RiskBoundary = "It can guide navigation and explanation only; it does not modify project data or certify optimizer readiness."
             };
 
             yield return new AiShowcaseCapability
@@ -138,17 +133,17 @@ namespace CraneOptimizer.AI.Workflow
 
             yield return new AiShowcaseCapability
             {
-                Title = "Lift-Unit Trust Agent",
-                Badge = state.HasNoGaCandidateBlocker ? "BLOCKER" : "CHECK",
-                Purpose = "Detects whether visible element weights are trusted GA inputs or only estimated/fallback review values.",
+                Title = "Lift-Unit Evidence Reviewer",
+                Badge = state.HasNoGaCandidateBlocker || state.HasEstimatedWeightBlocker ? "REVIEW" : "CHECK",
+                Purpose = "Reviews AI-visible import/readiness weight and candidate signals without pretending they are the optimizer's authoritative preflight.",
                 Evidence = state.HasNoGaCandidateBlocker
-                    ? "No trusted GA-ready lift units are exposed in current screen evidence."
+                    ? "AI-visible import/readiness evidence reports zero candidate units; this is troubleshooting evidence only."
                     : state.HasEstimatedWeightBlocker
-                        ? "Estimated/fallback weight blocker is present."
-                        : "No zero trusted-lift-unit blocker is currently the top AI state.",
-                VisiblePower = "This is the signature engineering AI behavior: it separates data trust from geometry display.",
-                DemoPrompt = "Why are visible weights not enough to run GA, and what should the BIM exporter fix?",
-                RiskBoundary = "It never suggests bypassing trusted-weight gates."
+                        ? "Estimated/fallback weight evidence is flagged for review."
+                        : "No candidate/weight advisory is currently the top AI evidence item.",
+                VisiblePower = "It separates data-quality warnings from the untouched optimizer's run decision.",
+                DemoPrompt = "How should I interpret the AI candidate/weight warnings, and where do I verify whether the optimizer can actually run?",
+                RiskBoundary = "It never certifies ready or blocked from AI candidate counts and never suggests bypassing the optimizer's own gate."
             };
 
             if (context.OptimizationResult.HasResult)
@@ -159,9 +154,9 @@ namespace CraneOptimizer.AI.Workflow
                     Title = "Optimization Failure Explainer",
                     Badge = "GA",
                     Purpose = "Turns GA coverage, lifted count, failed elements, diagnostics, and dominant failure modes into plain-language recommendations.",
-                    Evidence = $"Latest result={result.CoverageRatio:P2}; lifted={result.LiftedElementCount:N0}/{result.TotalElementCount:N0}; positions={result.PositionCount:N0}.",
+                    Evidence = $"Captured result={result.CoverageRatio:P2}; lifted={result.LiftedElementCount:N0}/{result.TotalElementCount:N0}; positions={result.PositionCount:N0}.",
                     VisiblePower = "Makes an algorithmic result explainable for PM, site, BIM, and engineering stakeholders.",
-                    DemoPrompt = "Explain why the latest optimization did not reach 100% coverage and rank the fixes.",
+                    DemoPrompt = "Explain why the captured optimization result did not reach 100% coverage and rank the fixes.",
                     RiskBoundary = "It explains deterministic results; it does not certify crane capacity or rigging."
                 };
             }
@@ -223,9 +218,9 @@ namespace CraneOptimizer.AI.Workflow
             yield return new AiShowcasePrompt
             {
                 Label = "Data-trust diagnosis",
-                Question = state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked
-                    ? "Why is GA blocked even though the model is loaded, and what must the BIM/export owner fix?"
-                    : "Audit the current model data trust for crane optimization and tell me what evidence is missing.",
+                Question = state.HasNoGaCandidateBlocker
+                    ? "Why does AI candidate/readiness evidence report zero while the optimizer may use a different authoritative preflight, and how should I verify it?"
+                    : "Audit the current model data trust for crane optimization and tell me what evidence is advisory versus authoritative.",
                 WhyItShowsAiPower = "Demonstrates engineering-aware AI guardrails rather than generic advice."
             };
 
@@ -240,7 +235,7 @@ namespace CraneOptimizer.AI.Workflow
             {
                 Label = hasResult ? "Result explainer" : "Report-ready blocker note",
                 Question = hasResult
-                    ? "Explain the latest optimization result for a project manager and rank the practical fixes."
+                    ? "Explain the captured optimization result for a project manager and rank the practical fixes."
                     : "Draft a report-ready blocker note for the current state with assumptions, evidence, and caveats.",
                 WhyItShowsAiPower = "Demonstrates stakeholder translation from deterministic context."
             };
@@ -274,11 +269,11 @@ namespace CraneOptimizer.AI.Workflow
         {
             var builder = new StringBuilder();
             builder.Append($"This project now presents AI as a visible engineering copilot, not a small chat add-on. ");
-            builder.Append($"The side dock exposes {capabilityCount:N0} AI capabilities driven by live crane-planning evidence: workflow readiness, BIM/IFC intelligence, lift-unit trust, what-if ranking, report drafting, local RAG, and model operations. ");
+            builder.Append($"The side dock exposes {capabilityCount:N0} AI capabilities driven by live crane-planning evidence: workflow guidance, BIM/IFC intelligence, lift-unit evidence review, what-if ranking, report drafting, local RAG, and model operations. ");
             builder.Append($"Current state is {state.Status}; AI is reading {evidenceAreaCount:N0} evidence area(s), {issueCount:N0} issue(s), and readiness {readiness.CompleteCount}/{readiness.TotalCount}. ");
             builder.Append($"The headline recommendation is: {mission.RecommendedAction}");
             if (context.OptimizationResult.HasResult)
-                builder.Append($" Latest GA coverage is {context.OptimizationResult.CoverageRatio:P2}.");
+                builder.Append($" Captured optimization coverage is {context.OptimizationResult.CoverageRatio:P2}.");
             return builder.ToString();
         }
 
@@ -321,7 +316,7 @@ namespace CraneOptimizer.AI.Workflow
             builder.AppendLine(mission.RecommendedAction);
             builder.AppendLine();
             builder.AppendLine("Safety boundary");
-            builder.AppendLine("AI explains, drafts, audits, ranks, and proposes confirmed navigation/text exports. Deterministic import, GA, load-chart, and reporting checks remain authoritative.");
+            builder.AppendLine("AI explains, drafts, audits, ranks, and proposes confirmed navigation/text exports. Application-owned optimizer and engineering checks remain authoritative; AI-side import/readiness signals do not replace them.");
             return builder.ToString().Trim();
         }
 

@@ -832,9 +832,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             body.AppendLine();
             var liveContext = _workflowContextProvider.GetSnapshot();
             var state = AiWorkflowStateClassifier.Classify(liveContext);
-            if (state.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked)
+            if (state.Kind == AiWorkflowStateKind.OptimizerVerificationRequired)
             {
-                body.AppendLine("Optimizer note: GA is blocked because deterministic readiness has zero trusted GA-ready lift units. Review trusted weight/lift-unit evidence before running optimization.");
+                body.AppendLine("Optimizer note: visible project prerequisites are complete, but AI does not certify the current run. Use ANALYSIS → Run Optimizer → Current Run Readiness for the authoritative decision.");
+                if (state.HasNoGaCandidateBlocker)
+                    body.AppendLine("AI import/readiness candidate warnings are troubleshooting evidence only and must not be treated as the optimizer's preflight.");
                 body.AppendLine();
             }
             body.AppendLine($"Next: {NextAction}");
@@ -1179,13 +1181,14 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (context.AllowedZoneArea > 0 || context.ForbiddenZoneArea > 0)
                 builder.AppendLine($"Zone stored areas: allowed {context.AllowedZoneArea:0.##} m²; forbidden {context.ForbiddenZoneArea:0.##} m²");
             builder.AppendLine($"Cranes in scene: {context.CraneCount}");
-            builder.AppendLine($"Active load-chart evidence sources: {context.LoadChartEvidenceCount}; has load chart evidence: {context.HasLoadChartEvidence}");
+            var hasCurrentLoadChartEvidence = AiOptimizerEvidenceAssessor.HasCurrentLoadChartEvidence(context);
+            builder.AppendLine($"Host load-chart evidence source count: {context.LoadChartEvidenceCount}; current crane load-chart evidence visible to AI: {hasCurrentLoadChartEvidence}");
             if (context.BuildingArea > 0 || context.BuildingHeight > 0)
                 builder.AppendLine($"Building/model metrics: area {context.BuildingArea:0.##} {context.BuildingAreaUnit}; height {context.BuildingHeight:0.##} {context.BuildingLengthUnit}");
 
             if (result.HasResult)
             {
-                builder.AppendLine($"Latest coverage: {result.CoverageRatio:P2}");
+                builder.AppendLine($"Captured result coverage: {result.CoverageRatio:P2}");
                 builder.AppendLine($"Lifted elements: {result.LiftedElementCount}/{result.TotalElementCount}");
                 builder.AppendLine($"Setup positions: {result.PositionCount}");
                 if (!string.IsNullOrWhiteSpace(result.DiagnosticsPath))
@@ -1193,7 +1196,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             }
             else
             {
-                builder.AppendLine("Latest optimization: none in current session");
+                builder.AppendLine("Captured optimization result: none in current session");
             }
 
             if (context.ScreenContexts.Count > 0)
@@ -1231,7 +1234,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             builder.AppendLine("- Demo prompts: " + string.Join(" | ", AiShowcasePrompts.Take(4).Select(prompt => prompt.Label)));
 
             var workflowState = AiWorkflowStateClassifier.Classify(context, snapshot);
-            if (workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked
+            if (workflowState.Kind == AiWorkflowStateKind.OptimizerVerificationRequired
                 || workflowState.Kind == AiWorkflowStateKind.NoIfcModel)
             {
                 builder.AppendLine();
@@ -1486,13 +1489,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(liveContext, requested, _uiContext.ActiveTabName))
             {
                 if (requested.Equals("What should I do next from this screen?", StringComparison.OrdinalIgnoreCase))
-                    requested = "What is the exact next step to resolve the zero-GA-candidate blocker?";
+                    requested = "What is the exact next step, and is the AI-visible zero-candidate evidence authoritative or only advisory?";
                 else if (requested.Equals("Explain this screen and its important buttons.", StringComparison.OrdinalIgnoreCase))
-                    requested = "Explain why the optimizer is blocked on this screen and why visible weights are not enough.";
+                    requested = "Explain this screen and distinguish AI import/readiness warnings from the optimizer's built-in Current Run Readiness.";
                 else if (requested.Equals("Troubleshoot the current workflow state and tell me what to check.", StringComparison.OrdinalIgnoreCase))
-                    requested = "Troubleshoot the zero-GA-candidate blocker without suggesting a bypass.";
+                    requested = "Troubleshoot the AI-visible zero-candidate warning, explain its authority boundary, and tell me where to verify the real optimizer run state.";
                 else if (requested.StartsWith("What-if:", StringComparison.OrdinalIgnoreCase))
-                    requested = "What-if advisor: should I fix trusted BIM lift-unit data before changing crane, zone, or load-chart settings?";
+                    requested = "What-if advisor: which visible prerequisite or advisory should I review first, and what must be verified in the optimizer itself?";
             }
 
             QuestionText = requested;
