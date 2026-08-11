@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
                     xmlns:behaviors="clr-namespace:CraneOptimizer.UI.Shared.Behaviors">
 
     <!-- ════════════════════════════════════════════════════════════════
@@ -1044,6 +1045,153 @@
         <Setter Property="FontWeight"        Value="Bold"/>
         <Setter Property="Foreground"        Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         TOOL DIALOG PRESENTATION TOKENS
+         Shared by the IFC Display/Load Options and DXF Alignment dialogs.
+         Keyed only (never implicit) — purely additive, no other window is
+         affected. Tool dialogs use a slightly larger type scale than the
+         dense main shell so they stay comfortably readable.
+    ════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Dialog type scale ─────────────────────────────────────── -->
+    <sys:Double x:Key="FontSizeDialogTitle">13</sys:Double>
+    <sys:Double x:Key="FontSizeDialogSection">11</sys:Double>
+    <sys:Double x:Key="FontSizeDialogLabel">12</sys:Double>
+    <sys:Double x:Key="FontSizeDialogBody">11.5</sys:Double>
+    <sys:Double x:Key="FontSizeDialogCaption">10.5</sys:Double>
+
+    <!-- ── Dialog metrics ────────────────────────────────────────── -->
+    <sys:Double x:Key="DialogInputHeight">29</sys:Double>
+    <sys:Double x:Key="DialogButtonHeight">30</sys:Double>
+    <Thickness x:Key="DialogInputPadding">9,4,9,4</Thickness>
+
+    <!-- ── Window title (dialog title bar) ───────────────────────── -->
+    <Style x:Key="DialogWindowTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDialogTitle}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+    </Style>
+
+    <!-- ── Section header (ANNOTATION & REFERENCE OBJECTS, …) ────── -->
+    <Style x:Key="DialogSectionHeader" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDialogSection}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+    </Style>
+
+    <!-- ── Primary row label (checkbox titles, field titles) ─────── -->
+    <Style x:Key="DialogPrimaryLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+    </Style>
+
+    <!-- ── Field label above an input ────────────────────────────── -->
+    <Style x:Key="DialogFieldLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDialogBody}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ── Secondary / explanatory text ──────────────────────────── -->
+    <Style x:Key="DialogCaption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDialogCaption}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <!-- ── Readout (status / summary strips) ─────────────────────── -->
+    <Style x:Key="DialogReadout" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDialogBody}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LineHeight" Value="17"/>
+    </Style>
+
+    <!-- ── Inputs ────────────────────────────────────────────────── -->
+    <Style x:Key="DialogTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="FontSize"  Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="MinHeight" Value="{StaticResource DialogInputHeight}"/>
+        <Setter Property="Padding"   Value="{StaticResource DialogInputPadding}"/>
+    </Style>
+
+    <Style x:Key="DialogNumericTextBox" TargetType="TextBox" BasedOn="{StaticResource DialogTextBox}">
+        <Setter Property="TextAlignment" Value="Left"/>
+    </Style>
+
+    <Style x:Key="DialogComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+        <Setter Property="FontSize"  Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="MinHeight" Value="{StaticResource DialogInputHeight}"/>
+        <Setter Property="Padding"   Value="10,5,10,5"/>
+    </Style>
+
+    <Style x:Key="DialogCheckBox" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ── Buttons ───────────────────────────────────────────────── -->
+    <Style x:Key="DialogButtonPrimary" TargetType="Button" BasedOn="{StaticResource ButtonPrimary}">
+        <Setter Property="FontSize"  Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="MinHeight" Value="{StaticResource DialogButtonHeight}"/>
+        <Setter Property="MinWidth"  Value="82"/>
+        <Setter Property="Padding"   Value="16,6,16,6"/>
+    </Style>
+
+    <Style x:Key="DialogButtonSecondary" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+        <!-- Sits on an elevated footer, so use the recessed surface for contrast. -->
+        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="FontSize"  Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="MinHeight" Value="{StaticResource DialogButtonHeight}"/>
+        <Setter Property="MinWidth"  Value="82"/>
+        <Setter Property="Padding"   Value="14,6,14,6"/>
+    </Style>
+
+    <Style x:Key="DialogButtonOutlined" TargetType="Button" BasedOn="{StaticResource ButtonOutlined}">
+        <Setter Property="FontSize"  Value="{StaticResource FontSizeDialogLabel}"/>
+        <Setter Property="MinHeight" Value="{StaticResource DialogButtonHeight}"/>
+        <Setter Property="MinWidth"  Value="82"/>
+        <Setter Property="Padding"   Value="14,6,14,6"/>
+    </Style>
+
+    <!-- Prominent full-width action (e.g. Load DXF) -->
+    <Style x:Key="DialogButtonPrimaryLarge" TargetType="Button" BasedOn="{StaticResource ButtonPrimary}">
+        <Setter Property="FontSize"  Value="12.5"/>
+        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="Padding"   Value="16,7,16,7"/>
+    </Style>
+
+    <!-- ── Section body container (spacing, not heavy chrome) ────── -->
+    <Style x:Key="DialogSectionBody" TargetType="Border">
+        <Setter Property="Background"      Value="{DynamicResource SurfaceElevatedBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="{StaticResource ControlCornerRadius}"/>
+        <Setter Property="Padding"         Value="11,8,11,8"/>
+    </Style>
+
+    <!-- ── Inline info / readout strip ───────────────────────────── -->
+    <Style x:Key="DialogInfoStrip" TargetType="Border">
+        <Setter Property="Background"      Value="{DynamicResource SurfaceElevatedBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="{StaticResource ControlCornerRadius}"/>
+        <Setter Property="Padding"         Value="10,8,10,8"/>
     </Style>
 
 </ResourceDictionary>

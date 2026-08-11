@@ -17,7 +17,7 @@
             <Setter Property="MinWidth" Value="92" />
             <Setter Property="Padding" Value="10,4" />
             <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
-            <Setter Property="FontSize" Value="{StaticResource FontSizeSM}" />
+            <Setter Property="FontSize" Value="13.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -87,9 +87,14 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Style.Triggers>
                 <DataTrigger
+                    Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                    Value="True">
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                </DataTrigger>
+                <DataTrigger
                     Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
                     Value="True">
-                    <Setter Property="Foreground" Value="#FF211812" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -98,9 +103,14 @@
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Style.Triggers>
                 <DataTrigger
+                    Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                    Value="True">
+                    <Setter Property="Foreground" Value="#FFF2F2F2" />
+                </DataTrigger>
+                <DataTrigger
                     Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
                     Value="True">
-                    <Setter Property="Foreground" Value="#FF3A281E" />
+                    <Setter Property="Foreground" Value="#FFF2F2F2" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -117,7 +127,7 @@
             Grid.Row="0"
             Margin="0,0,0,10"
             FontFamily="{StaticResource FontPrimary}"
-            FontSize="{StaticResource FontSizeLG}"
+            FontSize="15"
             FontWeight="SemiBold"
             Foreground="{DynamicResource TextPrimaryBrush}"
             Text="Draw zones by DXF layer" />
@@ -160,20 +170,20 @@
                             <StackPanel Grid.Column="1" Margin="0,0,12,0">
                                 <TextBlock
                                     FontFamily="{StaticResource FontPrimary}"
-                                    FontSize="{StaticResource FontSizeBase}"
+                                    FontSize="15"
                                     FontWeight="SemiBold"
                                     Style="{StaticResource LayerNameText}"
                                     Text="{Binding Name}" />
                                 <TextBlock
                                     Margin="0,2,0,0"
                                     FontFamily="{StaticResource FontPrimary}"
-                                    FontSize="{StaticResource FontSizeXS}"
+                                    FontSize="12.5"
                                     Style="{StaticResource LayerDetailText}"
                                     Text="{Binding CountsText}" />
                                 <TextBlock
                                     Margin="0,2,0,0"
                                     FontFamily="{StaticResource FontPrimary}"
-                                    FontSize="{StaticResource FontSizeXS}"
+                                    FontSize="12.5"
                                     Style="{StaticResource LayerDetailText}"
                                     Text="{Binding BusyText}" />
                             </StackPanel>
@@ -202,19 +212,21 @@
                 DockPanel.Dock="Left"
                 VerticalAlignment="Center"
                 FontFamily="{StaticResource FontPrimary}"
-                FontSize="{StaticResource FontSizeSM}"
+                FontSize="12.5"
                 Foreground="{DynamicResource TextSecondaryBrush}"
                 Text="{Binding StatusMessage}" />
 
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button
-                      Width="170"
+                      Width="186"
                       Margin="0,0,8,0"
+                      FontSize="13.5"
                       Command="{Binding RemoveImportedZonesCommand}"
                       Content="Remove All Layer Zones"
                       Style="{StaticResource ButtonSecondary}" />
                 <Button
-                    Width="84"
+                    Width="92"
+                    FontSize="13.5"
                     Click="Close_Click"
                     Content="Close"
                     Style="{StaticResource ButtonSecondary}" />
