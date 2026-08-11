@@ -392,6 +392,20 @@
         </Setter>
     </Style>
 
+    <!-- ════════════════════════════════════════════════════════════════
+         SYSTEM SELECTION COLOURS
+         WPF falls back to the OS highlight colour (Windows blue) for any
+         selection visual a template does not paint itself — combo/list
+         items, text selection, inactive selection. Re-point those system
+         brush keys at the app palette so no blue can appear anywhere.
+    ════════════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                  Color="{StaticResource Color.Primary}"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"              Color="{StaticResource Color.OnPrimary}"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{StaticResource Color.PrimaryMuted}"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}"              Color="{StaticResource Color.Primary}"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.HotTrackBrushKey}"                   Color="{StaticResource Color.PrimaryHover}"/>
+
     <!-- ── ComboBox ──────────────────────────────────────────────── -->
     <Style TargetType="ComboBox">
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}"/>
@@ -416,8 +430,12 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="30"/>
                                 </Grid.ColumnDefinitions>
+                                <!-- Closed face: unchanged content, pinned to the theme
+                                     foreground so no system highlight can tint it. -->
                                 <ContentPresenter Grid.Column="0"
                                                   Content="{TemplateBinding SelectionBoxItem}"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                  IsHitTestVisible="False"
                                                   Margin="{TemplateBinding Padding}"
                                                   VerticalAlignment="Center"/>
                                 <Path Grid.Column="1"
@@ -428,21 +446,44 @@
                                       HorizontalAlignment="Center"/>
                             </Grid>
                         </Border>
+                        <!-- Invisible hit-target. It MUST carry its own template:
+                                 the default ToggleButton chrome paints the Windows
+                                 blue hover gradient over the dark face. -->
                         <ToggleButton x:Name="ToggleButton"
                                       IsChecked="{Binding IsDropDownOpen,
                                           RelativeSource={RelativeSource TemplatedParent}}"
                                       Background="Transparent"
                                       BorderThickness="0"
-                                      Focusable="False"/>
+                                      OverridesDefaultStyle="True"
+                                      ClickMode="Press"
+                                      Focusable="False">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
                         <Popup x:Name="PART_Popup"
                                IsOpen="{TemplateBinding IsDropDownOpen}"
                                AllowsTransparency="True"
+                               Focusable="False"
+                               PopupAnimation="Fade"
+                               VerticalOffset="2"
+                               MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                Placement="Bottom">
                             <Border Background="{DynamicResource SurfaceElevatedBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="{StaticResource ControlCornerRadius}">
-                                <ItemsPresenter/>
+                                    CornerRadius="{StaticResource ControlCornerRadius}"
+                                    Padding="0,4,0,4">
+                                <!-- Scrolls from the first item; nothing is clipped or hidden. -->
+                                <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                              CanContentScroll="False"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto"
+                                              Focusable="False">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>
@@ -463,25 +504,45 @@
         <Setter Property="Foreground"  Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="Background"  Value="Transparent"/>
         <Setter Property="Padding"     Value="10,6"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
                     <Border x:Name="Root"
                             Background="{TemplateBinding Background}"
+                            BorderBrush="Transparent"
+                            BorderThickness="3,0,0,0"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter/>
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
+                        <!-- Current selection: subtle dark fill with an orange accent bar. -->
+                        <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Root" Property="Background"
+                                    Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush"
+                                    Value="{StaticResource PrimaryBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                        </Trigger>
+                        <!-- Pointer / keyboard highlight: solid orange, never the system blue. -->
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Root" Property="Background"
+                                    Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush"
                                     Value="{StaticResource PrimaryBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}"/>
                         </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
+                        <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background"
                                     Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush"
+                                    Value="{StaticResource PrimaryBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.45"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
