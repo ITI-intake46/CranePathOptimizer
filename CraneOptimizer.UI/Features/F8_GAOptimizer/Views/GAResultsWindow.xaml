@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     x:Class="CraneOptimizer.UI.Features.F8_GAOptimizer.Views.GAResultsWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -6,8 +6,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Title="Optimization Results"
         Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
-    Width="1100"
-    Height="640"
+    Width="1400"
+    Height="680"
     Topmost="True"
     Background="{DynamicResource BackgroundBrush}"
     FontFamily="{StaticResource FontPrimary}"
@@ -24,6 +24,44 @@
         <SolidColorBrush x:Key="SpecialCaseRowBrush"     Color="#222224" />
         <SolidColorBrush x:Key="ChartDataIssueRowBrush"  Color="#1E2530" />
         <SolidColorBrush x:Key="NeutralRowBrush"          Color="#1E1E1E" />
+
+        <!-- ── Local font scale (+2px over global compact tokens) ──────── -->
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="FontSizeXS">13</sys:Double>
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="FontSizeSM">13</sys:Double>
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="FontSizeMD">14</sys:Double>
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="FontSizeBase">14</sys:Double>
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="FontSizeLG">15</sys:Double>
+
+        <!-- ── DataGrid dark-theme overrides ──────────────────────────── -->
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background"              Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="Foreground"              Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush"             Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness"         Value="0,0,1,1"/>
+            <Setter Property="Padding"                 Value="8,0"/>
+            <Setter Property="FontFamily"              Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"                Value="{StaticResource FontSizeSM}"/>
+            <Setter Property="FontWeight"              Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Background"              Value="Transparent"/>
+            <Setter Property="Foreground"              Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush"             Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness"         Value="0"/>
+            <Setter Property="Padding"                 Value="6,0"/>
+            <Setter Property="FontFamily"              Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"                Value="{StaticResource FontSizeSM}"/>
+            <Setter Property="VerticalContentAlignment"   Value="Center"/>
+            <Setter Property="FocusVisualStyle"        Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="{StaticResource Space4}">
@@ -164,7 +202,7 @@
                                         Grid.Row="0"
                                         Grid.RowSpan="3"
                                         VerticalAlignment="Center"
-                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontSize="{StaticResource FontSizeMD}"
                                         FontWeight="SemiBold"
                                         Text="{Binding PositionDisplayText, Mode=OneWay}" />
 
@@ -173,6 +211,7 @@
                                         Grid.Row="0"
                                         Grid.RowSpan="3"
                                         VerticalAlignment="Center"
+                                        FontSize="{StaticResource FontSizeMD}"
                                         FontWeight="Bold"
                                         Foreground="{StaticResource PrimaryBrush}"
                                         Text="{Binding LiftCountDisplayText, Mode=OneWay}" />
@@ -206,7 +245,7 @@
                     <TextBlock Grid.Row="0"
                                Text="{Binding RightPanelHeader}"
                                FontWeight="Bold"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeMD}"
                                Foreground="{StaticResource PrimaryBrush}" />
 
                     <!-- Assigned Elements DataGrid -->
@@ -263,8 +302,8 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Mark"
                                                 Binding="{Binding Mark}"
-                                                Width="*"
-                                                MinWidth="70">
+                                                Width="130"
+                                                MinWidth="100">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="ToolTip">
@@ -285,7 +324,7 @@
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Lift Unit"
                                                 Binding="{Binding LiftUnitText}"
-                                                Width="110">
+                                                Width="160">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="ToolTip">
@@ -300,25 +339,26 @@
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Confidence"
                                                 Binding="{Binding MarkConfidence}"
-                                                Width="80" />
+                                                Width="100" />
                             <DataGridTextColumn Header="Val. Status"
                                                 Binding="{Binding ValidationStatus}"
-                                                Width="80" />
+                                                Width="100" />
                             <DataGridTextColumn Header="Radius"
                                                Binding="{Binding RadiusText}"
-                                               Width="75" />
+                                               Width="90" />
                             <DataGridTextColumn Header="Boom Length"
                                                Binding="{Binding BoomLengthText}"
-                                               Width="90" />
+                                               Width="110" />
                             <DataGridTextColumn Header="Weight"
                                                Binding="{Binding WeightText}"
-                                               Width="80" />
+                                               Width="100" />
                             <DataGridTextColumn Header="Chart Cap. (Raw)"
                                                Binding="{Binding RawChartCapacityText}"
-                                               Width="110" />
+                                               Width="130" />
                             <DataGridTextColumn Header="Status"
                                                Binding="{Binding StatusText}"
-                                               Width="90" />
+                                               Width="*"
+                                               MinWidth="90" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -339,32 +379,32 @@
 
                             <!-- Crane Name -->
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="CRANE" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="CRANE" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="{StaticResource FontSizeMD}" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding CraneNameDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
 
                             <!-- Wire Length -->
                             <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="WIRE LENGTH" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="WIRE LENGTH" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="{StaticResource FontSizeMD}" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding WireLengthDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
 
                             <!-- Derating Ratio -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="DERATING" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="DERATING" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="{StaticResource FontSizeMD}" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding DeratingRatioDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
 
                             <!-- Counterweight -->
                             <StackPanel Grid.Column="3" HorizontalAlignment="Center">
-                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="COUNTERWEIGHT" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="COUNTERWEIGHT" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="{StaticResource FontSizeMD}" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding CounterWeightDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
@@ -383,7 +423,7 @@
             CornerRadius="{StaticResource CardCornerRadius}">
 
             <StackPanel>
-                <UniformGrid Columns="3" Margin="0,0,0,4">
+                <UniformGrid Columns="2" Margin="0,0,0,4">
                     <TextBlock
                         HorizontalAlignment="Center"
                         FontWeight="Bold"
@@ -393,10 +433,6 @@
                     <TextBlock
                         HorizontalAlignment="Center"
                         Text="{Binding CoverageRatio, StringFormat=Coverage: {0:P2}}" />
-
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        Text="{Binding FitnessScore, StringFormat=GA Score: {0:F2}}" />
                 </UniformGrid>
                 <TextBlock
                     HorizontalAlignment="Center"
