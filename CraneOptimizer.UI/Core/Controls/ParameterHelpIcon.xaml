@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="CraneOptimizer.UI.Core.Controls.ParameterHelpIcon"
+<UserControl x:Class="CraneOptimizer.UI.Core.Controls.ParameterHelpIcon"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -8,11 +8,12 @@
              VerticalAlignment="Center">
     <UserControl.Resources>
         <Style TargetType="ToolTip">
-            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="MaxWidth" Value="320" />
+            <Setter Property="Background"      Value="{DynamicResource SurfaceElevatedBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="12"/>
+            <Setter Property="MaxWidth"        Value="340"/>
+            <Setter Property="HasDropShadow"   Value="True"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToolTip">
@@ -21,7 +22,10 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="4"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter />
+                            <ContentPresenter
+                                TextBlock.Foreground="{DynamicResource TextPrimaryBrush}"
+                                TextBlock.FontFamily="{StaticResource FontPrimary}"
+                                TextBlock.FontSize="13"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -38,75 +42,153 @@
                        Foreground="{StaticResource SecondaryBrush}" Margin="0,-1,0,0"/>
             <Border.ToolTip>
                 <ToolTip x:Name="HelpToolTip">
-                    <StackPanel Width="280">
-                        <TextBlock x:Name="TxtDisplayName" Style="{StaticResource TextTitle}" 
-                                   FontFamily="{StaticResource FontPrimary}" 
-                                   FontWeight="SemiBold" Margin="0,0,0,4" />
-                        
-                        <TextBlock x:Name="TxtDescription" Style="{StaticResource TextBody}" 
-                                   FontFamily="{StaticResource FontPrimary}" 
-                                   TextWrapping="Wrap" Margin="0,0,0,8" />
-                        
-                        <Separator Background="{DynamicResource BorderBrush}" Margin="0,4" />
-                        
+                    <StackPanel Width="300">
+
+                        <!-- Parameter name -->
+                        <TextBlock x:Name="TxtDisplayName"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,5"/>
+
+                        <!-- Description -->
+                        <TextBlock x:Name="TxtDescription"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8"/>
+
+                        <Separator Background="{DynamicResource BorderBrush}" Margin="0,4"/>
+
+                        <!-- Increase / Decrease -->
                         <Grid Margin="0,4">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,2">
-                                <TextBlock Text="↑ Increase: " Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBlock x:Name="TxtIncrease" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" Width="200" />
+                                <TextBlock Text="↑ Increase: "
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock x:Name="TxtIncrease"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap" Width="210"/>
                             </StackPanel>
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,2">
-                                <TextBlock Text="↓ Decrease: " Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBlock x:Name="TxtDecrease" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" Width="200" />
+                                <TextBlock Text="↓ Decrease: "
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock x:Name="TxtDecrease"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap" Width="210"/>
                             </StackPanel>
                         </Grid>
-                        
-                        <Separator Background="{DynamicResource BorderBrush}" Margin="0,4" />
-                        
+
+                        <Separator Background="{DynamicResource BorderBrush}" Margin="0,4"/>
+
+                        <!-- Valid / Recommended -->
                         <Grid Margin="0,4">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="90" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Valid:" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <TextBlock x:Name="TxtValid" Grid.Row="0" Grid.Column="1" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" />
-                            
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Recommended:" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <TextBlock x:Name="TxtRecommended" Grid.Row="1" Grid.Column="1" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" Foreground="{StaticResource PrimaryBrush}" />
+
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="Valid:"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TxtValid"
+                                       Grid.Row="0" Grid.Column="1"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextWrapping="Wrap"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="Recommended:"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TxtRecommended"
+                                       Grid.Row="1" Grid.Column="1"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       TextWrapping="Wrap"/>
                         </Grid>
-                        
-                        <Separator Background="{DynamicResource BorderBrush}" Margin="0,4" />
-                        
+
+                        <Separator Background="{DynamicResource BorderBrush}" Margin="0,4"/>
+
+                        <!-- Performance / Quality -->
                         <Grid Margin="0,4">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="90" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Performance:" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <TextBlock x:Name="TxtPerformance" Grid.Row="0" Grid.Column="1" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" />
-                            
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Quality:" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <TextBlock x:Name="TxtQuality" Grid.Row="1" Grid.Column="1" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" />
+
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="Performance:"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TxtPerformance"
+                                       Grid.Row="0" Grid.Column="1"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextWrapping="Wrap"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="Quality:"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TxtQuality"
+                                       Grid.Row="1" Grid.Column="1"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextWrapping="Wrap"/>
                         </Grid>
-                        
+
+                        <!-- Special note (warning, optional) -->
                         <StackPanel x:Name="PanelSpecialNote" Visibility="Collapsed" Margin="0,6,0,0">
-                            <Separator Background="{DynamicResource BorderBrush}" Margin="0,4" />
-                            <TextBlock Text="Note:" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" FontWeight="Bold" Foreground="{StaticResource WarningBrush}" />
-                            <TextBlock x:Name="TxtSpecialNote" Style="{StaticResource TextCaption}" FontFamily="{StaticResource FontPrimary}" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" />
+                            <Separator Background="{DynamicResource BorderBrush}" Margin="0,4"/>
+                            <TextBlock Text="Note:"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource WarningBrush}"/>
+                            <TextBlock x:Name="TxtSpecialNote"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource WarningBrush}"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
+
                     </StackPanel>
                 </ToolTip>
             </Border.ToolTip>

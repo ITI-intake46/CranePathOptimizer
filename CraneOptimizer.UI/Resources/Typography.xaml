@@ -24,7 +24,7 @@
     <sys:Double x:Key="FontSizeHeroTitle">38</sys:Double>
     <sys:Double x:Key="FontSizeProjectCardName">20</sys:Double>
     <sys:Double x:Key="FontSizeTableHeader">10</sys:Double>
-    <sys:Double x:Key="FontSizeNavStartup">17</sys:Double>
+    <sys:Double x:Key="FontSizeNavStartup">20</sys:Double>
 
     <!-- ── Headline — section / dialog titles ───────────────────── -->
     <Style x:Key="TextHeadline" TargetType="TextBlock">

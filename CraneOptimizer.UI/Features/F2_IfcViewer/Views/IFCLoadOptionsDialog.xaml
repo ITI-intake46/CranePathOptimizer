@@ -4,7 +4,8 @@
         xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration"
         Title="{Binding DialogTitle}"
         Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
-        Width="520" MinWidth="480" SizeToContent="Height"
+        Width="510" MinWidth="470" SizeToContent="Height"
+        MaxHeight="880"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         WindowStyle="None"
@@ -20,7 +21,7 @@
             BorderThickness="1" CornerRadius="6">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="40"/>   <!-- Title bar -->
+                <RowDefinition Height="42"/>   <!-- Title bar -->
                 <RowDefinition Height="*"/>    <!-- Content -->
                 <RowDefinition Height="56"/>   <!-- Footer -->
             </Grid.RowDefinitions>
@@ -30,36 +31,31 @@
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     CornerRadius="6,6,0,0"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid Margin="12,0">
+                <Grid Margin="16,0,10,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="⚙"
-                                   FontSize="{StaticResource FontSizeLG}"
+                                   FontSize="{StaticResource FontSizeXL}"
                                    Foreground="{StaticResource PrimaryBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBlock x:Name="TxtDialogTitle"
                                    Text="{Binding DialogTitle}"
-                                   FontSize="{StaticResource FontSizeSM}"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
+                                   Style="{StaticResource DialogWindowTitle}"/>
                     </StackPanel>
-                    <Button HorizontalAlignment="Right" Width="28" Height="28"
+                    <Button HorizontalAlignment="Right" Width="32" Height="32"
                             Style="{StaticResource TitleBarButton}"
                             Click="BtnCancel_Click" Content="✕"
-                            FontSize="{StaticResource FontSizeXS}"/>
+                            FontSize="{StaticResource FontSizeSM}"/>
                 </Grid>
             </Border>
 
             <!-- ── Content ──────────────────────────────────────────── -->
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="16,10,16,10">
+                <StackPanel Margin="16,12,16,12">
 
                     <!-- File path display (shown when loading a new IFC) -->
                     <Border x:Name="FilePathPanel"
-                            Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="4"
-                            Padding="10,7" Margin="0,0,0,10"
+                            Style="{StaticResource DialogInfoStrip}"
+                            Margin="0,0,0,10"
                             Visibility="{Binding FilePathVisibility}">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -68,14 +64,14 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
                                        Text="File: "
-                                       FontSize="{StaticResource FontSizeBase}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center"/>
+                                       Style="{StaticResource DialogFieldLabel}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <TextBlock x:Name="TxtFilePath"
                                        Grid.Column="1"
                                        Text="{Binding FilePath}"
-                                       FontSize="{StaticResource FontSizeXS}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Style="{StaticResource DialogCaption}"
+                                       FontSize="{StaticResource FontSizeDialogBody}"
+                                       TextWrapping="NoWrap"
                                        TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center"
                                        ToolTip="{Binding FilePath}"/>
@@ -84,175 +80,171 @@
 
                     <!-- Helper note: "checked = hidden" semantic -->
                     <Border Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,0" CornerRadius="4"
-                            Padding="10,7" Margin="0,0,0,6">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="ℹ "
-                                       FontSize="{StaticResource FontSizeBase}"
+                            BorderThickness="0" CornerRadius="4"
+                            Padding="12,9" Margin="0,0,0,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="ℹ"
+                                       FontSize="{StaticResource FontSizeDialogLabel}"
                                        Foreground="{StaticResource PrimaryBrush}"
+                                       VerticalAlignment="Top"
+                                       Margin="0,1,8,0"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="Checked items are hidden in the 3D view. All elements remain available in the element list."
+                                       Style="{StaticResource DialogCaption}"
+                                       FontSize="{StaticResource FontSizeDialogBody}"
                                        VerticalAlignment="Center"/>
-                            <TextBlock Text="Checked items are hidden in the 3D view. All elements remain available in the element list."
-                                       FontSize="{StaticResource FontSizeXS}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       TextWrapping="Wrap"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
                     <!-- Coordinate Reference (conditionally visible) -->
                     <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <StackPanel x:Name="CoordinateReferencePanel"
                                 Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowCoordinateReferenceUi}, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Style="{StaticResource PanelSectionHeader}"
+                        <TextBlock Style="{StaticResource DialogSectionHeader}"
                                    Text="COORDINATE REFERENCE"
-                                   Margin="0,10,0,6"/>
-                        <Border Background="{DynamicResource SurfaceElevatedBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="1" CornerRadius="4" Padding="12,10">
+                                   Margin="2,18,0,8"/>
+                        <Border Style="{StaticResource DialogSectionBody}"
+                                Background="{DynamicResource SurfaceElevatedBrush}">
                             <StackPanel>
                                 <RadioButton x:Name="RadLocalOnly" IsChecked="True" GroupName="CoordMode">
                                     <StackPanel Margin="0,0,0,4">
                                         <TextBlock Text="Local Only"
-                                                   FontSize="{StaticResource FontSizeBase}"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                   Style="{StaticResource DialogPrimaryLabel}"/>
                                         <TextBlock Text="Use model local coordinates only. IFC survey/georeferencing metadata will be stored as metadata but not activated."
-                                                   FontSize="{StaticResource FontSizeXS}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                   TextWrapping="Wrap"/>
+                                                   Style="{StaticResource DialogCaption}"
+                                                   Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </RadioButton>
-                                <RadioButton x:Name="RadIfcOrigin" GroupName="CoordMode" Margin="0,8,0,0">
+                                <RadioButton x:Name="RadIfcOrigin" GroupName="CoordMode" Margin="0,10,0,0">
                                     <StackPanel>
                                         <TextBlock Text="IFC Origin Mapping"
-                                                   FontSize="{StaticResource FontSizeBase}"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                   Style="{StaticResource DialogPrimaryLabel}"/>
                                         <TextBlock Text="The model stays in local coordinates. Local (0,0,0) maps to IFC Survey Easting/Northing/Elevation."
-                                                   FontSize="{StaticResource FontSizeXS}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                   TextWrapping="Wrap"/>
+                                                   Style="{StaticResource DialogCaption}"
+                                                   Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </RadioButton>
-                                <Border x:Name="BdrStatus" BorderThickness="0" CornerRadius="4" Padding="8,6" Margin="0,10,0,0" Background="{DynamicResource SurfaceBrush}">
+                                <Border x:Name="BdrStatus" BorderThickness="0" CornerRadius="4" Padding="10,8" Margin="0,12,0,0" Background="{DynamicResource SurfaceBrush}">
                                     <TextBlock x:Name="TxtStatus" Text="Scanning georeferencing..."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               FontWeight="Medium"
-                                               TextWrapping="Wrap"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               FontSize="{StaticResource FontSizeDialogBody}"
+                                               FontWeight="Medium"/>
                                 </Border>
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
                     <!-- ── Annotation & Reference ────────────────────── -->
-                    <TextBlock Style="{StaticResource PanelSectionHeader}"
+                    <TextBlock Style="{StaticResource DialogSectionHeader}"
                                Text="ANNOTATION &amp; REFERENCE OBJECTS"
-                               Margin="0,10,0,6"/>
-                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="4" Padding="12,10">
+                               Margin="2,18,0,8"/>
+                    <Border Style="{StaticResource DialogSectionBody}"
+                            Background="{DynamicResource SurfaceElevatedBrush}">
                         <StackPanel>
                             <CheckBox x:Name="ChkHideGrids"
                                       IsChecked="{Binding HideGrids, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,4,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,0,0,0"
                                       ToolTip="Hide IfcGrid — structural reference grid lines.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Grids  (IfcGrid)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Structural grid lines."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideLevels"
                                       IsChecked="{Binding HideLevels, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,6,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,11,0,0"
                                       ToolTip="Hide IfcBuildingStorey — floor level markers and elevation planes.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Levels / Storeys  (IfcBuildingStorey)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Floor-level markers and elevation planes."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideAnnotations"
                                       IsChecked="{Binding HideAnnotations, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,6,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,11,0,0"
                                       ToolTip="Hide IfcAnnotation — text labels, dimension marks, symbols.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Annotations  (IfcAnnotation)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Text labels, dimensions, and symbols."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideSite"
                                       IsChecked="{Binding HideSite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,6,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,11,0,0"
                                       ToolTip="Hide IfcSite — site terrain and boundary geometry.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Site  (IfcSite)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Site terrain and boundary geometry."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                         </StackPanel>
                     </Border>
 
                     <!-- ── Spatial & Volume ──────────────────────────── -->
-                    <TextBlock Style="{StaticResource PanelSectionHeader}"
+                    <TextBlock Style="{StaticResource DialogSectionHeader}"
                                Text="SPATIAL &amp; VOLUME OBJECTS"
-                               Margin="0,12,0,6"/>
-                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="4" Padding="12,10">
+                               Margin="2,20,0,8"/>
+                    <Border Style="{StaticResource DialogSectionBody}"
+                            Background="{DynamicResource SurfaceElevatedBrush}">
                         <StackPanel>
                             <CheckBox x:Name="ChkHideSpaces"
                                       IsChecked="{Binding HideSpaces, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,4,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,0,0,0"
                                       ToolTip="Hide IfcSpace — room and area volume boxes.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Spaces / Rooms  (IfcSpace)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Room and area volumes."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideOpenings"
                                       IsChecked="{Binding HideOpenings, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,6,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,11,0,0"
                                       ToolTip="Hide IfcOpeningElement — door/window cutout voids.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Opening Elements  (IfcOpeningElement)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Door and window cutout volumes."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideVirtualElements"
                                       IsChecked="{Binding HideVirtualElements, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,6,0,0"
+                                      Style="{StaticResource DialogCheckBox}"
+                                      Margin="0,11,0,0"
                                       ToolTip="Hide IfcVirtualElement — invisible boundary/placeholder elements.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Virtual Elements  (IfcVirtualElement)"
-                                               FontSize="{StaticResource FontSizeBase}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                               Style="{StaticResource DialogPrimaryLabel}"/>
                                     <TextBlock Text="Invisible boundary and placeholder elements."
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Style="{StaticResource DialogCaption}"
+                                               Margin="0,2,0,0"/>
                                 </StackPanel>
                             </CheckBox>
                         </StackPanel>
@@ -266,31 +258,30 @@
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0" CornerRadius="0,0,6,6">
-                <Grid Margin="16,0">
+                <Grid Margin="20,0">
                     <!-- Left: Hide All / Show All -->
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Button Content="Hide All" Width="80" Height="28"
-                                Style="{StaticResource ButtonSecondary}"
+                        <Button Content="Hide All"
+                                Style="{StaticResource DialogButtonSecondary}"
                                 Click="BtnSelectAll_Click"
                                 ToolTip="Check all object types — all will be hidden."/>
-                        <Button Content="Show All" Width="80" Height="28"
-                                Margin="8,0,0,0"
-                                Style="{StaticResource ButtonSecondary}"
+                        <Button Content="Show All"
+                                Margin="10,0,0,0"
+                                Style="{StaticResource DialogButtonSecondary}"
                                 Click="BtnClearAll_Click"
                                 ToolTip="Uncheck all object types — all will be shown."/>
                     </StackPanel>
                     <!-- Right: Cancel / Apply -->
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Button Content="Cancel" Width="80" Height="32"
-                                Style="{StaticResource ButtonSecondary}"
+                        <Button Content="Cancel"
+                                Style="{StaticResource DialogButtonSecondary}"
                                 Click="BtnCancel_Click"/>
                         <Button x:Name="BtnPrimary"
                                 Content="{Binding PrimaryButtonText}"
-                                Width="90" Height="32"
-                                FontWeight="SemiBold" Margin="8,0,0,0"
-                                Style="{StaticResource ButtonPrimary}"
+                                Margin="10,0,0,0"
+                                Style="{StaticResource DialogButtonPrimary}"
                                 Click="BtnLoad_Click"/>
                     </StackPanel>
                 </Grid>
