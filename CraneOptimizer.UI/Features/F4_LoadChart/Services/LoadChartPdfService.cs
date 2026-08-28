@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Units;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -429,7 +430,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return InferNominalCapacityT(pdfPath, pages);
         }
 
-        internal static double GetCandidateMaxCapacityForTesting(PdfTableCandidateDto candidate)
+        internal static double? GetCandidateMaxCapacityForTesting(PdfTableCandidateDto candidate)
         {
             return GetCandidateMaxCapacityT(candidate);
         }
@@ -439,7 +440,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             PdfTableCandidateDto table,
             double? inferredNominalCapacityT)
         {
-            double maxCapacityT = GetCandidateMaxCapacityT(table);
+            double? maxCapacityT = GetCandidateMaxCapacityT(table);
             double structuralScore = GetStructuralCompletenessScore(table);
             double pageContextScore = Math.Max(0, page.Score) * 0.10;
             double capacityAgreementScore = 0;
@@ -447,9 +448,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             double capacityRatio = 0;
             bool severeCapacityMismatch = false;
 
-            if (inferredNominalCapacityT.HasValue && inferredNominalCapacityT.Value > 0 && maxCapacityT > 0)
+            if (inferredNominalCapacityT.HasValue && inferredNominalCapacityT.Value > 0 && maxCapacityT.HasValue && maxCapacityT.Value > 0)
             {
-                capacityRatio = maxCapacityT / inferredNominalCapacityT.Value;
+                capacityRatio = maxCapacityT.Value / inferredNominalCapacityT.Value;
 
                 if (capacityRatio >= 0.90 && capacityRatio <= 1.35)
                 {
@@ -524,7 +525,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 density * 120.0;
         }
 
-        private static double GetCandidateMaxCapacityT(PdfTableCandidateDto candidate)
+        private static double? GetCandidateMaxCapacityT(PdfTableCandidateDto candidate)
         {
             if (candidate == null)
                 throw new ArgumentNullException(nameof(candidate));
@@ -534,6 +535,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 : candidate.RawGrid;
 
             double maxValue = 0;
+            bool hasExplicitKilogram = false;
+            bool hasExplicitTon = false;
             foreach (var row in grid.Skip(1))
             {
                 if (row.Count > 0 && IsNumberOfLinesLabel(row[0]))
@@ -546,13 +549,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
                     if (value > maxValue)
                         maxValue = value;
+
+                    if (LoadChartCsvService.ContainsExplicitKilogramUnit(cell))
+                        hasExplicitKilogram = true;
+
+                    if (LoadChartCsvService.ContainsExplicitTonUnit(cell))
+                        hasExplicitTon = true;
                 }
             }
 
-            if (maxValue >= 1000)
-                return maxValue / 1000.0;
+            if (maxValue <= 0 || hasExplicitKilogram == hasExplicitTon)
+                return null;
 
-            return maxValue;
+            return hasExplicitKilogram
+                ? maxValue / UnitSystem.KilogramsPerTon
+                : maxValue;
         }
 
         private static double? InferNominalCapacityT(
@@ -637,12 +648,18 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 $"(base {selected.BaseScore:0.0}, page {selected.PageContextScore:0.0}, structure {selected.StructuralScore:0.0}, " +
                 $"capacity {selected.CapacityAgreementScore + selected.CapacityPenalty:0.0}, continuation {selected.ContinuationBonus:0.0}).");
 
-            if (inferredNominalCapacityT.HasValue && selected.CandidateMaxCapacityT > 0)
+            if (inferredNominalCapacityT.HasValue && selected.CandidateMaxCapacityT.HasValue && selected.CandidateMaxCapacityT.Value > 0)
             {
                 AddUniqueWarning(
                     selected.Table,
                     $"PRIMARY_CHART_EVIDENCE: inferred nominal capacity {inferredNominalCapacityT.Value:0.###} t; " +
-                    $"selected chart max {selected.CandidateMaxCapacityT:0.###} t; agreement ratio {selected.CapacityRatio:P0}.");
+                    $"selected chart max {selected.CandidateMaxCapacityT.Value:0.###} t from explicit chart-unit evidence; agreement ratio {selected.CapacityRatio:P0}.");
+            }
+            else if (inferredNominalCapacityT.HasValue && !selected.CandidateMaxCapacityT.HasValue)
+            {
+                AddUniqueWarning(
+                    selected.Table,
+                    "PRIMARY_CHART_CAPACITY_UNIT_UNRESOLVED: candidate capacity magnitude was not used for primary-chart adjudication because no unambiguous explicit kg/t unit evidence was present in the candidate grid.");
             }
 
             if (!ReferenceEquals(rawBest.Table, selected.Table))
@@ -650,7 +667,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 AddUniqueWarning(
                     selected.Table,
                     $"PRIMARY_CHART_ADJUDICATION_OVERRIDE: raw highest-score candidate was page {rawBest.Table.PageNumber}, table {rawBest.Table.TableIndex} " +
-                    $"with base score {rawBest.BaseScore:0.0} and chart max {rawBest.CandidateMaxCapacityT:0.###} t; " +
+                    $"with base score {rawBest.BaseScore:0.0} and {FormatCandidateCapacityForDiagnostics(rawBest.CandidateMaxCapacityT)}; " +
                     $"selected page {selected.Table.PageNumber}, table {selected.Table.TableIndex} because independent capacity/structure evidence was stronger.");
             }
 
@@ -664,7 +681,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 AddUniqueWarning(
                     selected.Table,
                     $"PRIMARY_CHART_ADJUDICATION_REJECTED_LOW_CAPACITY: page {rejectedSevereMismatch.Table.PageNumber}, table {rejectedSevereMismatch.Table.TableIndex} " +
-                    $"had chart max {rejectedSevereMismatch.CandidateMaxCapacityT:0.###} t versus inferred nominal {inferredNominalCapacityT.Value:0.###} t, " +
+                    $"had chart max {rejectedSevereMismatch.CandidateMaxCapacityT!.Value:0.###} t versus inferred nominal {inferredNominalCapacityT.Value:0.###} t, " +
                     "so it was treated as a probable auxiliary/secondary chart despite its extraction score.");
             }
 
@@ -679,9 +696,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             {
                 AddUniqueWarning(
                     selected.Table,
-                    $"PRIMARY_CHART_REVIEW_REQUIRED: selected chart max {selected.CandidateMaxCapacityT:0.###} t is far below inferred nominal capacity {inferredNominalCapacityT.Value:0.###} t. Review the source PDF before saving.");
+                    $"PRIMARY_CHART_REVIEW_REQUIRED: selected chart max {selected.CandidateMaxCapacityT!.Value:0.###} t is far below inferred nominal capacity {inferredNominalCapacityT.Value:0.###} t. Review the source PDF before saving.");
             }
         }
+
+        private static string FormatCandidateCapacityForDiagnostics(double? capacityT)
+            => capacityT.HasValue
+                ? $"chart max {capacityT.Value:0.###} t from explicit unit evidence"
+                : "chart capacity unit unresolved";
 
         private static void AddUniqueWarning(PdfTableCandidateDto table, string warning)
         {
@@ -724,7 +746,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 ? LoadChartCsvService.ParseExactVisualRawGrid(correctedExactVisualGrid, sourceDescription)
                 : LoadChartCsvService.ParseRawGrid(selectedTable.RawGrid);
 
-            if (chart.Points.Count == 0 || chart.MaxCapacity <= 0)
+            if (chart.Points.Count == 0 || chart.RawMaxCapacity <= 0)
                 throw new FormatException("The selected PDF table did not produce a valid crane load chart.");
 
             int numberOfLinesColumns = chart.Points
@@ -762,7 +784,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     $"{visualSummary.CapacityGridSlotCount} capacity grid slot(s).");
                 warnings.Add(
                     $"Detected {visualSummary.VisualBoomColumnCount} boom-length column(s), {visualSummary.CapacityRadiusRowCount} capacity radius row(s), " +
-                    $"{visualSummary.LineRequirementRowCount} line-requirement row(s), and max capacity {chart.MaxCapacity:0.###} t.");
+                    $"{visualSummary.LineRequirementRowCount} line-requirement row(s), and {BuildCapacityMaximumDescription(chart)}.");
             }
 
             warnings.Add(LoadChartCsvService.GetCapacityUnitSummary(chart));
@@ -797,6 +819,16 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     ? BuildExactVisualPreviewDescription(selectedTable, chart.VisualSummary, numberOfLinesColumns)
                     : BuildSemanticChartSummaryDescription(selectedTable, chart.VisualSummary)
             };
+        }
+
+        internal static string BuildCapacityMaximumDescription(ParsedLoadChart chart)
+        {
+            if (chart == null)
+                throw new ArgumentNullException(nameof(chart));
+
+            return chart.IsCapacityUnitResolved
+                ? $"normalized max capacity {chart.MaxCapacity:0.###} t"
+                : $"raw max capacity {chart.RawMaxCapacity:0.###} with unit unresolved";
         }
 
         // LINE_REQUIREMENT_PRECISION_PATCH_V1
@@ -4516,7 +4548,7 @@ private static List<double> InferPhysicalCapacityLaneCenters(
             public double EnvelopePenalty { get; init; }
             public double FinalScore { get; init; }
             public double? InferredNominalCapacityT { get; init; }
-            public double CandidateMaxCapacityT { get; init; }
+            public double? CandidateMaxCapacityT { get; init; }
             public double CapacityRatio { get; init; }
             public bool SevereCapacityMismatch { get; init; }
         }

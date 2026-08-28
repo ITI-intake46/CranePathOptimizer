@@ -241,7 +241,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             var lines = new List<string>
             {
                 $"Ready to import {parsedChart.Points.Count} generated capacity lookup point(s) from {numericRatedCapacityCells} numeric rated-capacity cell(s).",
-                $"Detected {capacityRadiusRows} capacity radius row(s), {visualSummary.LineRequirementRowCount} line-requirement row(s), {visualBoomColumns} visual boom column(s), {boomCount} unique numeric boom length(s), and max capacity {parsedChart.MaxCapacity:0.###} t.",
+                $"Detected {capacityRadiusRows} capacity radius row(s), {visualSummary.LineRequirementRowCount} line-requirement row(s), {visualBoomColumns} visual boom column(s), {boomCount} unique numeric boom length(s), and {LoadChartPdfService.BuildCapacityMaximumDescription(parsedChart)}.",
                 $"Visual grid semantics: {capacityGridSlots} capacity grid slot(s), {visualSummary.BlankUnavailableCellCount} blank/unavailable capacity slot(s), and {visualSummary.TotalVisualGridSlotCount} total visual grid slot(s)."
             };
 
@@ -404,14 +404,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 notes.Insert(1, BuildLineRequirementPrecisionPhrase(table, visualSummary) + " The line row remains visible and saved as operational metadata; it is not a rated-capacity row.");
             }
-            notes.Add($"Reference 2D envelope remains available as a reference view: {importChart.Points.Count} generated point(s), {importRadiusCount} capacity radius value(s), {importBoomCount} unique numeric boom length(s), max {importChart.MaxCapacity:0.###} t.");
+            notes.Add($"Reference 2D envelope remains available as a reference view: {importChart.Points.Count} generated point(s), {importRadiusCount} capacity radius value(s), {importBoomCount} unique numeric boom length(s), {LoadChartPdfService.BuildCapacityMaximumDescription(importChart)}.");
             notes.Add("Repeated PDF boom headers are preserved as separate visual columns. Duplicate headers may be shown with UI suffixes such as (2), (3), etc.");
             notes.Add("For optimization, duplicate same-radius/same-boom visual columns use the conservative minimum capacity policy.");
 
             TxtWarnings.Text = AddSelectionContextNotes(table, string.Join(Environment.NewLine, notes.Distinct()));
             TxtSelectionSummary.Text = BuildSelectionSummaryText(table, visualSummary, isExactVisualPreview: true);
             TxtBottomStatus.Text =
-                $"Exact PDF visual chart - {exactVisualColumns} visual boom columns - {capacityRadiusRows} capacity radius rows - {lineRequirementRows} line-requirement rows - {numericRatedCapacityCells} numeric rated-capacity cells. Import preserves the exact visual chart; reference envelope: {importChart.Points.Count} points, max {importChart.MaxCapacity:0.###} t.";
+                $"Exact PDF visual chart - {exactVisualColumns} visual boom columns - {capacityRadiusRows} capacity radius rows - {lineRequirementRows} line-requirement rows - {numericRatedCapacityCells} numeric rated-capacity cells. Import preserves the exact visual chart; reference envelope: {importChart.Points.Count} points, {LoadChartPdfService.BuildCapacityMaximumDescription(importChart)}.";
 
             BtnImportSelected.IsEnabled = true;
         }
@@ -456,7 +456,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 ? visualSummary.VisualBoomColumnCount
                 : parsedChart.Points.Select(point => point.BoomLength).Distinct().Count();
 
-            return $"Ready to import - {parsedChart.Points.Count} generated capacity lookup points - {capacityRadiusRows} capacity radius rows - {visualBoomColumns} visual boom columns - max capacity {parsedChart.MaxCapacity:0.###} t.";
+            return $"Ready to import - {parsedChart.Points.Count} generated capacity lookup points - {capacityRadiusRows} capacity radius rows - {visualBoomColumns} visual boom columns - {LoadChartPdfService.BuildCapacityMaximumDescription(parsedChart)}.";
         }
 
         private string AddSelectionContextNotes(PdfTableCandidateDto table, string notesText)
