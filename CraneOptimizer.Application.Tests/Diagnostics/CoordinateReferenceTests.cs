@@ -1325,6 +1325,13 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
                         app.Resources["BorderBrush"] = System.Windows.Media.Brushes.LightGray;
                         app.Resources["SurfaceBrush"] = System.Windows.Media.Brushes.White;
                         app.Resources["SurfaceElevatedBrush"] = System.Windows.Media.Brushes.White;
+                        app.Resources["FontSizeXL"] = 16.0;
+                        app.Resources["FontSizeL"] = 14.0;
+                        app.Resources["FontSizeM"] = 12.0;
+                        app.Resources["FontSizeS"] = 10.0;
+                        app.Resources["FontWeightBold"] = System.Windows.FontWeights.Bold;
+                        app.Resources["FontWeightSemiBold"] = System.Windows.FontWeights.SemiBold;
+                        app.Resources["FontWeightRegular"] = System.Windows.FontWeights.Normal;
                         app.Resources["PanelSectionHeader"] = new System.Windows.Style(typeof(System.Windows.Controls.TextBlock));
                         app.Resources["TitleBarButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
                         app.Resources["ButtonSecondary"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));

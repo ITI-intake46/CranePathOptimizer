@@ -20,7 +20,7 @@ namespace CraneOptimizer.UI.F90_CraneSeedData.Services
             if (await _context.Cranes.AnyAsync())
                 return;
 
-            var crane = new Crane
+            var stc800 = new Crane
             {
                 Name = "STC800",
                 Manufacturer = "Sany",
@@ -33,7 +33,7 @@ namespace CraneOptimizer.UI.F90_CraneSeedData.Services
                 Specifications = new List<CraneSpecification>()
             };
 
-            var spec = new CraneSpecification
+            var stc800Spec = new CraneSpecification
             {
                 MaxCapacity = Kg(80000),
                 MaxRadius = 36,
@@ -45,8 +45,36 @@ namespace CraneOptimizer.UI.F90_CraneSeedData.Services
                 LoadChart = GetTargetPoints()
             };
 
-            crane.Specifications.Add(spec);
-            _context.Cranes.Add(crane);
+            stc800.Specifications.Add(stc800Spec);
+            _context.Cranes.Add(stc800);
+
+            var ltm1200 = new Crane
+            {
+                Name = "LTM 1200-5.1",
+                Manufacturer = "Liebherr",
+                CraneType = CraneType.Mobile,
+                VehicleLength = Mm(15300),
+                VehicleWidth = Mm(3000),
+                VehicleHeight = Mm(4000),
+                OutriggerLength = Mm(8900),
+                OutriggerWidth = Mm(8300),
+                Specifications = new List<CraneSpecification>()
+            };
+
+            var ltm1200Spec = new CraneSpecification
+            {
+                MaxCapacity = Kg(200000),
+                MaxRadius = 68,
+                MinRadius = 3,
+                MaxBoomLength = 72,
+                MinBoomLength = 13.2,
+                CounterWeight = 72,
+                MachineRotation = 360,
+                LoadChart = GetLtm1200TargetPoints()
+            };
+
+            ltm1200.Specifications.Add(ltm1200Spec);
+            _context.Cranes.Add(ltm1200);
 
             await _context.SaveChangesAsync();
         }
@@ -158,6 +186,58 @@ namespace CraneOptimizer.UI.F90_CraneSeedData.Services
                 new() { Radius = 32, BoomLength = 45, Capacity = Kg(1200) },
                 new() { Radius = 34, BoomLength = 45, Capacity = Kg(900) },
                 new() { Radius = 36, BoomLength = 45, Capacity = Kg(600) }
+            };
+        }
+
+        private static List<TargetPoint> GetLtm1200TargetPoints()
+        {
+            return new List<TargetPoint>
+            {
+                new() { Radius = 3, BoomLength = 13.2, Capacity = Kg(200000) },
+                new() { Radius = 4, BoomLength = 13.2, Capacity = Kg(165000) },
+                new() { Radius = 5, BoomLength = 13.2, Capacity = Kg(140000) },
+                new() { Radius = 6, BoomLength = 13.2, Capacity = Kg(120000) },
+                new() { Radius = 7, BoomLength = 13.2, Capacity = Kg(105000) },
+                new() { Radius = 8, BoomLength = 13.2, Capacity = Kg(92000) },
+                new() { Radius = 9, BoomLength = 13.2, Capacity = Kg(80000) },
+                new() { Radius = 10, BoomLength = 13.2, Capacity = Kg(70000) },
+
+                new() { Radius = 4, BoomLength = 26.5, Capacity = Kg(130000) },
+                new() { Radius = 6, BoomLength = 26.5, Capacity = Kg(100000) },
+                new() { Radius = 8, BoomLength = 26.5, Capacity = Kg(80000) },
+                new() { Radius = 10, BoomLength = 26.5, Capacity = Kg(65000) },
+                new() { Radius = 12, BoomLength = 26.5, Capacity = Kg(54000) },
+                new() { Radius = 14, BoomLength = 26.5, Capacity = Kg(45000) },
+                new() { Radius = 16, BoomLength = 26.5, Capacity = Kg(38000) },
+                new() { Radius = 18, BoomLength = 26.5, Capacity = Kg(32000) },
+                new() { Radius = 20, BoomLength = 26.5, Capacity = Kg(27500) },
+                new() { Radius = 22, BoomLength = 26.5, Capacity = Kg(24000) },
+
+                new() { Radius = 6, BoomLength = 48.0, Capacity = Kg(50000) },
+                new() { Radius = 8, BoomLength = 48.0, Capacity = Kg(48000) },
+                new() { Radius = 10, BoomLength = 48.0, Capacity = Kg(44000) },
+                new() { Radius = 12, BoomLength = 48.0, Capacity = Kg(39000) },
+                new() { Radius = 16, BoomLength = 48.0, Capacity = Kg(30000) },
+                new() { Radius = 20, BoomLength = 48.0, Capacity = Kg(23000) },
+                new() { Radius = 24, BoomLength = 48.0, Capacity = Kg(18000) },
+                new() { Radius = 28, BoomLength = 48.0, Capacity = Kg(14200) },
+                new() { Radius = 32, BoomLength = 48.0, Capacity = Kg(11500) },
+                new() { Radius = 36, BoomLength = 48.0, Capacity = Kg(9300) },
+                new() { Radius = 40, BoomLength = 48.0, Capacity = Kg(7500) },
+                new() { Radius = 44, BoomLength = 48.0, Capacity = Kg(6100) },
+
+                new() { Radius = 12, BoomLength = 72.0, Capacity = Kg(16000) },
+                new() { Radius = 16, BoomLength = 72.0, Capacity = Kg(15000) },
+                new() { Radius = 20, BoomLength = 72.0, Capacity = Kg(13500) },
+                new() { Radius = 24, BoomLength = 72.0, Capacity = Kg(12000) },
+                new() { Radius = 28, BoomLength = 72.0, Capacity = Kg(10500) },
+                new() { Radius = 32, BoomLength = 72.0, Capacity = Kg(9000) },
+                new() { Radius = 36, BoomLength = 72.0, Capacity = Kg(7800) },
+                new() { Radius = 40, BoomLength = 72.0, Capacity = Kg(6700) },
+                new() { Radius = 48, BoomLength = 72.0, Capacity = Kg(4800) },
+                new() { Radius = 56, BoomLength = 72.0, Capacity = Kg(3300) },
+                new() { Radius = 64, BoomLength = 72.0, Capacity = Kg(2100) },
+                new() { Radius = 68, BoomLength = 72.0, Capacity = Kg(1600) }
             };
         }
     }

@@ -2312,12 +2312,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             }
                             else
                             {
-                                detail.WeightStandardValueTons = parsedVal > 100.0 ? UnitSystem.ToTons(parsedVal, MassUnit.Kilogram) : parsedVal;
-                                if (parsedVal > 100.0)
-                                {
-                                    detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
-                                    detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
-                                }
+                                // E-04 / R-01: The IFC property has no unit metadata and no
+                                // conversion factor could be derived. We MUST NOT heuristically
+                                // scale by magnitude (e.g. parsedVal > 100 => assume kg) because
+                                // this caused a 1000x mis-scale in supervisor probe E-04.
+                                // Classify as CannotConvertUnit so IfcNormalizationDecisionService
+                                // maps it to AmbiguousUnit trust level and blocks it from GA use.
+                                detail.WeightStandardValueTons = null; // raw value preserved; standard value unknown
+                                detail.WeightStatus = "CannotConvertUnit";
+                                detail.Warning =
+                                    "IFC mass property has no unit metadata and no conversion factor " +
+                                    "could be determined. Raw value preserved. User approval is " +
+                                    "required before this element weight can be used in GA optimization.";
                             }
                         }
                     }

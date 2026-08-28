@@ -23,6 +23,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         public double MaxBoomLength { get; }
 
         /// <summary>
+        /// Minimum declared operating radius from the crane specification.
+        /// Requests below this value must be rejected before table lookup.
+        /// </summary>
+        public double MinRadius { get; }
+
+        /// <summary>
+        /// Minimum declared boom length from the crane specification.
+        /// Requests below this value must be rejected before table lookup.
+        /// </summary>
+        public double MinBoomLength { get; }
+
+        /// <summary>
         /// Sorted distinct chart radii for binary search (ascending order).
         /// </summary>
         public double[] SortedRadii { get; }
@@ -64,6 +76,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             MaxBoomLength = craneSpec.MaxBoomLength > 0
                 ? craneSpec.MaxBoomLength
                 : chart.Max(tp => tp.BoomLength);
+
+            // Minimum operating limits — reject sub-minimum requests before table lookup
+            MinRadius = craneSpec.MinRadius > 0
+                ? craneSpec.MinRadius
+                : chart.Min(tp => tp.Radius);
+
+            MinBoomLength = craneSpec.MinBoomLength > 0
+                ? craneSpec.MinBoomLength
+                : chart.Min(tp => tp.BoomLength);
 
             // Build sorted distinct radii
             SortedRadii = chart

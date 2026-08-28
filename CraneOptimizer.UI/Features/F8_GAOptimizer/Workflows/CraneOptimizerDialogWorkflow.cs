@@ -5,7 +5,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Threading;
-
+
 using CraneOptimizer.UI.Core.Configuration;
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 {
@@ -27,11 +27,59 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             return await _craneRepository.GetAllWithSpecsAsync();
         }
 
+        /// <summary>
+        /// E-03 / R-02: Validates all free-text GA engineering inputs BEFORE a run is allowed.
+        /// Returns a list of human-readable field-level error messages.
+        /// An empty list means all inputs are valid and the Run button may be enabled.
+        /// The dialog MUST call this on every field change to update the Run button state.
+        /// </summary>
+        public IReadOnlyList<string> ValidateInputs(CraneOptimizerDialogOptions options)
+        {
+            var errors = new List<string>();
+
+            // --- Engineering physical inputs: must be non-negative finite numbers ---
+            // Negative accessory weight would silently reduce required lifting demand — invalid.
+            ValidateNonNegativeField(options.AdditionalWtText, "Accessory Weight (Additional Wt)", errors);
+            // Negative rope length would reduce hook height — physically impossible.
+            ValidateNonNegativeField(options.WireLengthText, "Rope Length (Wire Length)", errors);
+
+            // --- GA population / generation integers: must be positive ---
+            ValidatePositiveIntField(options.PopulationSizeText, "Population Size", errors);
+            ValidatePositiveIntField(options.MaxGenerationsText, "Max Generations", errors);
+            ValidatePositiveIntField(options.MaxCranePositionsText, "Max Crane Positions", errors);
+            ValidatePositiveIntField(options.EarlyStoppingGenerationsText, "Early Stopping Generations", errors);
+
+            // --- Ratio / factor fields: must be between 0.0 and 1.0 inclusive ---
+            ValidateRatioField(options.DeratingRatioText, "Derating Ratio", errors);
+            ValidateRatioField(options.SafetyFactorText, "Safety Factor", errors);
+
+            // --- Penalty weights: must be finite and >= 0 ---
+            ValidateNonNegativeField(options.CoverageWeightText, "Coverage Weight", errors);
+            ValidateNonNegativeField(options.RelocationWeightText, "Relocation Weight", errors);
+            ValidateNonNegativeField(options.RadiusPenaltyWeightText, "Radius Penalty Weight", errors);
+            ValidateNonNegativeField(options.OverweightPenaltyWeightText, "Overweight Penalty Weight", errors);
+            ValidateNonNegativeField(options.HeightPenaltyWeightText, "Height Penalty Weight", errors);
+
+            // --- Grid step: must be >= 0 when provided ---
+            ValidateNonNegativeField(options.GridStepText, "Grid Step", errors);
+
+            return errors;
+        }
+
         public Task<CranePlacementResult> RunOptimizationAsync(
             Crane selectedCrane,
             CraneOptimizerDialogOptions options,
             CancellationToken cancellationToken)
         {
+            // Defense-in-depth: the UI should have already called ValidateInputs() and
+            // disabled Run when errors exist. This ensures the engine never receives invalid inputs.
+            var errors = ValidateInputs(options);
+            if (errors.Count > 0)
+            {
+                throw new ArgumentException(
+                    $"Invalid GA inputs prevented run. Errors: {string.Join("; ", errors)}");
+            }
+
             var settings = BuildSettings(options);
             return _placementService.RunOptimizationAsync(settings, selectedCrane, cancellationToken);
         }
@@ -95,11 +143,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
                 PopulationSize = ParseInt(options.PopulationSizeText, 30),
                 MaxGenerations = ParseInt(options.MaxGenerationsText, 30),
-                TargetElementTypes = options.TargetElementTypes,                EnableProfiling = AppFeatureFlags.EnableProjectPerformanceCapture,
+                TargetElementTypes = options.TargetElementTypes,
+                EnableProfiling = AppFeatureFlags.EnableProjectPerformanceCapture,
                 DiagnosticsLevel = AppFeatureFlags.EnableProjectPerformanceCapture
                     ? DiagnosticsLevel.Research
                     : DiagnosticsLevel.Off,
-
 
                 // New dynamic and diagnostic options mapped to GASettings
                 EnableAdaptiveSigma = ParseBool(options.EnableAdaptiveSigmaText, false),
@@ -133,7 +181,72 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             return value;
         }
 
+        // ── E-03 validation helpers ──────────────────────────────────────────────────
 
+        private static void ValidateNonNegativeField(string? text, string fieldName, List<string> errors)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return; // empty = use default, not an error
+
+            if (!double.TryParse(text,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out double parsed))
+            {
+                errors.Add($"{fieldName}: '{text}' is not a valid number.");
+                return;
+            }
+
+            if (double.IsNaN(parsed) || double.IsInfinity(parsed))
+            {
+                errors.Add($"{fieldName}: value must be a finite number, got '{text}'.");
+                return;
+            }
+
+            if (parsed < 0.0)
+            {
+                errors.Add($"{fieldName}: value must be \u2265 0, got {parsed}.");
+            }
+        }
+
+        private static void ValidatePositiveIntField(string? text, string fieldName, List<string> errors)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return; // empty = use default
+
+            if (!int.TryParse(text,
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out int parsed))
+            {
+                errors.Add($"{fieldName}: '{text}' is not a valid integer.");
+                return;
+            }
+
+            if (parsed <= 0)
+            {
+                errors.Add($"{fieldName}: value must be > 0, got {parsed}.");
+            }
+        }
+
+        private static void ValidateRatioField(string? text, string fieldName, List<string> errors)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return; // empty = use default
+
+            if (!double.TryParse(text,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out double parsed))
+            {
+                errors.Add($"{fieldName}: '{text}' is not a valid number.");
+                return;
+            }
+
+            if (double.IsNaN(parsed) || double.IsInfinity(parsed) || parsed < 0.0 || parsed > 1.0)
+            {
+                errors.Add($"{fieldName}: value must be between 0.0 and 1.0, got {parsed}.");
+            }
+        }
+
+        // ── Parse helpers (unchanged) ────────────────────────────────────────────────
 
         internal static string FormatPointCoordinates(CranePositionResult point)
         {

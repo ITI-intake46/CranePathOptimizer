@@ -374,6 +374,34 @@ namespace CraneOptimizer.UI
                 await using var scope = ServiceProvider.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
 
+                // R-08: Create a timestamped backup of the catalog database BEFORE migrating.
+                // If migration fails or corrupts the database, the user can restore from this file.
+                var dbConnectionString = context.Database.GetConnectionString();
+                if (!string.IsNullOrEmpty(dbConnectionString))
+                {
+                    // Extract the file path from "Data Source=<path>"
+                    var sourcePath = dbConnectionString
+                        .Split(';')
+                        .FirstOrDefault(p => p.TrimStart().StartsWith("Data Source", StringComparison.OrdinalIgnoreCase))
+                        ?.Split('=', 2).ElementAtOrDefault(1)
+                        ?.Trim();
+
+                    if (!string.IsNullOrEmpty(sourcePath) && File.Exists(sourcePath))
+                    {
+                        var bakPath = sourcePath + $".bak_{DateTime.Now:yyyyMMdd_HHmmss}";
+                        try
+                        {
+                            File.Copy(sourcePath, bakPath, overwrite: false);
+                            Debug.WriteLine($"[R-08] Pre-migration backup created: {bakPath}");
+                        }
+                        catch (Exception bakEx)
+                        {
+                            // Backup failure is logged but should NOT prevent migration from proceeding
+                            Debug.WriteLine($"[R-08] Pre-migration backup failed (non-fatal): {bakEx.Message}");
+                        }
+                    }
+                }
+
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
 

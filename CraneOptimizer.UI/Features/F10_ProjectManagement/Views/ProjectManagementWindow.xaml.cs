@@ -21,13 +21,13 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
         private const string ActiveTab   = "TopTabBtnActive";
         private const string InactiveTab = "TopTabBtn";
 
-        // ── Signed-in account ────────────────────────────────────────────
-        // Single source for the sidebar user card and the Session Information
-        // card, so the two can never drift apart. Replace these with values
-        // from a real account service once authentication exists.
-        private const string SessionUserName  = "CraneOpt Team";
-        private const string SessionUserEmail = "craneoptimization@gmail.com";
-        private const string SessionUserRole  = "Project Admin";
+        // ── Local profile (no authentication backend) ─────────────────────
+        // R-10: There is no remote account service. These labels reflect the
+        // local-only installation profile. Do NOT use terminology that implies
+        // login/logout to a remote identity provider.
+        private const string SessionUserName  = "Local Profile";
+        private const string SessionUserEmail = "(offline — no account required)";
+        private const string SessionUserRole  = "Local User";
 
         private readonly DateTime _sessionStartedAt = DateTime.Now;
 
@@ -260,15 +260,15 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
         }
 
         /// <summary>
-        /// Signs the current user out. There is no authentication backend yet, so
-        /// this ends the session by closing the application after confirmation.
+        /// R-10: Closes the application. Relabeled from "Sign Out" — there is no
+        /// authentication backend; the session is local-only.
         /// </summary>
         private void BtnSignOut_Click(object sender, RoutedEventArgs e)
         {
             var answer = MessageBox.Show(
                 this,
-                "Sign out and close Crane Optimization?",
-                "Sign Out",
+                "Close Crane Optimizer?",
+                "Close Application",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question,
                 MessageBoxResult.No);

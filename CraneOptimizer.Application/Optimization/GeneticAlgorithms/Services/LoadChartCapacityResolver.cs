@@ -71,6 +71,35 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return result;
             }
 
+            // E-02: Enforce minimum operating envelope BEFORE table lookup.
+            // A request below MinRadius/MinBoomLength is outside the crane's declared
+            // operating envelope. Conservative stepping to the chart minimum is NOT valid.
+            double minRadius = craneSpec.MinRadius > 0
+                ? craneSpec.MinRadius
+                : (craneSpec.LoadChart.Count > 0 ? craneSpec.LoadChart.Min(tp => tp.Radius) : 0);
+
+            double minBoomLength = craneSpec.MinBoomLength > 0
+                ? craneSpec.MinBoomLength
+                : (craneSpec.LoadChart.Count > 0 ? craneSpec.LoadChart.Min(tp => tp.BoomLength) : 0);
+
+            if (minRadius > 0 && radius < minRadius)
+            {
+                result.ReachStatus = ReachStatus.OutOfRadius;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.OutOfRadius;
+                if (buildDiagnostics) result.FailureReason = "BelowMinimumOperatingRadius";
+                return result;
+            }
+
+            if (minBoomLength > 0 && boomLength < minBoomLength)
+            {
+                result.ReachStatus = ReachStatus.OutOfHeight;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.HeightFail;
+                if (buildDiagnostics) result.FailureReason = "BelowMinimumBoomLength";
+                return result;
+            }
+
             var radiusEntries = craneSpec.LoadChart.Where(tp => tp.Radius >= radius).ToList();
             if (radiusEntries.Count == 0)
             {
@@ -247,6 +276,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.HeightFail;
                 if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BoomBeyondLoadChart.ToString();
+                return result;
+            }
+
+            // E-02: Enforce minimum operating envelope BEFORE index lookup.
+            if (index.MinRadius > 0 && radius < index.MinRadius)
+            {
+                result.ReachStatus = ReachStatus.OutOfRadius;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.OutOfRadius;
+                if (buildDiagnostics) result.FailureReason = "BelowMinimumOperatingRadius";
+                return result;
+            }
+
+            if (index.MinBoomLength > 0 && boomLength < index.MinBoomLength)
+            {
+                result.ReachStatus = ReachStatus.OutOfHeight;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.HeightFail;
+                if (buildDiagnostics) result.FailureReason = "BelowMinimumBoomLength";
                 return result;
             }
 

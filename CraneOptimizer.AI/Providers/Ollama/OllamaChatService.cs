@@ -47,7 +47,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 Id: ProviderId,
                 DisplayName: "Local Ollama",
                 Capabilities: AiProviderCapabilities.Chat | AiProviderCapabilities.Streaming | AiProviderCapabilities.StructuredOutput,
-                IsLocal: true,
+                IsLocal: _endpoint.IsLoopback || string.Equals(_endpoint.Host, "localhost", StringComparison.OrdinalIgnoreCase),
                 Endpoint: _endpoint.ToString().TrimEnd('/'));
         }
 
