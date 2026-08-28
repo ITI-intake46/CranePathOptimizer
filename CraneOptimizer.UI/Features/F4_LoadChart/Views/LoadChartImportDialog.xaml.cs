@@ -145,7 +145,22 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 var exactRawGrid = TryReadExactRawGrid(crane.ExactLoadChartRawGridJson);
                 if (exactRawGrid.Count > 1 && crane.Points.Any(point => point.VisualColumnIndex.HasValue))
-                    return LoadChartCsvService.BuildCanonicalExactEditGrid(exactRawGrid, crane.Points);
+                {
+                    var canonicalPoints = crane.Points
+                        .Select(point => new CraneOptimizer.Domain.Entities.TargetPoint
+                        {
+                            Radius = point.Radius,
+                            BoomLength = point.BoomLength,
+                            Capacity = point.Capacity,
+                            VisualColumnIndex = point.VisualColumnIndex,
+                            VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                            NumberOfLines = point.NumberOfLines,
+                            OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
+                        })
+                        .ToList();
+
+                    return LoadChartCsvService.BuildCanonicalExactEditGrid(exactRawGrid, canonicalPoints);
+                }
 
                 return BuildExactRawGridFromDtoPoints(crane);
             }
