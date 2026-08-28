@@ -134,6 +134,15 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             ParsedLoadChart parsedChart,
             int craneId = 0)
         {
+            if (parsedChart == null)
+                throw new ArgumentNullException(nameof(parsedChart));
+
+            if (!parsedChart.IsCapacityUnitResolved)
+            {
+                throw new InvalidOperationException(
+                    "The load-chart capacity unit is unresolved. Select kg or t, or provide unambiguous explicit unit evidence, before saving the crane.");
+            }
+
             return new LoadChartCraneDto(
                 craneId,
                 model,

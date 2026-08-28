@@ -11,6 +11,18 @@ The Crane Engine evaluates whether a crane configuration is capable of lifting a
     *   `Standard2D`: Standard 2D (Radius vs Capacity) lookup.
     *   `ExactPdfVisual`: Raw grid structures representing exact visual columns extracted from manufacturer PDF datasheets.
 
+### Capacity unit resolution and canonical storage
+
+Load-chart capacities are stored and consumed internally in metric tons. New CSV/PDF imports must therefore resolve the source capacity unit before values are normalized and persisted.
+
+* `Auto` means **explicit unit evidence only**. Numeric magnitude is never used to infer `kg` versus `t`.
+* Unambiguous explicit `kg` or `t` evidence resolves the import automatically.
+* Unitless or conflicting source evidence leaves the import unresolved; the user must explicitly select `kg` or `t` before **Save Crane** is allowed.
+* The import UI displays the raw maximum and, only after resolution, the normalized maximum in tons.
+* `LoadChartCatalogService.BuildCraneDto` rejects unresolved charts as a persistence-boundary safeguard.
+* Saved catalog `TargetPoint` capacities are already canonical tons and must not be inferred again. Standard edit grids are rebuilt from those canonical values. Exact-PDF edit grids keep the original raw source JSON for provenance but rebuild editable capacity cells from the canonical saved points before parsing them as `Ton`. The unit selector is locked while editing persisted canonical values and is re-enabled only after a new source file is loaded.
+* Legacy catalog rows created under the former magnitude heuristic are not auto-corrected: without source-unit provenance, a stored value cannot be safely classified as an intended kilogram or ton value. Such rows require verification against the manufacturer source chart.
+
 ### Blank & Zero Cell Safeguards
 Inside [LoadChartCapacityResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/LoadChartCapacityResolver.cs#L367-L380):
 *   **Blank Cells (`Capacity <= -1.0`):** Mapped to `ChartStatus.InvalidBlankCell` and `LiftStatus.NotCharted` (failure reason `CapacityFailureReason.InvalidBlankCell`).

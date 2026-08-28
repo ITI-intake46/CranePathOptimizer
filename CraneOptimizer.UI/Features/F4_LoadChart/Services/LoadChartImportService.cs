@@ -47,7 +47,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     ? " exact visual capacity cells"
                     : " capacity points";
 
-                return $"Loaded {fileName}{description}: {Chart.Points.Count}{exactText}, {radiusCount} radii, {boomCount} numeric boom lengths, max {Chart.MaxCapacity:0.###} t.{noteText}";
+                string capacityText = Chart.IsCapacityUnitResolved
+                    ? $"normalized max {Chart.MaxCapacity:0.###} t"
+                    : $"raw max {Chart.RawMaxCapacity:0.###} (capacity unit unresolved)";
+
+                return $"Loaded {fileName}{description}: {Chart.Points.Count}{exactText}, {radiusCount} radii, {boomCount} numeric boom lengths, {capacityText}.{noteText}";
             }
 
             string warningText = Warnings.Count == 0

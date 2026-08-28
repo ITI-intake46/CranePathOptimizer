@@ -110,3 +110,21 @@ Carry-forward:
 
 - `ReportReference` currently uses the immutable report build time plus run/model token. A future additive metadata field should carry saved GA run completion time separately when the UX requires the reference timestamp to be the run completion timestamp.
 - Manual WPF acceptance and real Preview/PDF/Excel visual comparison were not completed in this pass.
+
+## E-01 -- Load-Chart Capacity Unit Safety
+
+Implemented:
+
+- Removed the numeric-magnitude `> 1000` kg/t inference from CSV/PDF load-chart capacity handling.
+- `Auto` now resolves only from unambiguous explicit `kg` or `t` evidence in capacity values; unitless or conflicting evidence remains unresolved.
+- The load-chart editor shows raw and normalized maximum capacity separately, requires an explicit unit selection when Auto is unresolved, and disables/guards **Save Crane** until resolution succeeds.
+- `LoadChartCatalogService.BuildCraneDto` independently rejects unresolved charts so ambiguous capacities cannot cross the persistence boundary.
+- Saved catalog capacities are treated as canonical metric tons when reopened; exact-PDF source JSON is retained as provenance while the editable grid is reconstructed from persisted canonical points.
+- PDF primary-table adjudication no longer normalizes candidate capacity by a numeric threshold. Capacity agreement is used only when explicit unit evidence is available.
+- Regression coverage includes unitless values below, at, and above the former threshold (`800`, `999`, `1000`, `1001`, `1200`, and larger values), explicit kg/t evidence, manual unit selection, conflicting evidence, CSV default Auto behavior, exact-visual charts, persistence blocking, and PDF candidate capacity interpretation.
+- Existing catalog rows created under the old heuristic are deliberately not auto-migrated because the persisted value alone does not contain enough provenance to distinguish a legitimate ton value from a misinterpreted kilogram value; affected legacy entries require source-chart verification.
+
+Verification in this handoff environment:
+
+- `git diff --check`, repository-source safety scans, XAML XML parsing, and Git object/bundle integrity checks pass.
+- The handoff environment does not contain the .NET SDK/MSBuild, so the Windows WPF build and xUnit suite could not be executed here. Run the focused E-01 tests and the full solution test suite on the normal Windows .NET 8 development machine before merge.
