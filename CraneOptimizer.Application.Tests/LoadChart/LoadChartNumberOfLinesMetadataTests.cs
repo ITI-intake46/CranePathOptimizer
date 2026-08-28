@@ -20,7 +20,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 new() { "Number of lines", "5", "4", "3" }
             };
 
-            var chart = LoadChartCsvService.ParseExactVisualRawGrid(rawGrid, "unit-test");
+            var chart = LoadChartCsvService.ParseExactVisualRawGrid(rawGrid, "unit-test", LoadChartCapacityUnitMode.Ton);
 
             Assert.Equal(6, chart.Points.Count);
             Assert.DoesNotContain(chart.Points, point => Math.Abs(point.Radius - 5d) < 0.0001 && point.Capacity < 0);
@@ -56,7 +56,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 new() { "Number of lines", "4", "2" }
             };
 
-            var chart = LoadChartCsvService.ParseRawGrid(rawGrid);
+            var chart = LoadChartCsvService.ParseRawGrid(rawGrid, LoadChartCapacityUnitMode.Ton);
 
             Assert.Equal(4, chart.Points.Count);
             Assert.Equal(10, chart.MaxCapacity);

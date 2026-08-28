@@ -24,7 +24,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 new() { "Radius (m)", annotatedHeader, "13.1", "17.6" },
                 new() { "3", "160", "86", "86" },
                 new() { "3.5", "139.3", "86", "86" }
-            });
+            }, capacityUnitMode: LoadChartCapacityUnitMode.Ton);
 
             Assert.Equal("ExactPdfVisual", parsed.LoadChartStorageMode);
             Assert.Equal("ConservativeMinimumAcrossDuplicateVisualColumns", parsed.LoadChartCapacityPolicy);
@@ -49,7 +49,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
             {
                 new() { "Radius (m)", "13.1 *", "13.1", "17.6" },
                 new() { "3", "160", "86", "86" }
-            });
+            }, capacityUnitMode: LoadChartCapacityUnitMode.Ton);
 
             var duplicateThirteenPointOneLanes = parsed.Points
                 .Where(point => Math.Abs(point.Radius - 3d) < 0.001d)
@@ -78,7 +78,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 {
                     new() { "Radius (m)", ambiguousHeader, "17.6" },
                     new() { "3", "160", "86" }
-                }));
+                }, capacityUnitMode: LoadChartCapacityUnitMode.Ton));
 
             Assert.Contains(ambiguousHeader, exception.Message);
         }
@@ -95,7 +95,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
 
             Assert.Equal("17.7", corrected[0][3]);
 
-            ParsedLoadChart parsed = LoadChartCsvService.ParseExactVisualRawGrid(corrected);
+            ParsedLoadChart parsed = LoadChartCsvService.ParseExactVisualRawGrid(corrected, capacityUnitMode: LoadChartCapacityUnitMode.Ton);
             Assert.Contains(parsed.Points, point => Math.Abs(point.BoomLength - 17.7d) < 0.001d);
             Assert.DoesNotContain(parsed.Points, point => Math.Abs(point.BoomLength - 177d) < 0.001d);
         }

@@ -247,12 +247,38 @@
                                       ItemContainerStyle="{StaticResource DarkComboBoxItem}"
                                       SelectedIndex="0"
                                       Height="30"
-                                      Margin="0,0,0,8"
+                                      Margin="0,0,0,6"
+                                      ToolTip="Auto resolves only from explicit kg/t evidence in the imported capacity values; it never guesses from numeric magnitude."
                                       SelectionChanged="CboChartCapacityUnit_SelectionChanged">
-                                <ComboBoxItem Content="Auto (detect kg / t)" Tag="Auto"/>
+                                <ComboBoxItem Content="Auto - explicit unit only" Tag="Auto"/>
                                 <ComboBoxItem Content="t" Tag="Ton"/>
                                 <ComboBoxItem Content="kg" Tag="Kilogram"/>
                             </ComboBox>
+
+                            <Border Background="{DynamicResource BackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8"
+                                    Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock x:Name="TxtCapacityUnitResolution"
+                                               Style="{StaticResource TextCaption}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="Load a chart to resolve the capacity unit."/>
+                                    <TextBlock x:Name="TxtRawCapacityMax"
+                                               Margin="0,3,0,0"
+                                               Style="{StaticResource TextCaption}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="Raw maximum: -"/>
+                                    <TextBlock x:Name="TxtNormalizedCapacityMax"
+                                               Margin="0,2,0,0"
+                                               Style="{StaticResource TextCaption}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="Normalized maximum: -"/>
+                                </StackPanel>
+                            </Border>
 
                             <TextBlock x:Name="LblMaxRadius" Text="Max Radius (m)" Style="{StaticResource PropertyLabel}"/>
                             <TextBox x:Name="TxtMaxRadius" Margin="0,0,0,8"/>
@@ -432,9 +458,11 @@
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            Text="Load a CSV or text-based PDF to begin."/>
 
-                <Button Grid.Column="1" Width="150" Height="34"
+                <Button x:Name="BtnSaveCrane"
+                        Grid.Column="1" Width="150" Height="34"
                         Content="Save Crane"
                         Style="{StaticResource ButtonPrimary}"
+                        IsEnabled="False"
                         Click="BtnSave_Click"/>
                 <Button Grid.Column="3" Width="90" Height="34"
                         Content="Cancel"

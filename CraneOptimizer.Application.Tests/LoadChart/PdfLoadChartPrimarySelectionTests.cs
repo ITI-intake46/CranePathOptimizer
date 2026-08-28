@@ -112,19 +112,60 @@ namespace CraneOptimizer.Application.Tests.LoadChart
             Assert.Same(higherScore, selected);
         }
 
+        [Theory]
+        [InlineData(800d)]
+        [InlineData(999d)]
+        [InlineData(1000d)]
+        [InlineData(1001d)]
+        [InlineData(1200d)]
+        [InlineData(80000d)]
+        public void CandidateMaxCapacity_UnitlessMagnitudeIsNotUsedToInferMassUnit(double rawCapacity)
+        {
+            var unitlessCandidate = CreateCandidate(
+                tableIndex: 1,
+                score: 100,
+                maxCapacityT: rawCapacity,
+                boomColumns: 6,
+                radiusRows: 3,
+                capacityUnitSuffix: string.Empty);
+
+            double? maxCapacityT = LoadChartPdfService.GetCandidateMaxCapacityForTesting(unitlessCandidate);
+
+            Assert.Null(maxCapacityT);
+        }
+
         [Fact]
-        public void CandidateMaxCapacity_NormalizesKilogramStyleTablesToTonnes()
+        public void CandidateMaxCapacity_ExplicitKilogramEvidenceNormalizesToTonnes()
         {
             var kgCandidate = CreateCandidate(
                 tableIndex: 1,
                 score: 100,
                 maxCapacityT: 80000,
                 boomColumns: 6,
-                radiusRows: 3);
+                radiusRows: 3,
+                capacityUnitSuffix: " kg");
 
-            double maxCapacityT = LoadChartPdfService.GetCandidateMaxCapacityForTesting(kgCandidate);
+            double? maxCapacityT = LoadChartPdfService.GetCandidateMaxCapacityForTesting(kgCandidate);
 
-            Assert.Equal(80, maxCapacityT, precision: 3);
+            Assert.NotNull(maxCapacityT);
+            Assert.Equal(80, maxCapacityT!.Value, precision: 3);
+        }
+
+        [Fact]
+        public void CandidateMaxCapacity_ExplicitAttachedTonEvidenceKeepsLargeValueInTonnes()
+        {
+            var tonCandidate = CreateCandidate(
+                tableIndex: 1,
+                score: 100,
+                maxCapacityT: 1200,
+                boomColumns: 6,
+                radiusRows: 3,
+                capacityUnitSuffix: "t");
+
+            double? maxCapacityT = LoadChartPdfService.GetCandidateMaxCapacityForTesting(tonCandidate);
+
+            Assert.NotNull(maxCapacityT);
+            Assert.Equal(1200, maxCapacityT!.Value, precision: 3);
         }
 
         private static PdfTableCandidateDto? SelectBest(
@@ -153,9 +194,10 @@ namespace CraneOptimizer.Application.Tests.LoadChart
             double maxCapacityT,
             int boomColumns,
             int radiusRows,
-            List<string>? warnings = null)
+            List<string>? warnings = null,
+            string capacityUnitSuffix = " t")
         {
-            var rawGrid = BuildSyntheticLoadChartGrid(boomColumns, radiusRows, maxCapacityT);
+            var rawGrid = BuildSyntheticLoadChartGrid(boomColumns, radiusRows, maxCapacityT, capacityUnitSuffix);
 
             return new PdfTableCandidateDto
             {
@@ -179,7 +221,8 @@ namespace CraneOptimizer.Application.Tests.LoadChart
         private static List<List<string>> BuildSyntheticLoadChartGrid(
             int boomColumns,
             int radiusRows,
-            double maxCapacity)
+            double maxCapacity,
+            string capacityUnitSuffix)
         {
             var grid = new List<List<string>>
             {
@@ -196,7 +239,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                     double capacity = rowIndex == 0 && columnIndex == 0
                         ? maxCapacity
                         : Math.Max(1, maxCapacity - rowIndex * 2 - columnIndex * 3);
-                    row.Add(Format(capacity));
+                    row.Add(Format(capacity) + capacityUnitSuffix);
                 }
 
                 grid.Add(row);
@@ -209,7 +252,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
         {
             return rawGrid
                 .Skip(1)
-                .Sum(row => row.Skip(1).Count(cell => double.TryParse(cell, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && value > 0));
+                .Sum(row => row.Skip(1).Count(cell => LoadChartCsvService.TryParseFlexibleNumber(cell, out double value) && value > 0));
         }
 
         private static string Format(double value)

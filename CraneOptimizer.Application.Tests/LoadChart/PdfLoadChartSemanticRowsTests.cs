@@ -17,7 +17,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 new() { "Number of lines", "8", "6", "4" }
             };
 
-            var chart = LoadChartCsvService.ParseExactVisualRawGrid(rawGrid, "semantic-row-test");
+            var chart = LoadChartCsvService.ParseExactVisualRawGrid(rawGrid, "semantic-row-test", LoadChartCapacityUnitMode.Ton);
             var summary = chart.VisualSummary;
 
             Assert.True(chart.IsExactVisualChart);
@@ -53,7 +53,7 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 new() { "Number of lines", "4", "2" }
             };
 
-            var chart = LoadChartCsvService.ParseRawGrid(rawGrid);
+            var chart = LoadChartCsvService.ParseRawGrid(rawGrid, LoadChartCapacityUnitMode.Ton);
             var summary = chart.VisualSummary;
 
             Assert.Equal(2, summary.CapacityRadiusRowCount);

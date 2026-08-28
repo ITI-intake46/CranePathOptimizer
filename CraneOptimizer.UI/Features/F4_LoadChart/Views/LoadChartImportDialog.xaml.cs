@@ -89,6 +89,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             TxtCounterweight.Text = FormatMassInput(crane.Counterweight);
             TxtMaxRadius.Text = FormatLengthInput(crane.MaxRadius);
             SetCapacityUnitMode(LoadChartCapacityUnitMode.Ton, suppressRefresh: true);
+            CboChartCapacityUnit.IsEnabled = false;
+            CboChartCapacityUnit.ToolTip = "Saved catalog capacity values are canonical metric tons. Load a new source file to choose a source unit again.";
             _vehicleLengthMeters = crane.VehicleLengthMeters;
             _vehicleHeightMeters = crane.VehicleHeightMeters;
             _vehicleWidthMeters = crane.VehicleWidthMeters;
@@ -101,8 +103,22 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             var rawGrid = BuildRawGridFromDto(crane);
             var parsedChart = crane.HasExactVisualLoadChart
-                ? LoadChartCsvService.ParseExactVisualRawGrid(rawGrid, crane.LoadChartSourceDescription)
-                : LoadChartCsvService.ParseRawGrid(rawGrid);
+                ? LoadChartCsvService.ParseExactVisualRawGrid(
+                    rawGrid,
+                    crane.LoadChartSourceDescription,
+                    LoadChartCapacityUnitMode.Ton)
+                : LoadChartCsvService.ParseRawGrid(rawGrid, LoadChartCapacityUnitMode.Ton);
+
+            // ExactLoadChartRawGridJson is source/provenance data and may contain the
+            // manufacturer's original kg representation. The edit grid is rebuilt from
+            // canonical persisted TargetPoint capacities (tons), while the original source
+            // grid remains preserved for audit/provenance.
+            if (crane.HasExactVisualLoadChart && !string.IsNullOrWhiteSpace(crane.ExactLoadChartRawGridJson))
+            {
+                parsedChart = CopyChartWith(
+                    parsedChart,
+                    exactLoadChartRawGridJson: crane.ExactLoadChartRawGridJson);
+            }
 
             SetNominalChart(parsedChart);
 
@@ -128,8 +144,23 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             if (crane.HasExactVisualLoadChart)
             {
                 var exactRawGrid = TryReadExactRawGrid(crane.ExactLoadChartRawGridJson);
-                if (exactRawGrid.Count > 1)
-                    return exactRawGrid;
+                if (exactRawGrid.Count > 1 && crane.Points.Any(point => point.VisualColumnIndex.HasValue))
+                {
+                    var canonicalPoints = crane.Points
+                        .Select(point => new CraneOptimizer.Domain.Entities.TargetPoint
+                        {
+                            Radius = point.Radius,
+                            BoomLength = point.BoomLength,
+                            Capacity = point.Capacity,
+                            VisualColumnIndex = point.VisualColumnIndex,
+                            VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                            NumberOfLines = point.NumberOfLines,
+                            OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
+                        })
+                        .ToList();
+
+                    return LoadChartCsvService.BuildCanonicalExactEditGrid(exactRawGrid, canonicalPoints);
+                }
 
                 return BuildExactRawGridFromDtoPoints(crane);
             }
@@ -286,6 +317,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 ClearPdfMetadataEvidence();
                 var importResult = LoadChartImportService.Import(path, this);
 
+                // A successfully loaded replacement source file has its own source-unit
+                // evidence and therefore re-enables source-unit resolution when editing.
+                CboChartCapacityUnit.IsEnabled = true;
+                CboChartCapacityUnit.ToolTip = null;
                 ClearExactVisualPreview();
                 _importableEnvelopeChart = importResult.ImportableEnvelopeChart;
                 SetCapacityUnitMode(importResult.Chart.RequestedCapacityUnitMode, suppressRefresh: true);
@@ -1061,6 +1096,17 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     return;
                 }
 
+                if (_nominalChart == null || !_nominalChart.IsCapacityUnitResolved)
+                {
+                    string message =
+                        "The load-chart capacity unit is unresolved. Select kg or t before saving. " +
+                        "Auto is allowed only when the source contains unambiguous explicit unit evidence.";
+                    TxtStatus.Text = message;
+                    CboChartCapacityUnit.Focus();
+                    MessageBox.Show(this, message, "Capacity Unit Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
                 ParsedLoadChart chartForSave;
 
                 if (_nominalChart?.IsExactVisualChart == true)
@@ -1081,6 +1127,12 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     CommitGridEdits();
                     chartForSave = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders, GetSelectedCapacityUnitMode());
                     _nominalChart = chartForSave;
+                }
+
+                if (!chartForSave.IsCapacityUnitResolved)
+                {
+                    throw new InvalidOperationException(
+                        "The load-chart capacity unit is unresolved. Select kg or t before saving the crane.");
                 }
 
                 if (TryParseOptionalNumber(TxtMaxCap.Text, "Imported Chart Max", out double manualMaxCapacity))
@@ -1182,6 +1234,15 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     _nominalChart = reparsed;
                     _exactVisualPreviewTable = reparsed.PreviewTable;
                     _exactVisualPreviewHeaders = reparsed.PreviewHeaders.ToList();
+
+                    if (_importableEnvelopeChart != null)
+                    {
+                        _importableEnvelopeChart = LoadChartCsvService.ParseTable(
+                            _importableEnvelopeChart.PreviewTable,
+                            _importableEnvelopeChart.PreviewHeaders,
+                            capacityUnitMode);
+                    }
+
                     ShowExactVisualPreview();
                 }
                 else
@@ -1309,8 +1370,12 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private void UpdateGridStats(ParsedLoadChart parsedChart)
         {
+            string capacityText = parsedChart.IsCapacityUnitResolved
+                ? $"normalized max {UnitSystem.FormatMass(parsedChart.MaxCapacity, _unitSettings)}"
+                : $"raw max {parsedChart.RawMaxCapacity:0.###} | unit unresolved";
+
             TxtGridStats.Text =
-                $"{parsedChart.PreviewTable.Rows.Count} radii | {parsedChart.PreviewTable.Columns.Count - 1} booms | max {UnitSystem.FormatMass(parsedChart.MaxCapacity, _unitSettings)}";
+                $"{parsedChart.PreviewTable.Rows.Count} radii | {parsedChart.PreviewTable.Columns.Count - 1} booms | {capacityText}";
         }
 
         private void RefreshDimensionsSummary()
@@ -1346,6 +1411,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         {
             _nominalChart = nominalChart;
             ShowChart(nominalChart);
+            UpdateCapacityUnitPresentation(nominalChart);
         }
 
         private void ClearExactVisualPreview()
@@ -1412,10 +1478,17 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             if (_nominalChart.IsExactVisualChart)
             {
                 int visualColumns = Math.Max(0, _nominalChart.PreviewTable.Columns.Count - 1);
-                TxtGridStats.Text = $"{_nominalChart.PreviewTable.Rows.Count} radii | {visualColumns} exact PDF visual columns | saveable";
-                TxtPreviewMode.Text = "Viewing exact PDF visual load chart. Save Crane will preserve these repeated manufacturer columns and use conservative duplicate-column capacity lookup.";
-                TxtStatus.Text = "Exact PDF visual load chart shown. Save Crane will save this exact visual chart.";
+                string saveState = _nominalChart.IsCapacityUnitResolved ? "saveable" : "capacity unit required";
+                TxtGridStats.Text = $"{_nominalChart.PreviewTable.Rows.Count} radii | {visualColumns} exact PDF visual columns | {saveState}";
+                TxtPreviewMode.Text = _nominalChart.IsCapacityUnitResolved
+                    ? "Viewing exact PDF visual load chart. Save Crane will preserve these repeated manufacturer columns and use conservative duplicate-column capacity lookup."
+                    : "Viewing exact PDF visual load chart. Select the capacity unit before Save Crane is allowed.";
+                TxtStatus.Text = _nominalChart.IsCapacityUnitResolved
+                    ? "Exact PDF visual load chart shown. Save Crane will save this exact visual chart."
+                    : LoadChartCsvService.GetCapacityUnitSummary(_nominalChart);
             }
+
+            UpdateCapacityUnitPresentation(_nominalChart);
         }
 
         private void ShowImportableEnvelopePreview()
@@ -1436,7 +1509,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             BtnShowImportableEnvelope.IsEnabled = false;
 
             TxtPreviewMode.Text = "Viewing reference 2D envelope only. This is not what Save Crane will save for this exact PDF visual import.";
-            TxtStatus.Text = "Reference envelope shown. Save Crane will still save the exact PDF visual chart.";
+            TxtStatus.Text = _nominalChart?.IsCapacityUnitResolved == true
+                ? "Reference envelope shown. Save Crane will still save the exact PDF visual chart."
+                : "Reference envelope shown. Select kg or t before Save Crane is allowed.";
         }
 
         private bool CaptureExactVisualEdits()
@@ -1566,11 +1641,37 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             _gridHeaders = chart.PreviewHeaders.ToList();
             _isShowingExactVisualPreview = false;
             BtnTranspose.IsEnabled = !_hasExactVisualPreview;
-            TxtMaxCap.Text = FormatMassInput(chart.MaxCapacity);
+            TxtMaxCap.Text = chart.IsCapacityUnitResolved
+                ? FormatMassInput(chart.MaxCapacity)
+                : string.Empty;
 
             ConfigureChartGrid(chart.PreviewTable, _gridHeaders);
             ChartGrid.ItemsSource = chart.PreviewTable.DefaultView;
             UpdateGridStats(chart);
+        }
+
+        private void UpdateCapacityUnitPresentation(ParsedLoadChart? chart)
+        {
+            if (chart == null)
+            {
+                TxtCapacityUnitResolution.Text = "Load a chart to resolve the capacity unit.";
+                TxtRawCapacityMax.Text = "Raw maximum: -";
+                TxtNormalizedCapacityMax.Text = "Normalized maximum: -";
+                BtnSaveCrane.IsEnabled = false;
+                return;
+            }
+
+            TxtCapacityUnitResolution.Text = LoadChartCsvService.GetCapacityUnitSummary(chart);
+            TxtRawCapacityMax.Text = chart.EffectiveCapacityUnit.HasValue
+                ? $"Raw maximum: {chart.RawMaxCapacity:0.###} {UnitSystem.MassSymbol(chart.EffectiveCapacityUnit.Value)}"
+                : $"Raw maximum: {chart.RawMaxCapacity:0.###} (unit unresolved)";
+            TxtNormalizedCapacityMax.Text = chart.IsCapacityUnitResolved
+                ? $"Normalized maximum: {chart.MaxCapacity:0.###} t"
+                : "Normalized maximum: - (select capacity unit)";
+            TxtMaxCap.Text = chart.IsCapacityUnitResolved
+                ? FormatMassInput(chart.MaxCapacity)
+                : string.Empty;
+            BtnSaveCrane.IsEnabled = chart.IsCapacityUnitResolved;
         }
 
         private static ParsedLoadChart CopyChartWith(
@@ -1578,7 +1679,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             DataTable? previewTable = null,
             List<CraneOptimizer.Domain.Entities.TargetPoint>? points = null,
             double? maxCapacity = null,
-            double? maxRadius = null)
+            double? maxRadius = null,
+            string? exactLoadChartRawGridJson = null)
         {
             return new ParsedLoadChart
             {
@@ -1603,11 +1705,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 MaxCapacity = maxCapacity ?? source.MaxCapacity,
                 RawMaxCapacity = source.RawMaxCapacity,
                 EffectiveCapacityUnit = source.EffectiveCapacityUnit,
+                CapacityUnitResolutionStatus = source.CapacityUnitResolutionStatus,
                 RequestedCapacityUnitMode = source.RequestedCapacityUnitMode,
                 LoadChartStorageMode = source.LoadChartStorageMode,
                 LoadChartCapacityPolicy = source.LoadChartCapacityPolicy,
-                ExactLoadChartRawGridJson = source.ExactLoadChartRawGridJson,
-                LoadChartSourceDescription = source.LoadChartSourceDescription
+                ExactLoadChartRawGridJson = exactLoadChartRawGridJson ?? source.ExactLoadChartRawGridJson,
+                LoadChartSourceDescription = source.LoadChartSourceDescription,
+                VisualSummary = source.VisualSummary,
+                VisualRows = source.VisualRows.ToList()
             };
         }
 

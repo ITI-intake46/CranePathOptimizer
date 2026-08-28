@@ -14,6 +14,15 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         Ton = 1,
         Kilogram = 2
     }
+
+    internal enum LoadChartCapacityUnitResolutionStatus
+    {
+        ResolvedFromExplicitEvidence = 0,
+        ResolvedFromUserSelection = 1,
+        MissingExplicitUnit = 2,
+        ConflictingExplicitUnits = 3,
+        SelectedUnitConflictsWithExplicitEvidence = 4
+    }
     // SEMANTIC_VISUAL_ROW_TYPING_PATCH_V1
     internal enum LoadChartVisualRowKind
     {
@@ -82,15 +91,34 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         public double MaxBoomLength { get; init; }
         public double MaxCapacity { get; init; }
         public double RawMaxCapacity { get; init; }
-        public MassUnit EffectiveCapacityUnit { get; init; } = MassUnit.Ton;
+        public MassUnit? EffectiveCapacityUnit { get; init; }
+        public LoadChartCapacityUnitResolutionStatus CapacityUnitResolutionStatus { get; init; } = LoadChartCapacityUnitResolutionStatus.MissingExplicitUnit;
         public LoadChartCapacityUnitMode RequestedCapacityUnitMode { get; init; } = LoadChartCapacityUnitMode.Auto;
         public string LoadChartStorageMode { get; init; } = "Standard2D";
         public string LoadChartCapacityPolicy { get; init; } = "Standard2D";
         public string ExactLoadChartRawGridJson { get; init; } = string.Empty;
         public string LoadChartSourceDescription { get; init; } = string.Empty;
         public bool IsExactVisualChart => string.Equals(LoadChartStorageMode, "ExactPdfVisual", StringComparison.OrdinalIgnoreCase);
+        public bool IsCapacityUnitResolved =>
+            EffectiveCapacityUnit.HasValue &&
+            (CapacityUnitResolutionStatus == LoadChartCapacityUnitResolutionStatus.ResolvedFromExplicitEvidence ||
+             CapacityUnitResolutionStatus == LoadChartCapacityUnitResolutionStatus.ResolvedFromUserSelection);
+        public double? NormalizedMaxCapacityTons => IsCapacityUnitResolved ? MaxCapacity : null;
         public LoadChartVisualChartSummary VisualSummary { get; init; } = LoadChartVisualChartSummary.Empty;
         public List<LoadChartVisualRowSummary> VisualRows { get; init; } = new();
+    }
+
+    internal sealed class LoadChartCapacityUnitResolution
+    {
+        public MassUnit? EffectiveUnit { get; init; }
+        public double RawMaxCapacity { get; init; }
+        public LoadChartCapacityUnitResolutionStatus Status { get; init; } = LoadChartCapacityUnitResolutionStatus.MissingExplicitUnit;
+        public bool HasExplicitKilogram { get; init; }
+        public bool HasExplicitTon { get; init; }
+
+        public bool IsResolved => EffectiveUnit.HasValue &&
+            (Status == LoadChartCapacityUnitResolutionStatus.ResolvedFromExplicitEvidence ||
+             Status == LoadChartCapacityUnitResolutionStatus.ResolvedFromUserSelection);
     }
 
     internal static class LoadChartCsvService
@@ -221,7 +249,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             double? maxBoom = null;
             double? maxCapacity = null;
             var capacityUnitResolution = ResolveCapacityUnit(table, capacityUnitMode);
-            MassUnit effectiveCapacityUnit = capacityUnitResolution.EffectiveUnit;
+            MassUnit? effectiveCapacityUnit = capacityUnitResolution.EffectiveUnit;
             double rawMaxCapacity = capacityUnitResolution.RawMaxCapacity;
             var visualRows = BuildVisualRowSummaries(table, boomLengths.Count);
             var visualSummary = BuildVisualChartSummary(boomLengths, visualRows, numberOfLinesByColumn);
@@ -256,8 +284,17 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                                 $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
                         }
 
-                        capacity = NormalizeCapacityToTons(rawCapacityText, capacity, effectiveCapacityUnit);
-                        maxCapacity = !maxCapacity.HasValue || capacity > maxCapacity.Value ? capacity : maxCapacity;
+                        if (effectiveCapacityUnit.HasValue)
+                        {
+                            capacity = NormalizeCapacityToTons(rawCapacityText, capacity, effectiveCapacityUnit.Value);
+                            maxCapacity = !maxCapacity.HasValue || capacity > maxCapacity.Value ? capacity : maxCapacity;
+                        }
+                        else
+                        {
+                            // Numeric source values remain visible in PreviewTable/RawMaxCapacity,
+                            // but unresolved engineering values are never represented as canonical tons.
+                            capacity = -1d;
+                        }
                     }
 
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;
@@ -297,6 +334,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 MaxCapacity = maxCapacity ?? 0d,
                 RawMaxCapacity = rawMaxCapacity,
                 EffectiveCapacityUnit = effectiveCapacityUnit,
+                CapacityUnitResolutionStatus = capacityUnitResolution.Status,
                 RequestedCapacityUnitMode = capacityUnitMode,
                 LoadChartStorageMode = storageMode,
                 LoadChartCapacityPolicy = capacityPolicy,
@@ -315,6 +353,41 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             var rawGrid = ToRawGrid(source, previewHeaders);
             var transposedGrid = TransposeRawGrid(rawGrid);
             return ParseRawGrid(transposedGrid, capacityUnitMode);
+        }
+
+        internal static List<List<string>> BuildCanonicalExactEditGrid(
+            IReadOnlyList<List<string>> sourceRawGrid,
+            IReadOnlyList<TargetPoint> canonicalPoints)
+        {
+            if (sourceRawGrid == null)
+                throw new ArgumentNullException(nameof(sourceRawGrid));
+
+            if (canonicalPoints == null)
+                throw new ArgumentNullException(nameof(canonicalPoints));
+
+            var canonicalGrid = sourceRawGrid
+                .Select(row => row.ToList())
+                .ToList();
+
+            foreach (var row in canonicalGrid.Skip(1))
+            {
+                if (row.Count == 0 || !TryParseFlexibleNumber(row[0], out double radius))
+                    continue;
+
+                for (int columnIndex = 1; columnIndex < row.Count; columnIndex++)
+                {
+                    var point = canonicalPoints.FirstOrDefault(item =>
+                        item.VisualColumnIndex == columnIndex
+                        && Math.Abs(item.Radius - radius) < 0.0001);
+
+                    double capacityTons = point?.Capacity ?? -1d;
+                    row[columnIndex] = capacityTons > 0d
+                        ? capacityTons.ToString("G", CultureInfo.InvariantCulture)
+                        : string.Empty;
+                }
+            }
+
+            return canonicalGrid;
         }
 
         internal static bool TryParseFlexibleNumber(string? input, out double value)
@@ -1225,15 +1298,32 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (chart == null)
                 return string.Empty;
 
-            if (chart.RawMaxCapacity > 0d && chart.EffectiveCapacityUnit == MassUnit.Kilogram)
+            if (!chart.IsCapacityUnitResolved)
             {
-                return $"Capacity values interpreted as kg; raw max {chart.RawMaxCapacity:0.###} kg = {chart.MaxCapacity:0.###} t.";
+                return chart.CapacityUnitResolutionStatus switch
+                {
+                    LoadChartCapacityUnitResolutionStatus.ConflictingExplicitUnits =>
+                        $"Capacity unit unresolved: both kg and t evidence was found. Raw max {chart.RawMaxCapacity:0.###}. Review the source values before saving.",
+                    LoadChartCapacityUnitResolutionStatus.SelectedUnitConflictsWithExplicitEvidence =>
+                        $"Capacity unit unresolved: the selected unit conflicts with explicit source-unit evidence. Raw max {chart.RawMaxCapacity:0.###}. Review the source values before saving.",
+                    _ =>
+                        $"Capacity unit unresolved: no explicit kg/t evidence was detected. Raw max {chart.RawMaxCapacity:0.###}. Select kg or t before saving."
+                };
             }
 
-            return "Capacity values interpreted as t.";
+            string resolutionSource = chart.CapacityUnitResolutionStatus == LoadChartCapacityUnitResolutionStatus.ResolvedFromExplicitEvidence
+                ? "explicit source evidence"
+                : "user selection";
+
+            if (chart.EffectiveCapacityUnit == MassUnit.Kilogram)
+            {
+                return $"Capacity unit resolved as kg from {resolutionSource}; raw max {chart.RawMaxCapacity:0.###} kg = {chart.MaxCapacity:0.###} t.";
+            }
+
+            return $"Capacity unit resolved as t from {resolutionSource}; raw max {chart.RawMaxCapacity:0.###} t = {chart.MaxCapacity:0.###} t.";
         }
 
-        private static (MassUnit EffectiveUnit, double RawMaxCapacity) ResolveCapacityUnit(
+        internal static LoadChartCapacityUnitResolution ResolveCapacityUnit(
             DataTable table,
             LoadChartCapacityUnitMode capacityUnitMode)
         {
@@ -1260,36 +1350,114 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     if (rawCapacity > rawMaxCapacity)
                         rawMaxCapacity = rawCapacity;
 
-                    if (Regex.IsMatch(rawCapacityText, @"(?i)\bkg\b"))
+                    if (ContainsExplicitKilogramUnit(rawCapacityText))
                         hasExplicitKilogram = true;
-                    else if (Regex.IsMatch(rawCapacityText, @"(?i)\b(t|ton|tons|tonne|tonnes)\b"))
+
+                    if (ContainsExplicitTonUnit(rawCapacityText))
                         hasExplicitTon = true;
                 }
             }
 
+            if (hasExplicitKilogram && hasExplicitTon)
+            {
+                return new LoadChartCapacityUnitResolution
+                {
+                    RawMaxCapacity = rawMaxCapacity,
+                    Status = LoadChartCapacityUnitResolutionStatus.ConflictingExplicitUnits,
+                    HasExplicitKilogram = true,
+                    HasExplicitTon = true
+                };
+            }
+
             if (capacityUnitMode == LoadChartCapacityUnitMode.Kilogram)
-                return (MassUnit.Kilogram, rawMaxCapacity);
+            {
+                if (hasExplicitTon)
+                {
+                    return new LoadChartCapacityUnitResolution
+                    {
+                        RawMaxCapacity = rawMaxCapacity,
+                        Status = LoadChartCapacityUnitResolutionStatus.SelectedUnitConflictsWithExplicitEvidence,
+                        HasExplicitTon = true
+                    };
+                }
+
+                return new LoadChartCapacityUnitResolution
+                {
+                    EffectiveUnit = MassUnit.Kilogram,
+                    RawMaxCapacity = rawMaxCapacity,
+                    Status = LoadChartCapacityUnitResolutionStatus.ResolvedFromUserSelection,
+                    HasExplicitKilogram = hasExplicitKilogram
+                };
+            }
 
             if (capacityUnitMode == LoadChartCapacityUnitMode.Ton)
-                return (MassUnit.Ton, rawMaxCapacity);
+            {
+                if (hasExplicitKilogram)
+                {
+                    return new LoadChartCapacityUnitResolution
+                    {
+                        RawMaxCapacity = rawMaxCapacity,
+                        Status = LoadChartCapacityUnitResolutionStatus.SelectedUnitConflictsWithExplicitEvidence,
+                        HasExplicitKilogram = true
+                    };
+                }
 
-            if (hasExplicitKilogram && !hasExplicitTon)
-                return (MassUnit.Kilogram, rawMaxCapacity);
+                return new LoadChartCapacityUnitResolution
+                {
+                    EffectiveUnit = MassUnit.Ton,
+                    RawMaxCapacity = rawMaxCapacity,
+                    Status = LoadChartCapacityUnitResolutionStatus.ResolvedFromUserSelection,
+                    HasExplicitTon = hasExplicitTon
+                };
+            }
 
-            if (hasExplicitTon && !hasExplicitKilogram)
-                return (MassUnit.Ton, rawMaxCapacity);
+            if (hasExplicitKilogram)
+            {
+                return new LoadChartCapacityUnitResolution
+                {
+                    EffectiveUnit = MassUnit.Kilogram,
+                    RawMaxCapacity = rawMaxCapacity,
+                    Status = LoadChartCapacityUnitResolutionStatus.ResolvedFromExplicitEvidence,
+                    HasExplicitKilogram = true
+                };
+            }
 
-            return rawMaxCapacity > 1000d
-                ? (MassUnit.Kilogram, rawMaxCapacity)
-                : (MassUnit.Ton, rawMaxCapacity);
+            if (hasExplicitTon)
+            {
+                return new LoadChartCapacityUnitResolution
+                {
+                    EffectiveUnit = MassUnit.Ton,
+                    RawMaxCapacity = rawMaxCapacity,
+                    Status = LoadChartCapacityUnitResolutionStatus.ResolvedFromExplicitEvidence,
+                    HasExplicitTon = true
+                };
+            }
+
+            return new LoadChartCapacityUnitResolution
+            {
+                RawMaxCapacity = rawMaxCapacity,
+                Status = LoadChartCapacityUnitResolutionStatus.MissingExplicitUnit
+            };
+        }
+
+        internal static bool ContainsExplicitKilogramUnit(string? value)
+        {
+            return !string.IsNullOrWhiteSpace(value)
+                && Regex.IsMatch(value, @"(?i)(?:^|[^a-z])kg\b");
+        }
+
+        internal static bool ContainsExplicitTonUnit(string? value)
+        {
+            return !string.IsNullOrWhiteSpace(value)
+                && Regex.IsMatch(value, @"(?i)(?:^|[^a-z])(t|ton|tons|tonne|tonnes)\b");
         }
 
         private static double NormalizeCapacityToTons(string rawValue, double value, MassUnit defaultUnit)
         {
-            if (Regex.IsMatch(rawValue, @"(?i)\bkg\b"))
+            if (ContainsExplicitKilogramUnit(rawValue))
                 return UnitSystem.ToTons(value, MassUnit.Kilogram);
 
-            if (Regex.IsMatch(rawValue, @"(?i)\b(t|ton|tons|tonne|tonnes)\b"))
+            if (ContainsExplicitTonUnit(rawValue))
                 return value;
 
             return UnitSystem.ToTons(value, defaultUnit);
