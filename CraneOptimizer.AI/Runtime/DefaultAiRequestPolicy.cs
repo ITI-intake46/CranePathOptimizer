@@ -52,6 +52,17 @@ namespace CraneOptimizer.AI.Runtime
                 string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
             if (profile is { IsLocal: false })
             {
+                // R-07: Unencrypted HTTP connections to remote endpoints are prohibited to prevent cleartext transmission of project data
+                if (!string.IsNullOrWhiteSpace(profile.BaseUrl)
+                    && Uri.TryCreate(profile.BaseUrl, UriKind.Absolute, out var uri)
+                    && string.Equals(uri.Scheme, "http", StringComparison.OrdinalIgnoreCase)
+                    && !uri.IsLoopback
+                    && !string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase))
+                {
+                    return AiRequestPolicyDecision.Deny(
+                        $"Unencrypted HTTP connection to remote AI endpoint '{profile.BaseUrl}' is prohibited. Use HTTPS for remote providers.");
+                }
+
                 var containsProjectContext = !request.Metadata.TryGetValue("ContainsProjectContext", out var value)
                     ? !string.IsNullOrWhiteSpace(request.ContextJson)
                     : !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);

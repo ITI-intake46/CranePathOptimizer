@@ -1,0 +1,17 @@
+{
+  "ProjectInfo": {
+    "ProjectGuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "Name": "Sample Precast Building Optimization",
+    "UnitSystem": "Metric",
+    "LengthUnit": "m",
+    "AreaUnit": "m²",
+    "Country": "Egypt",
+    "SiteLocation": "New Cairo, Egypt",
+    "CompanyName": "ITI Intake 46 AECI",
+    "SchemaVersion": 1,
+    "CreatedAtUtc": "2026-08-28T12:00:00Z"
+  },
+  "SelectedCrane": "STC800",
+  "ElementsCount": 3,
+  "GACompleted": true
+}

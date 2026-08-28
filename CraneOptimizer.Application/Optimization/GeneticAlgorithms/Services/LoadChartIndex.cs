@@ -77,14 +77,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 ? craneSpec.MaxBoomLength
                 : chart.Max(tp => tp.BoomLength);
 
-            // Minimum operating limits — reject sub-minimum requests before table lookup
-            MinRadius = craneSpec.MinRadius > 0
-                ? craneSpec.MinRadius
-                : chart.Min(tp => tp.Radius);
-
-            MinBoomLength = craneSpec.MinBoomLength > 0
-                ? craneSpec.MinBoomLength
-                : chart.Min(tp => tp.BoomLength);
+            // Minimum operating limits — reject sub-minimum requests before table lookup when explicitly declared (> 0)
+            MinRadius = craneSpec.MinRadius > 0 ? craneSpec.MinRadius : 0;
+            MinBoomLength = craneSpec.MinBoomLength > 0 ? craneSpec.MinBoomLength : 0;
 
             // Build sorted distinct radii
             SortedRadii = chart

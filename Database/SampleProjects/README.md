@@ -1,21 +1,28 @@
-# Sample Projects Directory — CraneOptimizer
-## Requirement R-06 Acceptance Fixtures
+# Sample Projects & Acceptance Fixtures — CraneOptimizer
+## Requirement R-06 Acceptance Fixture Package
 
 ---
 
-This directory contains pre-seeded sample database and project assets for evaluation, testing, and supervisor review.
+This directory contains the official, deterministic sample artifacts and pre-seeded database assets required for evaluation, testing, and supervisor acceptance review.
 
-### Contents
+### Sample Artifact Inventory
 
-1. **`Sample_Crane_Catalog.db`**
-   - SQLite catalog database containing pre-configured crane specifications and load charts.
-   - Includes:
-     - **Sany STC800** (80t capacity, 45m main boom, 11.8m-45m operating range).
-     - **Liebherr LTM 1200-5.1** (200t capacity, 72m main boom, 13.2m-72m operating range).
-   - This database is automatically generated on first launch if absent, or can be loaded directly from this location.
+| Artifact File | Category / Purpose | Description |
+| :--- | :--- | :--- |
+| **`Sample_Crane_Catalog.db`** | SQLite Database | Pre-seeded crane catalog containing Sany STC800 and Liebherr LTM 1200-5.1. |
+| **`Sample_Precast_Building.ifc`** | IFC Building Model | Valid IFC4 building file containing precast beams, columns, and slabs. |
+| **`Sample_Sany_STC800_LoadChart.csv`** | Crane Load Chart | Manufacturer load chart CSV for Sany STC800 mobile crane. |
+| **`Sample_Normalized_Elements.json`** | Normalized BIM Data | Parsed and unit-normalized precast element dataset ready for GA input. |
+| **`Sample_GA_Placement_Result.json`** | Optimization Output | Deterministic multi-stage GA optimization result snapshot. |
+| **`Sample_Project.craneopt`** | CraneOpt Saved Project | Full application saved project workspace state file. |
+| **`Sample_Lifting_Report.pdf`** | Generated PDF Report | Formatted PDF lifting feasibility report. |
+| **`Sample_Lifting_Report.csv`** | Generated Data Export | Tabular CSV export of element lifting capacities and safety margins. |
+| **`Sample_Site_Layout.dxf`** | DXF Drawing | CAD DXF site layout boundary drawing. |
+| **`README.md`** | Documentation | Inventory and usage instructions for reviewers. |
 
 ### Quick Start for Reviewers
 
 1. Launch CraneOptimizer (`CraneOptimizer.UI.exe`).
-2. When creating a project, select or import from this directory.
-3. The catalog database `Sample_Crane_Catalog.db` contains fully populated load charts ready for GA optimization testing.
+2. Select **Open Existing Project** and browse to `Sample_Project.craneopt`.
+3. To test catalog loading, import `Sample_Crane_Catalog.db` or load chart `Sample_Sany_STC800_LoadChart.csv`.
+4. To test IFC parsing, open `Sample_Precast_Building.ifc`.

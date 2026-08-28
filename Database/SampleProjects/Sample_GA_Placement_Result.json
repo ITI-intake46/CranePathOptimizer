@@ -1,0 +1,21 @@
+{
+  "Algorithm": "GeneticAlgorithm_MultiStage",
+  "CraneName": "STC800",
+  "TotalElements": 3,
+  "LiftableElements": 3,
+  "CoveragePercent": 100.0,
+  "FitnessScore": 94.85,
+  "OptimalPositions": [
+    {
+      "PositionIndex": 1,
+      "Coordinates": { "X": 16.0, "Y": 24.0, "Z": 0.0 },
+      "BoomLength": 28.4,
+      "LiftedElementsCount": 3,
+      "ElementDetails": [
+        { "ElementID": "4000000000000000000001", "Radius": 1.41, "Capacity": 30.0, "Liftable": true },
+        { "ElementID": "5000000000000000000001", "Radius": 7.21, "Capacity": 24.6, "Liftable": true },
+        { "ElementID": "6000000000000000000001", "Radius": 8.49, "Capacity": 22.0, "Liftable": true }
+      ]
+    }
+  ]
+}

@@ -73,16 +73,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             // E-02: Enforce minimum operating envelope BEFORE table lookup.
             // A request below MinRadius/MinBoomLength is outside the crane's declared
-            // operating envelope. Conservative stepping to the chart minimum is NOT valid.
-            double minRadius = craneSpec.MinRadius > 0
-                ? craneSpec.MinRadius
-                : (craneSpec.LoadChart.Count > 0 ? craneSpec.LoadChart.Min(tp => tp.Radius) : 0);
-
-            double minBoomLength = craneSpec.MinBoomLength > 0
-                ? craneSpec.MinBoomLength
-                : (craneSpec.LoadChart.Count > 0 ? craneSpec.LoadChart.Min(tp => tp.BoomLength) : 0);
-
-            if (minRadius > 0 && radius < minRadius)
+            // operating envelope ONLY when MinRadius/MinBoomLength are explicitly declared (> 0).
+            if (craneSpec.MinRadius > 0 && radius < craneSpec.MinRadius)
             {
                 result.ReachStatus = ReachStatus.OutOfRadius;
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
@@ -91,7 +83,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return result;
             }
 
-            if (minBoomLength > 0 && boomLength < minBoomLength)
+            if (craneSpec.MinBoomLength > 0 && boomLength < craneSpec.MinBoomLength)
             {
                 result.ReachStatus = ReachStatus.OutOfHeight;
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;

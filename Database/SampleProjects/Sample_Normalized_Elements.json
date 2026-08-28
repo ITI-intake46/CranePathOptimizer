@@ -1,0 +1,53 @@
+[
+  {
+    "ElementID": "4000000000000000000001",
+    "ElementName": "Precast Beam B-101",
+    "ElementType": "IfcBeam",
+    "ElementWT": 8.5,
+    "ElementHeight": 0.8,
+    "ElementWidth": 0.4,
+    "ElementLength": 12.0,
+    "ElementCOG": {
+      "X": 15.0,
+      "Y": 25.0,
+      "Z": 6.5
+    },
+    "WeightStatus": "ExplicitPositive",
+    "WeightUnitDetected": "t",
+    "TrustLevel": "Verified"
+  },
+  {
+    "ElementID": "5000000000000000000001",
+    "ElementName": "Precast Column C-101",
+    "ElementType": "IfcColumn",
+    "ElementWT": 12.2,
+    "ElementHeight": 8.0,
+    "ElementWidth": 0.6,
+    "ElementLength": 0.6,
+    "ElementCOG": {
+      "X": 10.0,
+      "Y": 20.0,
+      "Z": 4.0
+    },
+    "WeightStatus": "ExplicitPositive",
+    "WeightUnitDetected": "t",
+    "TrustLevel": "Verified"
+  },
+  {
+    "ElementID": "6000000000000000000001",
+    "ElementName": "Precast Slab S-101",
+    "ElementType": "IfcSlab",
+    "ElementWT": 6.4,
+    "ElementHeight": 0.25,
+    "ElementWidth": 2.4,
+    "ElementLength": 7.2,
+    "ElementCOG": {
+      "X": 22.0,
+      "Y": 30.0,
+      "Z": 8.0
+    },
+    "WeightStatus": "ExplicitPositive",
+    "WeightUnitDetected": "t",
+    "TrustLevel": "Verified"
+  }
+]
