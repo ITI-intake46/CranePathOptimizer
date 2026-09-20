@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "source": "INT46-SV-AECI-03-CraneOpt REV02 acceptance re-review + supplied baseline ZIP",
+  "reviewedPreviousStaticDeclarationCount": 1041,
+  "minimumStaticFactTheoryDeclarations": 1041,
+  "suppliedBaselineTestSourceFiles": 114,
+  "minimumTestSourceFiles": 114,
+  "requiredPreviouslyDeletedFiles": [
+    "CraneOptimizer.Application.Tests/IFC/Placement/IfcSessionPlacementTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/Session/IfcSessionStabilizationTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/Selection/ViewportSelectionTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/Selection/ViewportHitTestRefinementTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/Rendering/RenderPerformanceDiagnosticsTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/Rendering/RenderPerformanceBenchmark.cs",
+    "CraneOptimizer.Application.Tests/IFC/Audit/IfcUnitNormalizationTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/Georeferencing/IfcGeoreferencingExtractorTests.cs",
+    "CraneOptimizer.Application.Tests/GA/ZoneGeometryTests.cs",
+    "CraneOptimizer.Application.Tests/ProjectPersistence/GoldenMasterTests.cs"
+  ],
+  "requiredRev05AcceptanceTests": [
+    "CraneOptimizer.Application.Tests/IFC/IfcMassUnitReaderAcceptanceTests.cs",
+    "CraneOptimizer.Application.Tests/IFC/IfcCleanMachineWorkflowAcceptanceTests.cs",
+    "CraneOptimizer.Application.Tests/AI/AiEndpointSecurityAcceptanceTests.cs",
+    "CraneOptimizer.Application.Tests/Persistence/CatalogDatabaseBootstrapperTests.cs"
+  ],
+  "notes": [
+    "The review names ten deleted files explicitly while stating twenty files were deleted in total.",
+    "The declaration-count floor is therefore also enforced so restoration cannot be satisfied by file names alone.",
+    "REV05 acceptance tests increase the test inventory; the gate is a floor, not an exact frozen count."
+  ]
+}

@@ -161,6 +161,12 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 parsedChart.MaxBoomLength,
                 parsedChart.MaxCapacity,
                 parsedChart.Points
+                    // Preserve blank/invalid visual cells only in ExactLoadChartRawGridJson.
+                    // Engineering TargetPoints are canonical lookup data and must always be finite/positive.
+                    .Where(point =>
+                        double.IsFinite(point.Radius) && point.Radius > 0d
+                        && double.IsFinite(point.BoomLength) && point.BoomLength > 0d
+                        && double.IsFinite(point.Capacity) && point.Capacity > 0d)
                     .Select(point => new LoadChartPointDto(
                         point.Radius,
                         point.BoomLength,

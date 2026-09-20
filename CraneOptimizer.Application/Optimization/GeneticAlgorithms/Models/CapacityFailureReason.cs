@@ -9,6 +9,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         MissingLoadChartData,
         RadiusBeyondLoadChart,
         BoomBeyondLoadChart,
+        BelowMinimumOperatingRadius,
+        BelowMinimumBoomLength,
         NoDiscreteLoadChartEntry,
         ZeroCapacityChartEntry, // kept for backward-compatibility if referenced elsewhere
         NoListedCapacityForBoomRadius,

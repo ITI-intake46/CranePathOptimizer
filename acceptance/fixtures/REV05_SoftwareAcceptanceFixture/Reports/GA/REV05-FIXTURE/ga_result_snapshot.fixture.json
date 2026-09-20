@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "REV05-software-acceptance-fixture-v1",
+  "optimizationRunId": "REV05-FIXTURE",
+  "projectGuid": "11111111111111111111111111111111",
+  "projectName": "REV05 Software Acceptance Fixture",
+  "crane": "STC800-ACCEPTANCE-FIXTURE",
+  "cranePosition": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+  },
+  "boomLengthM": 15.95,
+  "deratingRatio": 0.9,
+  "safetyFactor": 0.95,
+  "wireLengthM": 2.0,
+  "additionalWeightTons": 0.5,
+  "acceptanceFixture": true,
+  "fixtureType": "SOFTWARE ACCEPTANCE FIXTURE",
+  "elements": [
+    {
+      "element": "B-01",
+      "radius_m": 4.0,
+      "boom_m": 15.95,
+      "weight_t": 8.5,
+      "accessories_t": 0.5,
+      "required_t": 9.0,
+      "chart_capacity_t": 51.0,
+      "effective_capacity_t": 43.605,
+      "margin_t": 34.605,
+      "status": "Liftable"
+    },
+    {
+      "element": "B-02",
+      "radius_m": 6.0,
+      "boom_m": 15.95,
+      "weight_t": 5.0,
+      "accessories_t": 0.5,
+      "required_t": 5.5,
+      "chart_capacity_t": 38.0,
+      "effective_capacity_t": 32.49,
+      "margin_t": 26.99,
+      "status": "Liftable"
+    },
+    {
+      "element": "B-03",
+      "radius_m": 8.0,
+      "boom_m": 15.95,
+      "weight_t": 4.0,
+      "accessories_t": 0.5,
+      "required_t": 4.5,
+      "chart_capacity_t": 24.5,
+      "effective_capacity_t": 20.9475,
+      "margin_t": 16.4475,
+      "status": "Liftable"
+    },
+    {
+      "element": "B-04",
+      "radius_m": 10.0,
+      "boom_m": 15.95,
+      "weight_t": 3.0,
+      "accessories_t": 0.5,
+      "required_t": 3.5,
+      "chart_capacity_t": 16.0,
+      "effective_capacity_t": 13.68,
+      "margin_t": 10.18,
+      "status": "Liftable"
+    },
+    {
+      "element": "B-05",
+      "radius_m": 12.0,
+      "boom_m": 15.95,
+      "weight_t": 2.0,
+      "accessories_t": 0.5,
+      "required_t": 2.5,
+      "chart_capacity_t": 10.5,
+      "effective_capacity_t": 8.9775,
+      "margin_t": 6.4775,
+      "status": "Liftable"
+    }
+  ],
+  "liftedElementCount": 5,
+  "totalElementCount": 5
+}

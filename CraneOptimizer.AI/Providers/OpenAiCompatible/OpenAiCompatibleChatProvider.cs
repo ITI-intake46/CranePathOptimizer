@@ -61,7 +61,7 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
                 AiProviderCapabilities.Chat
                 | (profile.SupportsStreaming ? AiProviderCapabilities.Streaming : AiProviderCapabilities.None)
                 | AiProviderCapabilities.StructuredOutput,
-                profile.IsLocal,
+                AiEndpointSecurityClassifier.IsLocalEndpoint(profile.BaseUrl),
                 string.IsNullOrWhiteSpace(profile.BaseUrl) ? null : profile.BaseUrl.TrimEnd('/'));
         }
 

@@ -46,8 +46,7 @@ namespace CraneOptimizer.Application.Tests.GA
         {
             if (!File.Exists(ProjectDbPath) || !File.Exists(ZoneDbPath) || !File.Exists(CraneDbPath))
             {
-                _output.WriteLine("SKIP: Required databases not found.");
-                return;
+                throw Xunit.Sdk.SkipException.ForSkip("Required benchmark databases are not available on this machine.");
             }
 
             // 1. Load project data
@@ -370,8 +369,7 @@ namespace CraneOptimizer.Application.Tests.GA
         {
             if (!File.Exists(ProjectDbPath) || !File.Exists(ZoneDbPath) || !File.Exists(CraneDbPath))
             {
-                _output.WriteLine("SKIP: Required databases not found.");
-                return;
+                throw Xunit.Sdk.SkipException.ForSkip("Required benchmark databases are not available on this machine.");
             }
 
             // 1. Load project data

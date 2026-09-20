@@ -635,6 +635,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                              unitTypeName.Contains("WEIGHT", StringComparison.OrdinalIgnoreCase))
                     {
                         foundMass = true;
+                        meta.MassUnitWasDeclared = true;
                         if (unit is IIfcSIUnit siUnit)
                         {
                             meta.MassUnit = (siUnit.Prefix?.ToString() ?? string.Empty) + siUnit.Name.ToString();
@@ -643,7 +644,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         else if (unit is IIfcConversionBasedUnit convUnit)
                         {
                             meta.MassUnit = convUnit.Name.ToString();
-                            meta.MassConversionFactor = GetConversionUnitFactor(convUnit);
+                            if (IfcMassUnitResolver.TryGetKilogramsPerUnit(convUnit, out _, out var kgPerUnit)
+                                && double.IsFinite(kgPerUnit)
+                                && kgPerUnit > 0d)
+                            {
+                                meta.MassConversionFactor = kgPerUnit;
+                            }
+                            else
+                            {
+                                meta.MassConversionFactor = null;
+                                meta.Warnings.Add($"Declared project mass unit '{meta.MassUnit}' cannot be converted safely; inherited mass quantities are blocked from GA.");
+                            }
                         }
                     }
                 }
@@ -652,7 +663,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             if (!foundLength) meta.Warnings.Add("Length unit not declared in project context.");
             if (!foundArea) meta.Warnings.Add("Area unit not declared in project context.");
             if (!foundVolume) meta.Warnings.Add("Volume unit not declared in project context.");
-            if (!foundMass) meta.Warnings.Add("Mass/Weight unit not explicitly declared. Exporters often default to Kilograms.");
+            if (!foundMass)
+            {
+                meta.MassUnitWasDeclared = false;
+                meta.MassUnit = "Unspecified";
+                meta.MassConversionFactor = null;
+                meta.Warnings.Add("Mass/Weight unit not explicitly declared. Weight quantities without their own unit are treated as ambiguous; no kg/tonne inference is applied.");
+            }
 
             return meta;
         }
@@ -2026,7 +2043,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     // 2. Weight Audit - production-critical for normalization/import.
                     sectionTimer.Restart();
-                    var weightDetail = AuditWeight(auditContext, product, resolvedCategory, isSwallowed, concreteDensityKgPerM3, profile, massFactor);
+                    var weightDetail = AuditWeight(auditContext, product, resolvedCategory, isSwallowed, concreteDensityKgPerM3, profile, auditResult.Metadata);
                     auditResult.Weights.Add(weightDetail);
                     sectionTimer.Stop();
                     auditContext.WeightMs += sectionTimer.ElapsedMilliseconds;
@@ -2253,7 +2270,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             bool isSwallowed,
             double concreteDensityKgPerM3,
             IfcExporterProfile profile,
-            double? massConversionFactor)
+            IfcAuditMetadata massMetadata)
         {
             var detail = new ElementWeightAuditDetail
             {
@@ -2275,51 +2292,42 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     var isQty = IsQuantitySet(context, product, qRes.SourcePropertySet ?? string.Empty);
                     if (isQty)
                     {
-                        detail.WeightSource = "IfcQuantityWeight.Instance";
-                        detail.WeightUnitDetected = "kg";
-                        detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Kilogram);
+                        var quantity = product.IsDefinedBy
+                            .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
+                            .SelectMany(r => ((IIfcElementQuantity)r.RelatingPropertyDefinition).Quantities)
+                            .OfType<IIfcQuantityWeight>()
+                            .FirstOrDefault(q => string.Equals(q.Name.ToString(), qRes.SourcePropertyName, StringComparison.Ordinal));
+
+                        var resolution = IfcMassUnitResolver.ResolveQuantity(parsedVal, quantity?.Unit, massMetadata);
+                        detail.WeightSource = resolution.Source;
+                        detail.WeightUnitDetected = resolution.DetectedUnit;
+                        detail.WeightStandardValueTons = resolution.Tons;
+                        detail.WeightUnitTrustStatus = resolution.TrustStatus;
+                        detail.HasUnitConflict = resolution.HasUnitConflict;
+                        detail.IsGaEligibleByUnit = resolution.IsResolved;
+                        if (!string.IsNullOrWhiteSpace(resolution.Warning))
+                            detail.Warning = resolution.Warning;
                     }
                     else
                     {
                         var unitName = GetPropertyUnit(context, product, qRes.SourcePropertySet ?? string.Empty, qRes.SourcePropertyName ?? string.Empty);
-                        if (unitName != null)
-                        {
-                            detail.WeightUnitDetected = unitName;
-                        }
-
                         detail.WeightSource = IsLikelyRevitWeightProperty(qRes.SourcePropertyName ?? string.Empty, qRes.SourcePropertySet ?? string.Empty)
                             ? "RevitPropertySet.Instance"
                             : "PropertySet.Instance";
 
-                        var unitInfo = $"{qRes.SourcePropertyName} {detail.WeightUnitDetected}".ToLowerInvariant();
-                        if (unitInfo.ContainsAny("kg", "kilo"))
-                        {
-                            detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Kilogram);
-                        }
-                        else if (unitInfo.ContainsAny("ton", "tonne"))
-                        {
-                            detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Ton);
-                        }
-                        else if (unitInfo.ContainsAny("lb", "pound"))
-                        {
-                            detail.WeightStandardValueTons = parsedVal * 0.00045359237;
-                        }
-                        else
-                        {
-                            if (massConversionFactor.HasValue)
-                            {
-                                detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal * massConversionFactor.Value, MassUnit.Kilogram);
-                            }
-                            else
-                            {
-                                detail.WeightStandardValueTons = parsedVal > 100.0 ? UnitSystem.ToTons(parsedVal, MassUnit.Kilogram) : parsedVal;
-                                if (parsedVal > 100.0)
-                                {
-                                    detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
-                                    detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
-                                }
-                            }
-                        }
+                        var resolution = IfcMassUnitResolver.ResolveProperty(
+                            parsedVal,
+                            unitName,
+                            massMetadata,
+                            detail.WeightSource);
+                        detail.WeightSource = resolution.Source;
+                        detail.WeightUnitDetected = resolution.DetectedUnit;
+                        detail.WeightStandardValueTons = resolution.Tons;
+                        detail.WeightUnitTrustStatus = resolution.TrustStatus;
+                        detail.HasUnitConflict = resolution.HasUnitConflict;
+                        detail.IsGaEligibleByUnit = resolution.IsResolved;
+                        if (!string.IsNullOrWhiteSpace(resolution.Warning))
+                            detail.Warning = resolution.Warning;
                     }
                 }
             }
@@ -2357,11 +2365,20 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
             else
             {
-                detail.WeightStatus = "ExplicitPositive";
-                if (detail.WeightStandardValueTons > 50.0)
+                if (!detail.WeightStandardValueTons.HasValue || !detail.IsGaEligibleByUnit)
                 {
-                    detail.WeightStatus = "SuspiciousExtreme";
-                    detail.Warning = "This element has an extremely high calculated weight (> 50 Tons). Verify that units are not scaled incorrectly.";
+                    detail.WeightStatus = "CannotConvertUnit";
+                    if (string.IsNullOrWhiteSpace(detail.Warning))
+                        detail.Warning = "Weight exists but its unit cannot be resolved. The element is blocked from GA.";
+                }
+                else
+                {
+                    detail.WeightStatus = "ExplicitPositive";
+                    if (detail.WeightStandardValueTons > 50.0)
+                    {
+                        detail.WeightStatus = "SuspiciousExtreme";
+                        detail.Warning = "This element has an extremely high calculated weight (> 50 Tons). Verify that units are not scaled incorrectly.";
+                    }
                 }
             }
 

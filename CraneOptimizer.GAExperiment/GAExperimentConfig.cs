@@ -19,6 +19,18 @@ namespace CraneOptimizer.GAExperiment
         public bool EnableReachabilitySeeding { get; set; }
         public bool BatchCalibrationMode { get; set; } = false;
         public string ExperimentName { get; set; } = "auditmodel_STC800_mode_calibration";
+
+        /// <summary>
+        /// REV05 acceptance mode. When enabled, every successful GA run is persisted through
+        /// the production GA snapshot mapper/store and exported through the application's
+        /// report exporters beneath the configured project root. This is intentionally
+        /// fail-closed: snapshot/report generation failures make the experiment process fail.
+        /// </summary>
+        public bool WriteAcceptanceArtifacts { get; set; } = false;
+        public string AcceptanceProjectRoot { get; set; } = string.Empty;
+        public string ApplicationVersion { get; set; } = "REV05";
+        public string GitCommitHash { get; set; } = string.Empty;
+
         public MatrixSettings Matrix { get; set; } = new();
     }
 

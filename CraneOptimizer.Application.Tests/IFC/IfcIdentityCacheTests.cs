@@ -39,6 +39,48 @@ public sealed class IfcIdentityCacheTests : IDisposable
         Assert.True(restored.RequiresIfcCacheRefresh);
     }
 
+
+    [Fact]
+    public async Task LoadProjectStateAsync_ByteIdenticalIfcWithChangedTimestamp_RestoresCacheByHash()
+    {
+        var (service, session, state) = await CreateSavedProjectAsync("Portable cache fixture");
+        string ifcPath = state.IfcFile!.AbsolutePath;
+
+        // Simulate ZIP/copy extraction on another machine: bytes are unchanged but mtime drifts.
+        File.SetLastWriteTimeUtc(ifcPath, DateTime.UtcNow.AddDays(-30));
+
+        var restored = await service.LoadProjectStateAsync(session);
+
+        Assert.False(restored.RequiresIfcCacheRefresh);
+        Assert.Single(restored.IfcElements);
+        Assert.Equal("B-101", restored.IfcElements[0].ElementMark);
+    }
+
+    [Fact]
+    public async Task LoadProjectStateAsync_SameSizeAndTimestampButChangedIfcBytes_RejectsCacheByHash()
+    {
+        var (service, session, state) = await CreateSavedProjectAsync("Hash tamper fixture");
+        string ifcPath = state.IfcFile!.AbsolutePath;
+
+        DateTime persistedTimestamp;
+        await using (var context = CreatedProjectDbContextFactory.Create(_projectFolder))
+        {
+            var file = await context.IfcFiles.AsNoTracking().SingleAsync();
+            Assert.False(string.IsNullOrWhiteSpace(file.FileHash));
+            persistedTimestamp = DateTime.SpecifyKind(file.LastWriteUtc!.Value, DateTimeKind.Utc);
+        }
+
+        byte[] bytes = await File.ReadAllBytesAsync(ifcPath);
+        bytes[0] = bytes[0] == (byte)'I' ? (byte)'J' : (byte)'I';
+        await File.WriteAllBytesAsync(ifcPath, bytes);
+        File.SetLastWriteTimeUtc(ifcPath, persistedTimestamp);
+
+        var restored = await service.LoadProjectStateAsync(session);
+
+        Assert.True(restored.RequiresIfcCacheRefresh);
+        Assert.Empty(restored.IfcElements);
+    }
+
     [Fact]
     public async Task SaveProjectStateAsync_SameFileWithChangedName_RewritesDisplayName()
     {

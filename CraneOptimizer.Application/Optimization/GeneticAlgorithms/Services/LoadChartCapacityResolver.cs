@@ -41,6 +41,32 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return result;
             }
 
+            double minRadius = craneSpec.MinRadius > 0
+                ? craneSpec.MinRadius
+                : craneSpec.LoadChart.Min(tp => tp.Radius);
+
+            double minBoomLength = craneSpec.MinBoomLength > 0
+                ? craneSpec.MinBoomLength
+                : craneSpec.LoadChart.Min(tp => tp.BoomLength);
+
+            if (radius < minRadius)
+            {
+                result.ReachStatus = ReachStatus.OutOfRadius;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.OutOfRadius;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BelowMinimumOperatingRadius.ToString();
+                return result;
+            }
+
+            if (boomLength < minBoomLength)
+            {
+                result.ReachStatus = ReachStatus.OutOfHeight;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.HeightFail;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BelowMinimumBoomLength.ToString();
+                return result;
+            }
+
             double maxRadius = craneSpec.MaxRadius;
             if (maxRadius <= 0 && craneSpec.LoadChart.Count > 0)
             {
@@ -229,6 +255,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.ChartStatus = ChartStatus.NoListedCapacity;
                 result.LiftStatus = LiftStatus.NotCharted;
                 if (buildDiagnostics) result.FailureReason = CapacityFailureReason.MissingLoadChartData.ToString();
+                return result;
+            }
+
+            if (radius < index.MinRadius)
+            {
+                result.ReachStatus = ReachStatus.OutOfRadius;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.OutOfRadius;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BelowMinimumOperatingRadius.ToString();
+                return result;
+            }
+
+            if (boomLength < index.MinBoomLength)
+            {
+                result.ReachStatus = ReachStatus.OutOfHeight;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.HeightFail;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BelowMinimumBoomLength.ToString();
                 return result;
             }
 

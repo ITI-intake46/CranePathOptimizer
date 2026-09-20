@@ -638,5 +638,35 @@ namespace CraneOptimizer.Application.Tests
             Assert.Equal(6, result.SelectedNumberOfLines);
             Assert.Equal("39.1 side / 6 lines", result.SelectedOperatingConditionLabel);
         }
+        [Fact]
+        public void BelowMinimumRadius_IsRejectedBeforeConservativeStep()
+        {
+            var spec = new CraneSpecification { MinRadius = 5, MaxRadius = 40, MinBoomLength = 10, MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint> { new() { Radius = 5, BoomLength = 20, Capacity = 10 } } };
+            var result = _resolver.Resolve(spec, 4.99, 20, 2, _settings);
+            var indexed = _resolver.Resolve(spec, 4.99, 20, 2, _settings, index: new LoadChartIndex(spec));
+            foreach (var candidate in new[] { result, indexed })
+            {
+                Assert.Equal(LiftStatus.OutOfRadius, candidate.LiftStatus);
+                Assert.Equal(ChartStatus.OutsideChartEnvelope, candidate.ChartStatus);
+                Assert.Equal(CapacityFailureReason.BelowMinimumOperatingRadius.ToString(), candidate.FailureReason);
+            }
+        }
+
+        [Fact]
+        public void BelowMinimumBoom_IsRejectedBeforeConservativeStep()
+        {
+            var spec = new CraneSpecification { MinRadius = 5, MaxRadius = 40, MinBoomLength = 20, MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint> { new() { Radius = 10, BoomLength = 20, Capacity = 10 } } };
+            var result = _resolver.Resolve(spec, 10, 19.99, 2, _settings);
+            var indexed = _resolver.Resolve(spec, 10, 19.99, 2, _settings, index: new LoadChartIndex(spec));
+            foreach (var candidate in new[] { result, indexed })
+            {
+                Assert.Equal(LiftStatus.HeightFail, candidate.LiftStatus);
+                Assert.Equal(ChartStatus.OutsideChartEnvelope, candidate.ChartStatus);
+                Assert.Equal(CapacityFailureReason.BelowMinimumBoomLength.ToString(), candidate.FailureReason);
+            }
+        }
+
     }
 }

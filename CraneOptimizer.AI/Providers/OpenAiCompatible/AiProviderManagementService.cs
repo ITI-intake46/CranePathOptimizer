@@ -117,7 +117,8 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
         public async Task<AiProviderStatusDto> GetStatusAsync(string providerId, CancellationToken cancellationToken = default)
         {
             var profile = AiProviderProfileResolver.Resolve(_settingsService, providerId);
-            if (profile.IsLocal || profile.ProviderKind.Equals("Ollama", StringComparison.OrdinalIgnoreCase))
+            if (AiEndpointSecurityClassifier.IsLocalEndpoint(profile.BaseUrl)
+                && profile.ProviderKind.Equals("Ollama", StringComparison.OrdinalIgnoreCase))
             {
                 var status = await _ollamaManagement.GetStatusAsync(cancellationToken).ConfigureAwait(false);
                 return new AiProviderStatusDto
@@ -432,10 +433,13 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
 
         private static bool HasCloudDestinationChanged(AiProviderProfileSettings existing, AiProviderProfileSettings updated)
         {
-            if (existing.IsLocal || updated.IsLocal)
+            var existingLocal = AiEndpointSecurityClassifier.IsLocalEndpoint(existing.BaseUrl);
+            var updatedLocal = AiEndpointSecurityClassifier.IsLocalEndpoint(updated.BaseUrl);
+            if (existingLocal && updatedLocal)
                 return false;
 
-            return !string.Equals(existing.BaseUrl?.TrimEnd('/'), updated.BaseUrl?.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+            return existingLocal != updatedLocal
+                || !string.Equals(existing.BaseUrl?.TrimEnd('/'), updated.BaseUrl?.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(existing.ChatCompletionsPath?.TrimStart('/'), updated.ChatCompletionsPath?.TrimStart('/'), StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(existing.AuthenticationMode, updated.AuthenticationMode, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(existing.ApiKeyHeaderName, updated.ApiKeyHeaderName, StringComparison.OrdinalIgnoreCase)

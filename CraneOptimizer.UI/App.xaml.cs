@@ -18,6 +18,7 @@ using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.AIIntegration.Contributors;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.Infrastructure.Persistence;
 using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Reports.Csv;
 using CraneOptimizer.Infrastructure.Reports.Pdf;
@@ -55,12 +56,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Features.F9_Settings.Views;
-using CraneOptimizer.UI.F90_CraneSeedData.Services;
 using CraneOptimizer.UI.Features.F17_Selection.Interaction;
 using CraneOptimizer.UI.Features.F17_Selection.Services;
 using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
@@ -71,9 +72,11 @@ namespace CraneOptimizer.UI
     public partial class App : System.Windows.Application
     {
         public static ServiceProvider ServiceProvider { get; private set; } = null!;
+        private AcceptanceUiOptions? _acceptanceUiOptions;
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            _acceptanceUiOptions = AcceptanceUiOptions.TryParse(e.Args);
             SmoothScrollBehavior.Initialize();
             CraneOptimizer.UI.Resources.NativeTitleBarTheme.Initialize();
 
@@ -92,11 +95,13 @@ namespace CraneOptimizer.UI
             var services = new ServiceCollection();
 
             // =========================
-            // Unified runtime DB path (always under bin/.../Data/crane.db)
+            // Catalog persistence: immutable shipped baseline + writable per-user copy.
+            // Never migrate a database under Program Files / the application directory.
             // =========================
-            var dataDir = Path.Combine(AppContext.BaseDirectory, "Data");
-            Directory.CreateDirectory(dataDir);
-            var dbPath = Path.Combine(dataDir, "crane.db");
+            var catalogBootstrapper = new CatalogDatabaseBootstrapper();
+            catalogBootstrapper.EnsureWritableCatalogExists();
+            var dbPath = catalogBootstrapper.WritableCatalogPath;
+            services.AddSingleton(catalogBootstrapper);
 
             // =========================
             // DbContext
@@ -282,7 +287,6 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddTransient<MainWindow>();
             services.AddTransient<UnitsSettingsDialog>();
-            services.AddScoped<CraneSeedService>();
 
             ServiceProvider = services.BuildServiceProvider();
             AiServiceLocator.ServiceProvider = ServiceProvider;
@@ -319,6 +323,13 @@ namespace CraneOptimizer.UI
                     await ApplyMigrationsAsync();
 
                     vm.Status = "Starting application...";
+
+                    if (_acceptanceUiOptions != null)
+                    {
+                        vm.Status = "Opening SOFTWARE ACCEPTANCE FIXTURE...";
+                        await RunAcceptanceUiModeAsync(_acceptanceUiOptions, splash);
+                        return;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -367,12 +378,204 @@ namespace CraneOptimizer.UI
             }
         }
 
+        private async Task RunAcceptanceUiModeAsync(AcceptanceUiOptions options, SplashScreenWindow splash)
+        {
+            string evidencePath = Path.GetFullPath(options.EvidencePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(evidencePath) ?? AppContext.BaseDirectory);
+
+            try
+            {
+                var workspace = ServiceProvider.GetRequiredService<IProjectWorkspaceService>();
+                var navigation = ServiceProvider.GetRequiredService<IProjectNavigationService>();
+                var sessionService = ServiceProvider.GetRequiredService<IIfcModelSessionService>();
+
+                var session = await workspace.OpenProjectFolderAsync(
+                    Path.GetFullPath(options.ProjectFolder),
+                    CancellationToken.None);
+                await navigation.OpenMainWindowAsync(session);
+
+                splash.Close();
+
+                if (Current.MainWindow is not MainWindow mainWindow ||
+                    mainWindow.DataContext is not MainViewModel mainViewModel)
+                {
+                    throw new InvalidOperationException("Acceptance mode could not resolve the main application window/view-model.");
+                }
+
+                var deadline = DateTime.UtcNow.AddSeconds(options.TimeoutSeconds);
+                while (DateTime.UtcNow < deadline)
+                {
+                    var nativeSession = sessionService.Current;
+                    if (!mainViewModel.IfcViewer.IsLoading &&
+                        mainViewModel.IfcViewer.HasIfcModel &&
+                        !string.IsNullOrWhiteSpace(mainViewModel.IfcViewer.LoadedIfcFilePath) &&
+                        mainViewModel.Scene.GetElements().Count > 0 &&
+                        nativeSession != null &&
+                        nativeSession.ShapeInstanceCount > 0)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(250);
+                }
+
+                var activeNativeSession = sessionService.Current;
+                var elements = mainViewModel.Scene.GetElements();
+                var loadedIfc = mainViewModel.IfcViewer.LoadedIfcFilePath;
+                bool visibleGeometryReady = mainWindow.IsVisible &&
+                    mainViewModel.IfcViewer.HasIfcModel &&
+                    elements.Count > 0 &&
+                    activeNativeSession != null &&
+                    activeNativeSession.ShapeInstanceCount > 0;
+
+                // Acceptance must prove that the supported project is not merely renderable: it
+                // must also reopen with production GA-ready lift units. This catches project-cache
+                // drift where a portable project silently falls back to a fresh IFC extraction and
+                // loses persisted role/trust/GA metadata.
+                var readinessService = ServiceProvider.GetRequiredService<IImportReadinessService>();
+                var readiness = readinessService.BuildSummary(elements);
+                var targetElementTypes = elements
+                    .Where(element => element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.LiftAssembly
+                                      && element.IncludeInGa
+                                      && !string.IsNullOrWhiteSpace(element.ElementType))
+                    .Select(element => element.ElementType.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var liftUnitCounts = GaLiftUnitInputPreparation.CountLiftUnits(
+                    elements,
+                    elements,
+                    targetElementTypes);
+                bool gaReady = readiness.GaCandidateElements > 0 && liftUnitCounts.FinalCandidateCount > 0;
+
+                bool selectionRoundTrip = false;
+                string? selectedElement = null;
+                if (elements.Count > 0)
+                {
+                    mainViewModel.Scene.SetSelectedElements(new List<CraneOptimizer.Domain.Schemas.PrecastElement> { elements[0] });
+                    var selected = mainViewModel.Scene.GetSelectedElements();
+                    selectionRoundTrip = selected.Count == 1 &&
+                        string.Equals(selected[0].ElementID, elements[0].ElementID, StringComparison.Ordinal);
+                    selectedElement = selected.FirstOrDefault()?.ElementID;
+                }
+
+                int initialShapeCount = activeNativeSession?.ShapeInstanceCount ?? 0;
+                int reopenedShapeCount = 0;
+                bool closeReopen = false;
+                if (!string.IsNullOrWhiteSpace(loadedIfc) && File.Exists(loadedIfc))
+                {
+                    sessionService.Clear();
+                    var reopened = sessionService.OpenSession(loadedIfc, cancellationToken: CancellationToken.None);
+                    reopenedShapeCount = reopened.ShapeInstanceCount;
+                    closeReopen = reopenedShapeCount > 0;
+                }
+
+                bool passed = visibleGeometryReady && selectionRoundTrip && closeReopen && gaReady;
+                var evidence = new
+                {
+                    schemaVersion = 1,
+                    release = "REV05",
+                    fixtureType = "SOFTWARE ACCEPTANCE FIXTURE",
+                    passed,
+                    projectFolder = Path.GetFullPath(options.ProjectFolder),
+                    mainApplicationExecutable = Environment.ProcessPath,
+                    mainWindowVisible = mainWindow.IsVisible,
+                    loadedIfcFilePath = loadedIfc,
+                    sceneElementCount = elements.Count,
+                    nativeShapeInstanceCount = initialShapeCount,
+                    ifcViewerHasModel = mainViewModel.IfcViewer.HasIfcModel,
+                    gaReadinessCandidateElements = readiness.GaCandidateElements,
+                    groupedAssemblyLiftUnits = liftUnitCounts.GroupedAssemblyCount,
+                    standaloneLiftUnits = liftUnitCounts.StandaloneCount,
+                    finalGaLiftUnits = liftUnitCounts.FinalCandidateCount,
+                    gaReady,
+                    gaBlockingMessages = readiness.Messages
+                        .Where(message => string.Equals(message.Severity, "Error", StringComparison.OrdinalIgnoreCase))
+                        .Select(message => new { message.Code, message.Message, message.RecommendedAction })
+                        .ToArray(),
+                    selectionRoundTrip,
+                    selectedElement,
+                    closeReopenNativeSession = closeReopen,
+                    reopenedShapeInstanceCount = reopenedShapeCount,
+                    ifcStatus = mainViewModel.IfcViewer.Status,
+                    generatedAtUtc = DateTime.UtcNow
+                };
+
+                File.WriteAllText(
+                    evidencePath,
+                    JsonSerializer.Serialize(evidence, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+
+                if (options.HoldSeconds > 0)
+                    await Task.Delay(TimeSpan.FromSeconds(options.HoldSeconds));
+
+                Shutdown(passed ? 0 : 2);
+            }
+            catch (Exception ex)
+            {
+                var failure = new
+                {
+                    schemaVersion = 1,
+                    release = "REV05",
+                    fixtureType = "SOFTWARE ACCEPTANCE FIXTURE",
+                    passed = false,
+                    error = ex.ToString(),
+                    generatedAtUtc = DateTime.UtcNow
+                };
+                File.WriteAllText(
+                    evidencePath,
+                    JsonSerializer.Serialize(failure, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+                Shutdown(2);
+            }
+        }
+
+        private sealed record AcceptanceUiOptions(
+            string ProjectFolder,
+            string EvidencePath,
+            int HoldSeconds,
+            int TimeoutSeconds)
+        {
+            public static AcceptanceUiOptions? TryParse(string[] args)
+            {
+                if (args == null || args.Length == 0)
+                    return null;
+
+                string? project = null;
+                string? evidence = null;
+                int holdSeconds = 3;
+                int timeoutSeconds = 90;
+
+                for (int i = 0; i < args.Length; i++)
+                {
+                    string current = args[i];
+                    if (string.Equals(current, "--acceptance-project", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                        project = args[++i];
+                    else if (string.Equals(current, "--acceptance-evidence", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                        evidence = args[++i];
+                    else if (string.Equals(current, "--acceptance-hold-seconds", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length && int.TryParse(args[++i], out int parsedHold))
+                        holdSeconds = Math.Max(0, Math.Min(parsedHold, 60));
+                    else if (string.Equals(current, "--acceptance-timeout-seconds", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length && int.TryParse(args[++i], out int parsedTimeout))
+                        timeoutSeconds = Math.Max(15, Math.Min(parsedTimeout, 300));
+                }
+
+                if (string.IsNullOrWhiteSpace(project) && string.IsNullOrWhiteSpace(evidence))
+                    return null;
+                if (string.IsNullOrWhiteSpace(project) || string.IsNullOrWhiteSpace(evidence))
+                    throw new ArgumentException("Acceptance UI mode requires both --acceptance-project and --acceptance-evidence.");
+
+                return new AcceptanceUiOptions(project, evidence, holdSeconds, timeoutSeconds);
+            }
+        }
+
         private async Task ApplyMigrationsAsync()
         {
             try
             {
                 await using var scope = ServiceProvider.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
+
+                // A verified backup is created before *any* compatibility shim or EF migration
+                // can mutate an existing database. Failure aborts startup and migration.
+                var bootstrapper = scope.ServiceProvider.GetRequiredService<CatalogDatabaseBootstrapper>();
+                bootstrapper.CreateVerifiedPreMigrationBackup();
 
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
@@ -381,13 +584,12 @@ namespace CraneOptimizer.UI
 
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
-                var seeder = scope.ServiceProvider.GetRequiredService<CraneSeedService>();
-                await seeder.SeedAsync();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Migration failed: {ex}");
                 MessageBox.Show(ex.ToString(), "Database Error");
+                throw;
             }
         }
 

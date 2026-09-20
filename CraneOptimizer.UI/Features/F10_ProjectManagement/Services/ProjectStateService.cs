@@ -7,6 +7,7 @@ using CraneOptimizer.Infrastructure.Contexts.CreatedProject;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
@@ -211,16 +212,30 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             var fileInfo = new FileInfo(absolutePath);
 
-            // Compare file size
+            // Compare file size first as a cheap corruption/change guard.
             if (fileInfo.Length != entity.FileSizeBytes)
             {
                 validationReason = $"IFC file size changed. Disk: {fileInfo.Length} bytes, DB: {entity.FileSizeBytes} bytes.";
                 return false;
             }
 
-            // Compare last write time using UTC and standard tolerance of 2 seconds
-            if (entity.LastWriteUtc.HasValue)
+            // Project folders are routinely copied, zipped and extracted during handoff.
+            // Timestamps are not stable across those operations, so a persisted content hash
+            // is the authoritative cache identity when available. This is both stricter and
+            // more portable than rejecting byte-identical IFC files because their mtime changed.
+            if (!string.IsNullOrWhiteSpace(entity.FileHash))
             {
+                var actualHash = ComputeSha256Hex(absolutePath);
+                if (!string.Equals(actualHash, entity.FileHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    validationReason = $"IFC content hash changed. Disk SHA-256: {actualHash}, DB SHA-256: {entity.FileHash}.";
+                    return false;
+                }
+            }
+            else if (entity.LastWriteUtc.HasValue)
+            {
+                // Legacy project databases may not have a hash. Retain the previous timestamp
+                // fallback for those projects only. New saves always persist SHA-256.
                 var dbUtc = DateTime.SpecifyKind(entity.LastWriteUtc.Value, DateTimeKind.Utc);
                 var diff = (fileInfo.LastWriteTimeUtc - dbUtc).Duration();
                 if (diff > TimeSpan.FromSeconds(2))
@@ -297,15 +312,19 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 && existingFile.IsCacheValid
                 && HasCurrentIfcNormalizationCacheVersion(existingFile.MetadataJson))
             {
-                if (existingFile.LastWriteUtc.HasValue && metadata.LastWriteUtc.HasValue)
+                if (!string.IsNullOrWhiteSpace(existingFile.FileHash))
+                {
+                    canReuseCache = string.Equals(
+                        existingFile.FileHash,
+                        metadata.Sha256,
+                        StringComparison.OrdinalIgnoreCase);
+                }
+                else if (existingFile.LastWriteUtc.HasValue && metadata.LastWriteUtc.HasValue)
                 {
                     var existingUtc = DateTime.SpecifyKind(existingFile.LastWriteUtc.Value, DateTimeKind.Utc);
                     var metadataUtc = DateTime.SpecifyKind(metadata.LastWriteUtc.Value, DateTimeKind.Utc);
                     var diff = (existingUtc - metadataUtc).Duration();
-                    if (diff <= TimeSpan.FromSeconds(2))
-                    {
-                        canReuseCache = true;
-                    }
+                    canReuseCache = diff <= TimeSpan.FromSeconds(2);
                 }
             }
 
@@ -332,6 +351,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             {
                 existingFile.TransformJson = JsonSerializer.Serialize(transform, JsonOptions);
                 existingFile.MetadataJson = StampIfcNormalizationCacheVersion(ifc.MetadataJson);
+                existingFile.FileHash = metadata.Sha256;
+                existingFile.FileSizeBytes = metadata.SizeBytes;
+                existingFile.LastWriteUtc = metadata.LastWriteUtc;
                 context.IfcFiles.Update(existingFile);
                 Debug.WriteLine("[SaveProject] Fast Save: Reused existing IFC element cache. Only updated transform.");
                 return;
@@ -358,6 +380,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 OriginalFullPath = ifc.AbsolutePath,
                 Role = ifc.Role,
                 FileSizeBytes = metadata.SizeBytes,
+                FileHash = metadata.Sha256,
                 LastWriteUtc = metadata.LastWriteUtc,
                 TransformJson = JsonSerializer.Serialize(transform, JsonOptions),
                 MetadataJson = StampIfcNormalizationCacheVersion(ifc.MetadataJson),
@@ -426,7 +449,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 {
                     relativePath = prior.RelativePath;
                     fileName = string.IsNullOrWhiteSpace(dxf.FileName) ? prior.FileName : dxf.FileName;
-                    fileMetadata = new ProjectFileMetadata(prior.FileSizeBytes, prior.LastWriteUtc);
+                    fileMetadata = new ProjectFileMetadata(prior.FileSizeBytes, prior.LastWriteUtc, string.Empty);
                 }
                 else
                 {
@@ -434,7 +457,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     fileName = string.IsNullOrWhiteSpace(dxf.FileName)
                         ? Path.GetFileName(dxf.AbsolutePath)
                         : dxf.FileName;
-                    fileMetadata = new ProjectFileMetadata(0, null);
+                    fileMetadata = new ProjectFileMetadata(0, null, string.Empty);
                 }
 
                 var sourceMetadata = new ProjectDxfMetadataDto
@@ -930,7 +953,13 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         private static ProjectFileMetadata ReadFileMetadata(string filePath)
         {
             var file = new FileInfo(filePath);
-            return new ProjectFileMetadata(file.Length, file.LastWriteTimeUtc);
+            return new ProjectFileMetadata(file.Length, file.LastWriteTimeUtc, ComputeSha256Hex(filePath));
+        }
+
+        private static string ComputeSha256Hex(string filePath)
+        {
+            using var stream = File.OpenRead(filePath);
+            return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         }
 
         private static bool PathsEqual(string left, string right)
@@ -941,7 +970,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
         private sealed record ProjectAssetPath(string RelativePath, string AbsolutePath, string FileName);
 
-        private sealed record ProjectFileMetadata(long SizeBytes, DateTime? LastWriteUtc);
+        private sealed record ProjectFileMetadata(long SizeBytes, DateTime? LastWriteUtc, string Sha256);
 
         private sealed class ProjectIfcTransformDto
         {

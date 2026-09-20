@@ -61,3 +61,6 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# Acceptance/generated PDFs are binary artifacts; do not whitespace-diff.
+*.pdf binary

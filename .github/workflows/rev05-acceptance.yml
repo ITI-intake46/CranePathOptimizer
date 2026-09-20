@@ -1,0 +1,36 @@
+name: REV05 acceptance gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'REV05*'
+
+jobs:
+  acceptance:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.314'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute complete REV05 SOFTWARE ACCEPTANCE FIXTURE gate
+        shell: pwsh
+        run: ./scripts/Invoke-REV05Release.ps1 -SimulationMode -SkipUiSmoke
+      - name: Upload complete acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: CraneOpt-REV05-software-acceptance-fixture-evidence
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/package.json
+            artifacts/release/evidence/**
+          if-no-files-found: error

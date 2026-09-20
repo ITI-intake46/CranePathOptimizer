@@ -1,0 +1,53 @@
+{
+  "catalogDatabasePath": "../../CraneOptimizer.UI/Data/CanonicalCatalog.crane.db",
+  "projectFiles": [
+    "../fixtures/REV05_SoftwareAcceptanceFixture/project.db"
+  ],
+  "cranes": [
+    "STC800-ACCEPTANCE-FIXTURE"
+  ],
+  "experimentResultsCsvPath": "../../artifacts/acceptance/ga/ExperimentResults.csv",
+  "diagnosticsDirectoryPath": "../../artifacts/acceptance/ga/Diagnostics",
+  "benchmarkVersion": "REV05-Acceptance-v1",
+  "seedMode": "Fixed",
+  "seeds": [
+    42
+  ],
+  "randomSeedCount": 1,
+  "maxRuns": 1,
+  "resumeEnabled": false,
+  "useHungarianAssignment": true,
+  "enableReachabilitySeeding": true,
+  "batchCalibrationMode": false,
+  "experimentName": "REV05_Reproducible_Acceptance",
+  "matrix": {
+    "populationSize": [
+      16
+    ],
+    "maxGenerations": [
+      8
+    ],
+    "mutationRate": [
+      0.1
+    ],
+    "crossoverRate": [
+      0.8
+    ],
+    "maxCranePositions": [
+      2
+    ],
+    "minimumRelocationDistance": [
+      5.0
+    ],
+    "mutationSigma": [
+      0.02
+    ],
+    "gridStep": [
+      0.5
+    ]
+  },
+  "writeAcceptanceArtifacts": true,
+  "acceptanceProjectRoot": "../fixtures/REV05_SoftwareAcceptanceFixture",
+  "applicationVersion": "REV05",
+  "gitCommitHash": "FROM_RELEASE_PIPELINE"
+}

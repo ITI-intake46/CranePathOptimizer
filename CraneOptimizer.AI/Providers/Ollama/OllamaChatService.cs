@@ -45,9 +45,9 @@ namespace CraneOptimizer.AI.Providers.Ollama
 
             Descriptor = new AiProviderDescriptor(
                 Id: ProviderId,
-                DisplayName: "Local Ollama",
+                DisplayName: AiEndpointSecurityClassifier.IsLocalEndpoint(_endpoint) ? "Local Ollama" : "Remote Ollama",
                 Capabilities: AiProviderCapabilities.Chat | AiProviderCapabilities.Streaming | AiProviderCapabilities.StructuredOutput,
-                IsLocal: true,
+                IsLocal: AiEndpointSecurityClassifier.IsLocalEndpoint(_endpoint),
                 Endpoint: _endpoint.ToString().TrimEnd('/'));
         }
 

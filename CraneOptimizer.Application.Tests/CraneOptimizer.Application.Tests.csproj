@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <PlatformTarget>x64</PlatformTarget>
     <NoWarn>$(NoWarn);CS0618</NoWarn>
   </PropertyGroup>
 
@@ -30,10 +31,20 @@
   <Target Name="CopyXbimNativeDll" AfterTargets="Build">
     <ItemGroup>
       <XbimNativeDll Include="..\CraneOptimizer.Infrastructure\bin\**\Xbim.Geometry.Engine64.dll" />
+      <XbimNativeDll Include="$(NuGetPackageRoot)xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(XbimNativeDll)' != ''" />
     <Message Importance="High" Text="Xbim DLL copied to $(OutputPath)" Condition="'@(XbimNativeDll)' != ''" />
-    <Warning Text="❌ Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
+    <Error Text="Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
   </Target>
 
+
+  <ItemGroup>
+    <None Include="..\acceptance\fixtures\REV05_SoftwareAcceptanceFixture\Models\IFC\rev05_acceptance.ifc" Link="Fixtures\rev05_acceptance.ifc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\acceptance\fixtures\REV05_SoftwareAcceptanceFixture\Models\IFC\rev05_missing_mass_unit.ifc" Link="Fixtures\rev05_missing_mass_unit.ifc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\acceptance\fixtures\REV05_SoftwareAcceptanceFixture\Models\IFC\rev05_malformed_explicit_mass_unit.ifc" Link="Fixtures\rev05_malformed_explicit_mass_unit.ifc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\acceptance\fixtures\REV05_SoftwareAcceptanceFixture\Models\IFC\rev05_malformed_project_mass_unit.ifc" Link="Fixtures\rev05_malformed_project_mass_unit.ifc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\CraneOptimizer.UI\Data\CanonicalCatalog.crane.db" Link="Fixtures\CanonicalCatalog.crane.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\acceptance\catalog\catalog-manifest.json" Link="Fixtures\catalog-manifest.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

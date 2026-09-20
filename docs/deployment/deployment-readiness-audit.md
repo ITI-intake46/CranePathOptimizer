@@ -1,4 +1,9 @@
+> **REV05 current-release note (supersedes the deployment command examples below):** the current acceptance release uses a **framework-dependent `win-x64`** publish with SDK 9.0.314. The self-contained commands and size measurements in this older audit are historical evidence only and are not the REV05 release instructions. See the repository `README.md` and `release/REV05-ACCEPTANCE-CHECKLIST.md`.
+
 # Deployment-Readiness Audit — CraneOptimizer WPF Solution
+
+> **REV05 status note:** This document contains historical deployment observations from an earlier package. REV05 supersedes the missing-native-DLL findings with fail-closed Build/Publish targets and a clean-machine application replay. `Xbim.WindowsUI` is no longer a direct project dependency. The authoritative REV05 deployment evidence is produced by `scripts/Invoke-REV05Release.ps1`.
+
 
 **Audit date:** 2026-07-18  
 **Auditor:** Antigravity (automated inspection + build evidence)  
@@ -64,7 +69,6 @@
 | `Xbim.Geometry` | 5.1.820 | UI, Infrastructure | Geometry interop |
 | `Xbim.Geometry.Engine.Interop` | 5.1.820 | Infrastructure | Interop shim |
 | `Xbim.ModelGeometry.Scene` | 5.1.820 | Infrastructure | Scene context |
-| `Xbim.WindowsUI` | 5.1.228 | UI, Infrastructure | WPF IFC viewer |
 
 ### Native (unmanaged) DLLs — confirmed present in publish output
 
@@ -79,35 +83,28 @@
 | `coreclr.dll` | 4.76 | .NET runtime (self-contained) |
 | `clrjit.dll` | 1.70 | JIT compiler |
 
-### ⛔ CRITICAL — Missing native DLL: `Xbim.Geometry.Engine64.dll`
+### ✅ REV05 closure — native DLL: `Xbim.Geometry.Engine64.dll`
 
-```
-Xbim.Geometry.Engine64.dll present in publish_audit_output: False
-```
+The earlier audit found the native engine missing from published output. REV05 now fails closed unless the x64 geometry engine is restored and copied for both build and publish.
 
-**Why this matters:**
-- `IfcModelSession.Open` (line 106) instantiates `XbimGeometryEngine` at runtime.
-- `Xbim.Geometry.Engine.Interop` is a P/Invoke shim that calls into `Xbim.Geometry.Engine64.dll`.
-- Without this DLL, IFC files **cannot be opened** and geometry context creation fails with a `DllNotFoundException`.
+**Correct package provenance:**
+- `Xbim.Geometry` 5.1.820 is the small top-level/meta package.
+- The native `Xbim.Geometry.Engine64.dll` payload is supplied by `Xbim.Geometry.Engine.Interop` 5.1.820.
+- REV05 therefore resolves the DLL from `$(NuGetPackageRoot)\xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll` in Infrastructure, UI, tests, and the acceptance harness.
 
-**Why it is missing:**
-The Infrastructure csproj copies the DLL via a custom `AfterBuild` MSBuild target that reads from `$(NuGetPackageRoot)\xbim.geometry\**\x64\Xbim.Geometry.Engine64.dll`. The UI csproj then copies it from the Infrastructure bin output. **Neither target runs during `dotnet publish`** — only during `dotnet build`.
+**Fail-closed behavior:**
+- normal build fails if the native payload is absent;
+- publish fails if the native payload is absent or is not present in `$(PublishDir)`;
+- the developer launcher refuses to start unless the freshly built application output contains `Xbim.Geometry.Engine64.dll`;
+- the Windows acceptance harness and clean-machine replay require and execute the same native engine.
 
 **Evidence:**
-- [CraneOptimizer.Infrastructure.csproj L16-21](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/CraneOptimizer.Infrastructure.csproj#L16-L21)
-- [CraneOptimizer.UI.csproj L132-139](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/CraneOptimizer.UI.csproj#L132-L139)
-- [IfcModelSession.cs L106](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Ifc/IfcModelSession.cs#L106)
-
-**Fix required (do not apply yet):**
-```xml
-<!-- In CraneOptimizer.UI.csproj — add None item so dotnet publish includes it -->
-<ItemGroup>
-  <None Include="$(NuGetPackageRoot)xbim.geometry\**\x64\Xbim.Geometry.Engine64.dll">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-  </None>
-</ItemGroup>
-```
+- `CraneOptimizer.Infrastructure/CraneOptimizer.Infrastructure.csproj`
+- `CraneOptimizer.UI/CraneOptimizer.UI.csproj`
+- `CraneOptimizer.AcceptanceHarness/CraneOptimizer.AcceptanceHarness.csproj`
+- `CraneOptimizer.Application.Tests/CraneOptimizer.Application.Tests.csproj`
+- `scripts/Invoke-REV05Release.ps1`
+- `scripts/Invoke-REV05CleanMachineReplay.ps1`
 
 ### NU1701 Warnings — Xbim packages targeting .NET Framework
 
@@ -115,7 +112,6 @@ The Infrastructure csproj copies the DLL via a custom `AfterBuild` MSBuild targe
 NU1701: Xbim.Geometry.Engine.Interop 5.1.820 restored using net4.x 
         instead of net8.0-windows
 NU1701: Xbim.ModelGeometry.Scene 5.1.820 restored using net4.x
-NU1701: Xbim.WindowsUI 5.1.228 restored using net4.x
 ```
 
 These packages have no net8.0 target. They are .NET Framework 4.x NuGet packages loaded into a net8.0-windows process via compatibility shim. Runtime risk: 
@@ -144,7 +140,7 @@ These packages have no net8.0 target. They are .NET Framework 4.x NuGet packages
 | **`Xbim.Geometry.Engine64.dll`** | Xbim NuGet x64 | ⛔ **MISSING** |
 
 ### Total publish size
-**207 MB**, 328 files (self-contained win-x64 framework-dependent baseline).
+**207 MB**, 328 files (self-contained win-x64 self-contained baseline).
 
 ### appsettings.json
 
@@ -368,7 +364,7 @@ dotnet publish CraneOptimizer.UI -c Release -r win-x64 --self-contained true
 | `Microsoft.Extensions.DependencyInjection` | Service registration by type uses reflection |
 | `QuestPDF` | Document composition model uses expression trees and reflection |
 
-**Verdict:** Neither single-file nor trimming is safe for production. Use a framework-dependent or self-contained **folder** publish only.
+**Verdict:** Neither single-file nor trimming is safe for production. Use a self-contained or self-contained **folder** publish only.
 
 ---
 
@@ -419,7 +415,7 @@ The test suite was run under Release mode:
 □ 2. Manually copy Xbim.Geometry.Engine64.dll into publish folder (BLOCKER — must be fixed in build)
 □ 3. Grant WRITE permission to install directory (SECURITY RISK — plan to move Data\ to %LOCALAPPDATA%)
 □ 4. Install VC++ Redistributable 2015-2022 x64 if not present
-□ 5. (Optional) Install .NET 8 Desktop Runtime for framework-dependent deploy
+□ 5. (Optional) Install .NET 8 Desktop Runtime for self-contained deploy
 □ 6. Sign EXE and native DLLs with valid certificate
 □ 7. Verify appsettings.json is present in publish folder
 ```

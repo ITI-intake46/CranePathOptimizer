@@ -69,6 +69,22 @@ public class OptimizationSummaryReportBuilderTests
     }
 
     [Fact]
+    public void Build_ElementDetailsCarriesLoadChartProvenanceForCsvReconciliation()
+    {
+        var document = new OptimizationSummaryReportBuilder().Build(CreateInput());
+        var table = FindTable(document, "element_lift_details");
+        var row = Assert.Single(table.Rows);
+
+        Assert.Contains(table.Columns, c => c.Key == "SelectedChartRadius");
+        Assert.Contains(table.Columns, c => c.Key == "SelectedChartBoomLength");
+        Assert.Contains(table.Columns, c => c.Key == "RawChartCapacity");
+        Assert.Contains(table.Columns, c => c.Key == "SafetyMargin");
+        Assert.Equal(13.0, row.Values["SelectedChartRadius"]);
+        Assert.Equal(30.0, row.Values["SelectedChartBoomLength"]);
+        Assert.Equal(44.0, row.Values["RawChartCapacity"]);
+    }
+
+    [Fact]
     public void Build_ElementDetailsIncludesAllRows_WhenNoFinalAssignmentExists()
     {
         var input = CreateInput(hasFinalAssignment: false);
@@ -182,6 +198,12 @@ public class OptimizationSummaryReportBuilderTests
             RequiredCapacity = 11,
             AvailableCapacity = 14,
             SafetyMargin = 3,
+            RequiredRadius = 12.5,
+            SelectedChartRadius = 13.0,
+            SelectedChartBoomLength = 30.0,
+            RawChartCapacity = 44.0,
+            SelectedNumberOfLines = 4,
+            SelectedOperatingConditionLabel = "Main boom",
             Status = LiftStatus.Liftable,
             ReachStatus = ReachStatus.Reachable,
             ChartStatus = ChartStatus.ListedCapacityFound,

@@ -50,12 +50,22 @@ namespace CraneOptimizer.AI.Runtime
                 : request.ProviderId.Trim();
             var profile = settings.ProviderProfiles.FirstOrDefault(item =>
                 string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
-            if (profile is { IsLocal: false })
+            if (profile != null)
             {
+                var isLocalDestination = AiEndpointSecurityClassifier.IsLocalEndpoint(profile.BaseUrl);
+                if (!isLocalDestination
+                    && (!Uri.TryCreate(profile.BaseUrl, UriKind.Absolute, out var remoteUri)
+                        || remoteUri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return AiRequestPolicyDecision.Deny(
+                        $"Remote AI endpoint for {profile.DisplayName} must use HTTPS.");
+                }
+
                 var containsProjectContext = !request.Metadata.TryGetValue("ContainsProjectContext", out var value)
                     ? !string.IsNullOrWhiteSpace(request.ContextJson)
                     : !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
-                if (containsProjectContext
+                if (!isLocalDestination
+                    && containsProjectContext
                     && !settings.CloudConsentAcceptedProviderIds.Contains(profile.Id))
                 {
                     return AiRequestPolicyDecision.Deny(

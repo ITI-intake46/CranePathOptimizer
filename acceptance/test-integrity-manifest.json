@@ -1,0 +1,721 @@
+{
+  "schemaVersion": 1,
+  "release": "REV05",
+  "fixtureType": "SOFTWARE ACCEPTANCE FIXTURE",
+  "testSourceFileCount": 118,
+  "staticFactTheoryDeclarationCount": 1079,
+  "reviewedBaselineMinimums": {
+    "testSourceFiles": 114,
+    "factTheoryDeclarations": 1041
+  },
+  "files": [
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiAgentActionWorkflowTests.cs",
+      "sha256": "23c4e3cfd5ee78797af704c4267e43b618737ba1653edb0b6bdf1ed82aae9d21",
+      "factTheoryDeclarations": 9,
+      "bytes": 21367
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiApprovalGatedDraftArtifactTests.cs",
+      "sha256": "550b679c5392aac0817a034a98b3a0decaa0a09d1492e172fe760749d1675585",
+      "factTheoryDeclarations": 11,
+      "bytes": 19563
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiBimProjectQuestionServiceTests.cs",
+      "sha256": "8cc22521aef2edf6052dd4ef43cf413aaeec7ddab78ce5f3201eaaa14ab074c3",
+      "factTheoryDeclarations": 23,
+      "bytes": 29915
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiCompanionReadingPolishTests.cs",
+      "sha256": "b25aec89e1ba0de44e6392326dc35a54bf4fb729c50b92f6db06bfe20bfcf5d5",
+      "factTheoryDeclarations": 5,
+      "bytes": 5168
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiCopilotMaturityFeatureTests.cs",
+      "sha256": "82ab541eede0892e180cfad3e6b286023d937c1b3ed8b0844c4d5515e0a9aab2",
+      "factTheoryDeclarations": 4,
+      "bytes": 4214
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiEndpointSecurityAcceptanceTests.cs",
+      "sha256": "d004effba5eb490eea099319e91e4e4b1d45fb719036772f1d38745babf1e36e",
+      "factTheoryDeclarations": 4,
+      "bytes": 3482
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiHostContextBridgeFilterRefreshTests.cs",
+      "sha256": "c95f5491794a1dfa44d7e09ea163cae75ffdad4ee6be6f709b216cd1008ac67b",
+      "factTheoryDeclarations": 2,
+      "bytes": 6830
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiIntentOrchestratorTests.cs",
+      "sha256": "fc86f2d5f020509a7c3766b9baa94a4fec2a3d6ef31d152e96cd6a07a89c4a09",
+      "factTheoryDeclarations": 11,
+      "bytes": 12005
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiMissionControlFeatureTests.cs",
+      "sha256": "2cb9779e0f040d3a69e0e87434c98fb71e045863fe6bd443b1a2b6821c1439ad",
+      "factTheoryDeclarations": 7,
+      "bytes": 22536
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiMultiProviderFeatureTests.cs",
+      "sha256": "ed2ffc02c998834fae4d3c5330c065f2f6dc9af35c4d70398eddd524d17d6848",
+      "factTheoryDeclarations": 28,
+      "bytes": 38291
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiNoGaCandidateBlockerGuidanceTests.cs",
+      "sha256": "72f31fe459fa8bd12867ca1a121668d24ec9d666119052f1c71f5b27fc593559",
+      "factTheoryDeclarations": 7,
+      "bytes": 11402
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiOptimizationAdvisorServiceTests.cs",
+      "sha256": "97b0847b1983ace8b97b0cc8dc312c29b21e0cc038eb5ed3118c17c76be0a926",
+      "factTheoryDeclarations": 3,
+      "bytes": 2553
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiPlatformFoundationTests.cs",
+      "sha256": "fa1c6f2b3804f97c3f2b310019a026abffb9194d2f5415c6962ffd3c932c0c6e",
+      "factTheoryDeclarations": 6,
+      "bytes": 9048
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiProjectIsolationBoundaryTests.cs",
+      "sha256": "48f18f3ccae729a094be37844f72c985b5d30e2ebb9506016962364dd80b2cbc",
+      "factTheoryDeclarations": 5,
+      "bytes": 5980
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiProjectRagGroundingTests.cs",
+      "sha256": "22c6a89f60e5e5e31200a81a04588b81a636c1a6832154178064d03c51f122cb",
+      "factTheoryDeclarations": 7,
+      "bytes": 10840
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiProjectReadinessAgentTests.cs",
+      "sha256": "cd8078d3de46c234a83d6cb33e6822a86dafef44e6423f6b203720cfbe5b44ec",
+      "factTheoryDeclarations": 11,
+      "bytes": 17730
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiStudioNavigationFeatureTests.cs",
+      "sha256": "6b4e932802b3235b7c80192513bb1ca7aaf57f249c016734eb0a23e02de06c8c",
+      "factTheoryDeclarations": 4,
+      "bytes": 6061
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/AiWorkflowReadinessContextTests.cs",
+      "sha256": "90af435cac33eda067b535e8aeabd71f901236a28dbe18d80008140fc6c64903",
+      "factTheoryDeclarations": 4,
+      "bytes": 7787
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/PlanningFilterAiFactBuilderTests.cs",
+      "sha256": "a17b425d0b3b9476cb2f021cd81b44ea533c99fae5fd8472ee0972437d4b2491",
+      "factTheoryDeclarations": 3,
+      "bytes": 4999
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/AI/StaticAiSoftwareContextServiceTests.cs",
+      "sha256": "b562f0bfc4edc25bd7878ab07c7cd27b57bc03a2d35a484818db65398dbe308c",
+      "factTheoryDeclarations": 2,
+      "bytes": 2396
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Crane/CraneConfigurationEngineTests.cs",
+      "sha256": "dd171a9f5cab9942322d0c4a3d739c229168bd150f7815f080c562a7ff420c1c",
+      "factTheoryDeclarations": 3,
+      "bytes": 7039
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/CraneSetup/CraneCatalogRefreshTests.cs",
+      "sha256": "69aa3d87fa0a90cc944e151bccdfef87760d79ca310a80fef43ee55ba5d5070e",
+      "factTheoryDeclarations": 1,
+      "bytes": 1899
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/CraneSetup/CraneDimensionMappingTests.cs",
+      "sha256": "1e5e62ef09ee428c0219c35cbbb6489d3d881abf17374789424d34158a1d7c6d",
+      "factTheoryDeclarations": 6,
+      "bytes": 6624
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/CraneSetup/CranePlacementFootprintTests.cs",
+      "sha256": "cc1dbe9e7f773f72ae159db7460d8a63177ade32d471c0ed33a2070833a3a4c4",
+      "factTheoryDeclarations": 2,
+      "bytes": 2150
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/CraneSetup/MobileCraneParametersReachLimitTests.cs",
+      "sha256": "c8de7f808fa1e80c1a8e5f247331d71fb829e17dc1d2ff390639930efa1095be",
+      "factTheoryDeclarations": 3,
+      "bytes": 1522
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/DXF/DxfLayerZoneAssignmentTests.cs",
+      "sha256": "85ec6988c0dc7dabb3604e652306ce47e5ac69c6b938fcb390302a5261d6822c",
+      "factTheoryDeclarations": 12,
+      "bytes": 16942
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/DXF/DxfMultiSourceTests.cs",
+      "sha256": "6f6a175b022758ddc35d4c058d34b398e336fcac73f28f0c16efb305615d7330",
+      "factTheoryDeclarations": 17,
+      "bytes": 21631
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/DXF/DxfZoneImportServiceTests.cs",
+      "sha256": "f15a18847f41d46a1d3917fbf7bc06db0284881ea96b0390a86a47cba3e51c2f",
+      "factTheoryDeclarations": 10,
+      "bytes": 7944
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Diagnostics/ArchitectureTests.cs",
+      "sha256": "09bc02f93ef02178829d82613b4021bb4355c7a66d388567f61c1ce3c4d40f6b",
+      "factTheoryDeclarations": 1,
+      "bytes": 2974
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Diagnostics/CoordinateReferenceTests.cs",
+      "sha256": "87dced8470fe0a7f89a59988ab810fbb0b6d3042825482a4631ff932ca87c32d",
+      "factTheoryDeclarations": 65,
+      "bytes": 96425
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Diagnostics/ImportReadinessServiceTests.cs",
+      "sha256": "c5dc442a044002f646f9b37aba0d2702f8f9fc88fb963c91f96a203abbb4dbc9",
+      "factTheoryDeclarations": 13,
+      "bytes": 17287
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/AdaptiveSigmaTests.cs",
+      "sha256": "108b1b4f654abafe51f0d5b4260f725a4b327ca4159a750509c96ae4726e71e0",
+      "factTheoryDeclarations": 3,
+      "bytes": 9920
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/AssignmentPolicyTests.cs",
+      "sha256": "38572d0523c12f0252a841366bf90a9fa2f3c5f389bf5b776800344962bedfec",
+      "factTheoryDeclarations": 12,
+      "bytes": 23727
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/BenchmarkV2DiagnosticsContractTests.cs",
+      "sha256": "df735f5fc11666ceb9944f28bb9d87b38f7a9f9a349a21c4713ef6685fd7a202",
+      "factTheoryDeclarations": 2,
+      "bytes": 20783
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/ConstraintEngineTests.cs",
+      "sha256": "1a9658bbbbc2e07ed42ac7a05cb328090ea1cd6c8784c5f0f27c5630e26a7d8b",
+      "factTheoryDeclarations": 3,
+      "bytes": 4749
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/CoverageEngineTests.cs",
+      "sha256": "83237c18e694900f9bb2d987056e3926640193ec6289f85249503ca0568dc169",
+      "factTheoryDeclarations": 4,
+      "bytes": 7685
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/CraneOptimizerDialogViewModelTests.cs",
+      "sha256": "74f029eda1aa4dcee9aca711674efe8160c08370eedc1319fbbc67c0dbeb65ec",
+      "factTheoryDeclarations": 24,
+      "bytes": 39630
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/CraneOptimizerDialogWorkflowTransparencyTests.cs",
+      "sha256": "4d9a1801d25a9e16165038b62d3c9d5c09be53ff5326d026c969e463a975c5b4",
+      "factTheoryDeclarations": 12,
+      "bytes": 10893
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/CsvOptimizationHistoryLoggerTests.cs",
+      "sha256": "cf5af7a16c5c79c4ecb52faf62e691640206b41f638932c527b57a9965c4d6e7",
+      "factTheoryDeclarations": 2,
+      "bytes": 7295
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/DiagnosticsSeparationTests.cs",
+      "sha256": "99bda9ba7afd0251a959b245c110f195d198323b18d244550e0a74a5ec5730e1",
+      "factTheoryDeclarations": 5,
+      "bytes": 23794
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/EmptyChromosomeRegressionTests.cs",
+      "sha256": "52b370b9fe2cda28f6a5e08202653f739d9167999aba002c0bda0f3ef24c8298",
+      "factTheoryDeclarations": 2,
+      "bytes": 9541
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GACloseOutFixTests.cs",
+      "sha256": "bd6db237007c785fc571bcffbc1f7bc376591be4fd9ea7f6371c513f48531b34",
+      "factTheoryDeclarations": 6,
+      "bytes": 18886
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GADiagnosticsReaderServiceTests.cs",
+      "sha256": "b30dbe668ad2f0ebf55d9e2b2bf20fde01e48d66e5abd829f8e7e820cd7d59ca",
+      "factTheoryDeclarations": 4,
+      "bytes": 7723
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GAModePresetFactoryTests.cs",
+      "sha256": "53a9a37f1a0185ab928985198f6676e1d404966885ee09e9f24cee7559974b3e",
+      "factTheoryDeclarations": 12,
+      "bytes": 21135
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GAParameterHelpRegistryTests.cs",
+      "sha256": "986f037d7d157b5f5d2d600336b806b5ca670e87392fcd2ca29a0d9f517d4c1a",
+      "factTheoryDeclarations": 2,
+      "bytes": 3502
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GaLiftAnalysisDependencyGraphTests.cs",
+      "sha256": "0640d95823870abc7911cbe9602d4d0f9997bbcd25b71932e73620a2613b5681",
+      "factTheoryDeclarations": 9,
+      "bytes": 19684
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GaLiftAnalysisRulesTests.cs",
+      "sha256": "fe65211133340db1db7992cdb636fbb7546b89033d1032308bc3bb3d10900723",
+      "factTheoryDeclarations": 9,
+      "bytes": 16133
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GaLiftAnalysisStoreTests.cs",
+      "sha256": "e6abe8ab2e39029412f6e638139287f5529ec134eb2c379f7ca1424a5cc374f9",
+      "factTheoryDeclarations": 7,
+      "bytes": 9372
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GaLiftSummaryPresentationTests.cs",
+      "sha256": "b6c7d916a39e00e2f07ba58649d960baf9d5c1e07fce82a8fb37b69e4fea05d9",
+      "factTheoryDeclarations": 22,
+      "bytes": 24699
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GaLiftUnitInputPreparationTests.cs",
+      "sha256": "91cd19a2699a6dee5c6cf25e889edd669fb92cb42317a59f1c839869da99228c",
+      "factTheoryDeclarations": 3,
+      "bytes": 5289
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/GaResultSnapshotPersistenceTests.cs",
+      "sha256": "9884c70bc000034856f7a10ec7d40cd7c8f2b891bd85757e6681dde2a8c9f52a",
+      "factTheoryDeclarations": 15,
+      "bytes": 49669
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/HungarianAssignmentServiceTests.cs",
+      "sha256": "fcc992522b84985afac41055bf3c03b5174c75053073c74f41b2ff0c80d060be",
+      "factTheoryDeclarations": 5,
+      "bytes": 13489
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/LiftingCalculationEngineTests.cs",
+      "sha256": "01c140764be4d5471b2736149d796cc912b69ba1b39bed94d0aec95e7ecea0ce",
+      "factTheoryDeclarations": 3,
+      "bytes": 3912
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/LoadChartCapacityResolverTests.cs",
+      "sha256": "b23b007daee7440e7825a816a0a040c9a5f119acd1b995cba6bf7c002ec03ee3",
+      "factTheoryDeclarations": 27,
+      "bytes": 31248
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/MultiStageCustomComparisons.cs",
+      "sha256": "0b3c15d7fc31ec5d252be5fdce67b33b41b451bc5046040e748246b31d09de6b",
+      "factTheoryDeclarations": 2,
+      "bytes": 24067
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/MultiStageGAOrchestratorTests.cs",
+      "sha256": "e8839230fb19555e48173db64d23949d94203ad81de37fbae86523b8827fb0a1",
+      "factTheoryDeclarations": 4,
+      "bytes": 6072
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/MultiZoneOptimizationTests.cs",
+      "sha256": "7d9533d6c8d2c1b05d583ef784e1c116ecf1a71944955e668dcc1b514e990784",
+      "factTheoryDeclarations": 8,
+      "bytes": 16902
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/OperatorsTests.cs",
+      "sha256": "c42452c4e26a4aa730802f14a83ef25f55c65c6c1e2d6f9bfe29c56c80492bff",
+      "factTheoryDeclarations": 2,
+      "bytes": 4082
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/OptimizationInputBuilderTests.cs",
+      "sha256": "ed13afba3121ad950d6c4c6471fab2741f368fae7ae9a6d165d2bfb3fc5a2517",
+      "factTheoryDeclarations": 10,
+      "bytes": 13815
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/OptimizationLiftStatusResolverTests.cs",
+      "sha256": "eba4e879c6699c282af989d324b4617aca2a90bb88c03e0684a86cbb42941a45",
+      "factTheoryDeclarations": 11,
+      "bytes": 15753
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/Phase3BenchmarkTests.cs",
+      "sha256": "2e766f1fc29b9325c778b480329465af742f88d2693cb5352aaf7d5d337c6169",
+      "factTheoryDeclarations": 2,
+      "bytes": 29979
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/ReachabilityMapServiceTests.cs",
+      "sha256": "80dd5d70ddefe5f86d1f2f228bc527ccf6bce41034499f8c6be1bbfe8120e5dd",
+      "factTheoryDeclarations": 3,
+      "bytes": 6870
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/RunIdForensicTests.cs",
+      "sha256": "40cea7334b09ad565e69a2819dfec9653d55fd84065a54d11a2b68eebd62d0e2",
+      "factTheoryDeclarations": 4,
+      "bytes": 5741
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/GA/ZoneGeometryTests.cs",
+      "sha256": "c0b5612e8f61ff526a17c0eed021e52f8ea9de54cf9f341e132a8f189f518267",
+      "factTheoryDeclarations": 36,
+      "bytes": 46367
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Audit/AssemblyRollupTests.cs",
+      "sha256": "907be905fc4985f4400f31de5a28ae2d0070dcee264282fc2676d8fa1f654920",
+      "factTheoryDeclarations": 8,
+      "bytes": 22848
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Audit/IfcDiagnosticAuditTests.cs",
+      "sha256": "7a096acff0c8156b037ebc8b3fcaa7446d39af51ea9f23f3778798cf93b8c4eb",
+      "factTheoryDeclarations": 14,
+      "bytes": 44508
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Audit/IfcUnitNormalizationTests.cs",
+      "sha256": "108807a99cd49710e921d83110c629f69bf34c4569957d96f9eaacffc0a6bf76",
+      "factTheoryDeclarations": 12,
+      "bytes": 18311
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Audit/IfcWeightCalculationTests.cs",
+      "sha256": "ca9e94b7c5aa2afdd6027a5052790752a23eede5430f4727048dba040e170930",
+      "factTheoryDeclarations": 1,
+      "bytes": 414
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Filtering/ElementVisibilityFilterServiceTests.cs",
+      "sha256": "259fff041ee9ac08cc59fc34db5b2acd2173da7f485803670c7abe821179dead",
+      "factTheoryDeclarations": 9,
+      "bytes": 6871
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Georeferencing/IfcGeoreferencingExtractorTests.cs",
+      "sha256": "f8734129b14e4b99b3288347fa519ed9195aa40e32b58fc3fb12917d537ee87e",
+      "factTheoryDeclarations": 9,
+      "bytes": 20017
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/IfcCleanMachineWorkflowAcceptanceTests.cs",
+      "sha256": "38e3ed0fb81c09cc70071139504f1b98b3e26c99d1736aedbb1f7c2c9d37d7a7",
+      "factTheoryDeclarations": 2,
+      "bytes": 3427
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/IfcGridDeduplicationTests.cs",
+      "sha256": "8ce6ce907d843a40707fd6176c35baa8f14c547660eac5029b5ef287898c4d11",
+      "factTheoryDeclarations": 2,
+      "bytes": 4276
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/IfcIdentityCacheTests.cs",
+      "sha256": "607011bc30a126ae455f38def60b2a901413ea50f2fd15b0934c87b1756b9ffa",
+      "factTheoryDeclarations": 4,
+      "bytes": 5935
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/IfcIdentitySsotTests.cs",
+      "sha256": "a40f48a9bbe6fe690ed7ac1a363aa0fc2d9bfe080ae22654328ef1e5b020c151",
+      "factTheoryDeclarations": 2,
+      "bytes": 4321
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/IfcMassUnitReaderAcceptanceTests.cs",
+      "sha256": "e28266237e5e362cb75cb77b4c2985e171bff710cb883b918f4d94353a4f91bd",
+      "factTheoryDeclarations": 3,
+      "bytes": 5074
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/IfcRawNameExtractionTests.cs",
+      "sha256": "09f95d6bbd1af53462facacfdc4137f4e05093dbdcdd163e2fc52c98ddd3b3e3",
+      "factTheoryDeclarations": 1,
+      "bytes": 2192
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Placement/IfcSessionPlacementTests.cs",
+      "sha256": "f7700650e1fb9638ed8bffc678b0f414dc68cfbb7dba7dea4e856388f64bc68c",
+      "factTheoryDeclarations": 14,
+      "bytes": 40758
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Rendering/CameraServiceTests.cs",
+      "sha256": "fa73eea7a6e74daf3ec772503c2a15c974abfcf8546d775f749f8f501f747e6c",
+      "factTheoryDeclarations": 3,
+      "bytes": 7285
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Rendering/RenderPerformanceBenchmark.cs",
+      "sha256": "9c8bb9011471bf7a67761f6d8f5f74034470037eb49f5a5cca1afccb48a450d1",
+      "factTheoryDeclarations": 4,
+      "bytes": 35480
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Rendering/RenderPerformanceDiagnosticsTests.cs",
+      "sha256": "ebad6c93bc8bdd2cd47cd14320a83e85bfb595777caeb0a45dbec8ed0f394d85",
+      "factTheoryDeclarations": 36,
+      "bytes": 63458
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Selection/ViewportHitTestRefinementTests.cs",
+      "sha256": "8309c7845ff3e0d879a35e53630293ebc2af0f02a3a55a793b5255fca05d2e8c",
+      "factTheoryDeclarations": 10,
+      "bytes": 17680
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Selection/ViewportSelectionTests.cs",
+      "sha256": "9d8a28c134ae50ac1faaa7d8dc782abffe105b308c7c8d6a17de9164b6a21ee1",
+      "factTheoryDeclarations": 48,
+      "bytes": 64881
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Session/IfcSessionPersistenceTests.cs",
+      "sha256": "5638cd8f0bb9576583be7c7cace8e6ad8b2876f49ed74a736b243e08553d1fe5",
+      "factTheoryDeclarations": 10,
+      "bytes": 34618
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/IFC/Session/IfcSessionStabilizationTests.cs",
+      "sha256": "217341cef82c0395e5023c2d5f00d723209c2b013e3e7d27d7122b5593b0b04f",
+      "factTheoryDeclarations": 31,
+      "bytes": 68599
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Identity/CanonicalMarkResolverTests.cs",
+      "sha256": "cddccdaa0c410be872fda9f478c8be8033e864ce1c6081a472eb4689fa280132",
+      "factTheoryDeclarations": 14,
+      "bytes": 8397
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/LoadChartCapacityUnitTests.cs",
+      "sha256": "e9613998897afeefbd2b52db80be080f750adee1d7e1608c4013084284a4ef66",
+      "factTheoryDeclarations": 15,
+      "bytes": 12424
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/LoadChartCatalogPreviewTests.cs",
+      "sha256": "ec96b270259689fc6dff973ba757ca4dfe928b3739610cd032a77f82c633ce6c",
+      "factTheoryDeclarations": 3,
+      "bytes": 4349
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/LoadChartCraneValidatorTests.cs",
+      "sha256": "5ae24fba1dee4852ef707dc55c5f46d4f88dd0ef9b1da581a0b6325d8d4a7737",
+      "factTheoryDeclarations": 6,
+      "bytes": 4205
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/LoadChartNumberOfLinesMetadataTests.cs",
+      "sha256": "2fffd9c24221e0fd73e28d80a6790c7625d24fedc43bf75c243512bb07d2afa6",
+      "factTheoryDeclarations": 2,
+      "bytes": 3692
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/LoadChartPdfMetadataServiceTests.cs",
+      "sha256": "40aca7175219f071504cf3b157e25895eb1ef4dfcabcb46ddf2921b00390394d",
+      "factTheoryDeclarations": 26,
+      "bytes": 37114
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/LoadChartVisualBoomHeaderParsingTests.cs",
+      "sha256": "1708dcc201b6f2122bcb6a912d4767d1b301109036b28697d8c2d799eeb77a74",
+      "factTheoryDeclarations": 4,
+      "bytes": 4568
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/PdfCorpusRegressionGateTests.cs",
+      "sha256": "5aa6f4d53b404960b4434059f525957ad25f01788b35268179bbdc95a8204fe6",
+      "factTheoryDeclarations": 1,
+      "bytes": 27855
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/PdfLoadChartLineRequirementPrecisionTests.cs",
+      "sha256": "900fd47d3b14f3b56d9b7185226e39e32d25fa8316370fd6cfa5fe0a7af857b6",
+      "factTheoryDeclarations": 2,
+      "bytes": 4438
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/PdfLoadChartMultiTableSegmentationTests.cs",
+      "sha256": "e5937ade853c3fe2fc4f226063a6d354dae7db82d87007a37d996676adb7a7d2",
+      "factTheoryDeclarations": 13,
+      "bytes": 19298
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/PdfLoadChartPrimarySelectionTests.cs",
+      "sha256": "4775c3fb92f5a4d30c8c054902107c4180ed626d6980432c63219b6672f58a75",
+      "factTheoryDeclarations": 7,
+      "bytes": 10082
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/PdfLoadChartSemanticRowsTests.cs",
+      "sha256": "9509657a6c471d9b436f50c7acb2c645717cea686539e58349b163d5a93ccf7b",
+      "factTheoryDeclarations": 2,
+      "bytes": 3364
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/PdfLoadChartSplitHeaderReconstructionTests.cs",
+      "sha256": "634931fcf7baf28eefba34abe78b64ff9680e4f492886288021f34f765e41b1d",
+      "factTheoryDeclarations": 5,
+      "bytes": 4706
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/LoadChart/UserEnteredNumberParsingTests.cs",
+      "sha256": "6cd85a902ae7e0656539e3f1594201a476bb7c15d0867bc3b75253adea77cd4d",
+      "factTheoryDeclarations": 1,
+      "bytes": 707
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/ObjectSnap/DrawingViewModelOsnapIntegrationTests.cs",
+      "sha256": "be9dec5ab8c8bbcd2042ec6d661dd5176f2658f1abcde94eaf3b9c3cc986252d",
+      "factTheoryDeclarations": 6,
+      "bytes": 32714
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/ObjectSnap/OsnapAsyncPipelineTests.cs",
+      "sha256": "07b2ebb4d0cedafa878970a28087c911d56f43cc5559cece5f09ce071a2f6622",
+      "factTheoryDeclarations": 8,
+      "bytes": 42761
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Persistence/CatalogDatabaseBootstrapperTests.cs",
+      "sha256": "532a94e1899f4bd7e6f90212f3525dd6d1ad805e9c7da863ab9f5d4f48a6975a",
+      "factTheoryDeclarations": 8,
+      "bytes": 10227
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/ProjectMaterialSettings/ProjectMaterialSettingsServiceTests.cs",
+      "sha256": "e7f80d92f3677cd1a4f60f367a34c8637e925f18de48c0451c34c1628e3ee160",
+      "factTheoryDeclarations": 3,
+      "bytes": 3692
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/ProjectPersistence/CompanyNameMigrationTests.cs",
+      "sha256": "f6ed4a3d9388984d28d8039fee4ad7313faa534575f6ef191049707771d6755d",
+      "factTheoryDeclarations": 4,
+      "bytes": 2700
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/ProjectPersistence/GoldenMasterTests.cs",
+      "sha256": "1ceb22f395a402d1d90148144de980ac1a8fbb152ff0ce18bca0f50242f26e03",
+      "factTheoryDeclarations": 5,
+      "bytes": 31813
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/CsvReportExporterTests.cs",
+      "sha256": "ce6cef8ca5f37fbe6f9f86f42b80b0739fd62e584800e379d4aaf51f77309df5",
+      "factTheoryDeclarations": 7,
+      "bytes": 8539
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/OptimizationSummaryReportBuilderTests.cs",
+      "sha256": "a898e4c762fbf363a73588501820a15a40532ac64728bb265db39724424959be",
+      "factTheoryDeclarations": 7,
+      "bytes": 8007
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/PdfReportExporterTests.cs",
+      "sha256": "0a5734470fbcb18015fd9705aa4cd3327ac93cd47d3e3dc6b764edb0f7385fee",
+      "factTheoryDeclarations": 4,
+      "bytes": 4408
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/Phase51BindingTests.cs",
+      "sha256": "704a749a192c208b31593ef7cedcfdbdf8d90018fe66922ab2ea75ff8ad517ed",
+      "factTheoryDeclarations": 4,
+      "bytes": 7587
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/ReportBuilderViewModelFlowTests.cs",
+      "sha256": "1a526e93a895fb3a30daa552ad1e7422424aee9de103790ee90b9ab934ebaff2",
+      "factTheoryDeclarations": 9,
+      "bytes": 58242
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/ReportExportServiceTests.cs",
+      "sha256": "2e1fd904e0002a9892e26f1f36d0d5e625e6c24aee10e28ecae4ca427920e8e7",
+      "factTheoryDeclarations": 5,
+      "bytes": 3151
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/ReportGridReferenceTests.cs",
+      "sha256": "dd52c6560a40eb0d395b50a898f002c17398431c2376c241e7a9e97dfa23626f",
+      "factTheoryDeclarations": 1,
+      "bytes": 1037
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/ReportValidatorTests.cs",
+      "sha256": "6894c84a4099f82d3a354d2a109d745e057114e28d3a90a0183677999e201eaf",
+      "factTheoryDeclarations": 7,
+      "bytes": 3680
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/ReportValueFormatterTests.cs",
+      "sha256": "a525d0f7cd4790681824cc093dda37f88de794bef33320a769429f5c1da55cb5",
+      "factTheoryDeclarations": 5,
+      "bytes": 1352
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Reports/UserFacingReportsTests.cs",
+      "sha256": "2b87071a013dd29f295c4712509e15eb84dbdb6dd9798346ac5285d30d07a23a",
+      "factTheoryDeclarations": 61,
+      "bytes": 103867
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/Services/ProjectOutputPathServiceTests.cs",
+      "sha256": "3fe4b987b52c6a3b16f9d2d75bdf9efb8a9c6f3a8fb1d4dfcf55e95725c0fdc0",
+      "factTheoryDeclarations": 25,
+      "bytes": 10694
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/TestInfrastructure/Legacy/CranePlacementConstraintServiceLegacy.cs",
+      "sha256": "fef6039df77b7c972719f6e9146bb5385e87810f31eef802804497d5ef1d5b9d",
+      "factTheoryDeclarations": 0,
+      "bytes": 6784
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/TestInfrastructure/Legacy/LiftCalculationLegacy.cs",
+      "sha256": "9b8e6c9ea8b982f858c1e002f7bd5b672a7861df49e23667f9ff94c9e6e2cef8",
+      "factTheoryDeclarations": 0,
+      "bytes": 3908
+    },
+    {
+      "path": "CraneOptimizer.Application.Tests/UI/IfcOptionsSharedBehaviorTests.cs",
+      "sha256": "401d3c5220262f9c301114f509d19f4671c9f3120d829f002cf51a9a94e191e4",
+      "factTheoryDeclarations": 22,
+      "bytes": 28941
+    }
+  ]
+}

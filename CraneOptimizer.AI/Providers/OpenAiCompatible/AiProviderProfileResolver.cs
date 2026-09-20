@@ -1,4 +1,5 @@
 using CraneOptimizer.AI.Configuration;
+using CraneOptimizer.AI.Runtime;
 
 namespace CraneOptimizer.AI.Providers.OpenAiCompatible
 {
@@ -25,11 +26,10 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
 
             if (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp)
                 throw new InvalidOperationException($"The {profile.DisplayName} endpoint must use HTTP or HTTPS.");
-            if (!profile.IsLocal
-                && baseUri.Scheme == Uri.UriSchemeHttp
-                && !profile.AuthenticationMode.Equals("None", StringComparison.OrdinalIgnoreCase))
+            var isLocalDestination = AiEndpointSecurityClassifier.IsLocalEndpoint(baseUri);
+            if (!isLocalDestination && baseUri.Scheme != Uri.UriSchemeHttps)
             {
-                throw new InvalidOperationException($"Use HTTPS for {profile.DisplayName} when an API key is configured.");
+                throw new InvalidOperationException($"Remote endpoint for {profile.DisplayName} must use HTTPS.");
             }
 
             return new Uri(baseUri, (relativePath ?? string.Empty).TrimStart('/'));

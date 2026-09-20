@@ -1,0 +1,39 @@
+{
+  "acceptanceFixture": true,
+  "fixtureType": "SOFTWARE ACCEPTANCE FIXTURE",
+  "runId": "REV05-FIXTURE",
+  "files": {
+    "Models/IFC/rev05_acceptance.ifc": {
+      "sha256": "05385751c74a845c7d97dcf0b2490588844c238bfe86ebfbb75a04f3b25eb284",
+      "bytes": 3310
+    },
+    "Models/IFC/rev05_missing_mass_unit.ifc": {
+      "sha256": "c6ec7692cc7e98677affb58c859235f3aee5bd9694c8429e11577baa1ac3f92a",
+      "bytes": 3304
+    },
+    "Models/IFC/rev05_malformed_explicit_mass_unit.ifc": {
+      "sha256": "ab7a1fe341bff376c825d6d8a8eb8e8e60c828eead616f411e7a868a0c9fb516",
+      "bytes": 3310
+    },
+    "Models/IFC/rev05_malformed_project_mass_unit.ifc": {
+      "sha256": "f38073f817662935684d75a124d7fd1cdbd4fad803f0433e8368cb0c5fca7f7b",
+      "bytes": 3323
+    },
+    "project.db": {
+      "sha256": "621812f397172ef4831f6e4b67f0f40df48bd151f3a521170f9b5c7ad6123cf8",
+      "bytes": 81920
+    },
+    "Reports/GA/REV05-FIXTURE/ga_result_snapshot.fixture.json": {
+      "sha256": "f69b7abfa6ad6854599f83f940c05be72a1ac51610e1b6b091450f270011e2e0",
+      "bytes": 2089
+    },
+    "Reports/GA/REV05-FIXTURE/lifting_results.fixture.csv": {
+      "sha256": "2a63425aa2407f7b5d0ba635e71ced599eb03e19df4bd55ba086b4998b21c758",
+      "bytes": 387
+    },
+    "Reports/GA/REV05-FIXTURE/lifting_report.fixture.pdf": {
+      "sha256": "83bc01be4d2d5152431c91713cc26de22c8bc55846306774ec6874b183903520",
+      "bytes": 1650
+    }
+  }
+}

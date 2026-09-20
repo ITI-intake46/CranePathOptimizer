@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Interfaces;
 
+using CraneOptimizer.AI.Runtime;
 namespace CraneOptimizer.AI.Views
 {
     public partial class AiProviderSettingsDialog : Window
@@ -42,7 +43,7 @@ namespace CraneOptimizer.AI.Views
                 .OrderBy(header => header.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(header => $"{header.Key}={header.Value}"));
 
-            var isLocal = _profile.IsLocal || _profile.ProviderKind.Equals("Ollama", StringComparison.OrdinalIgnoreCase);
+            var isLocal = AiEndpointSecurityClassifier.IsLocalEndpoint(_profile.BaseUrl);
             AuthenticationComboBox.IsEnabled = !isLocal;
             AppUrlTextBox.IsEnabled = !isLocal;
             AppTitleTextBox.IsEnabled = !isLocal;
@@ -89,8 +90,7 @@ namespace CraneOptimizer.AI.Views
             if (ApiKeyLabel == null || ApiKeyGrid == null || ApiKeyHeaderTextBox == null)
                 return;
 
-            var isLocal = _profile?.IsLocal == true
-                || string.Equals(_profile?.ProviderKind, "Ollama", StringComparison.OrdinalIgnoreCase);
+            var isLocal = AiEndpointSecurityClassifier.IsLocalEndpoint(_profile?.BaseUrl);
             var mode = (AuthenticationComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? _profile?.AuthenticationMode ?? "Bearer";
             var requiresCredential = !isLocal && !mode.Equals("None", StringComparison.OrdinalIgnoreCase);
             ApiKeyLabel.Visibility = requiresCredential ? Visibility.Visible : Visibility.Collapsed;
@@ -109,15 +109,15 @@ namespace CraneOptimizer.AI.Views
             }
 
             var authenticationMode = (AuthenticationComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Bearer";
-            if (!_profile.IsLocal
-                && endpoint.Scheme == Uri.UriSchemeHttp
-                && !authenticationMode.Equals("None", StringComparison.OrdinalIgnoreCase))
+            if (!AiEndpointSecurityClassifier.IsLocalEndpoint(endpoint)
+                && endpoint.Scheme != Uri.UriSchemeHttps)
             {
-                MessageBox.Show(this, "Use HTTPS for a cloud provider when an API key is configured.", "AI Provider", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "Remote AI provider endpoints must use HTTPS.", "AI Provider", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
             _profile.BaseUrl = baseUrl;
+            _profile.IsLocal = AiEndpointSecurityClassifier.IsLocalEndpoint(endpoint);
             _profile.ChatCompletionsPath = ChatPathTextBox.Text.Trim();
             _profile.ModelsPath = ModelsPathTextBox.Text.Trim();
             _profile.DefaultModel = DefaultModelTextBox.Text.Trim();

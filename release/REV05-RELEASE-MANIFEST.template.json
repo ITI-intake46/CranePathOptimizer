@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "release": "REV05",
+  "fixtureType": "SOFTWARE ACCEPTANCE FIXTURE",
+  "deploymentModel": "framework-dependent win-x64",
+  "sdk": "9.0.314",
+  "sourceCommit": "FROM_RELEASE_PIPELINE",
+  "sourceTag": "FROM_RELEASE_PIPELINE",
+  "catalog": {
+    "targetPointCount": 808,
+    "sha256": "FROM_RELEASE_PIPELINE"
+  },
+  "evidence": {
+    "restoreBuildTestPublish": "FROM_WINDOWS_RELEASE_GATE",
+    "publishedIfcHarness": "FROM_WINDOWS_RELEASE_GATE",
+    "gaSaveReopenReports": "FROM_WINDOWS_RELEASE_GATE",
+    "dependencyAuditSbomSigning": "FROM_WINDOWS_RELEASE_GATE"
+  }
+}

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,13 @@ using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
+using CraneOptimizer.Application.Reports.Builders;
+using CraneOptimizer.Application.Reports.Inputs;
+using CraneOptimizer.Application.Reports.Services;
+using CraneOptimizer.Infrastructure.Optimization.GeneticAlgorithms.Snapshots;
+using CraneOptimizer.Infrastructure.Reports.Csv;
+using CraneOptimizer.Infrastructure.Reports.Pdf;
 
 namespace CraneOptimizer.GAExperiment
 {
@@ -472,6 +480,7 @@ namespace CraneOptimizer.GAExperiment
                                     continue;
                                 }
 
+                                var runStartedAtUtc = DateTimeOffset.UtcNow;
                                 var sw = Stopwatch.StartNew();
                                 PlacementResult result;
                                 try
@@ -486,6 +495,7 @@ namespace CraneOptimizer.GAExperiment
                                     continue;
                                 }
                                 sw.Stop();
+                                var runCompletedAtUtc = DateTimeOffset.UtcNow;
 
                                 // Calculate KPIs
                                 int uniqueCraneSetups = result.Positions.Count;
@@ -559,6 +569,25 @@ namespace CraneOptimizer.GAExperiment
 
                                 // Append immediately to CSV
                                 await resultWriter.WriteResultAsync(runResult, resultsCsvPath);
+
+                                if (config.WriteAcceptanceArtifacts)
+                                {
+                                    await PersistAcceptanceArtifactsAsync(
+                                        config,
+                                        configDir,
+                                        projFile,
+                                        projectName,
+                                        projectId,
+                                        ifcFileName,
+                                        input,
+                                        result,
+                                        settings,
+                                        runId,
+                                        runStartedAtUtc,
+                                        runCompletedAtUtc,
+                                        sw.ElapsedMilliseconds,
+                                        cts.Token);
+                                }
 
                                 // Console print per run
                                 Console.WriteLine($"[{runIndex}/{totalRuns}] {Path.GetFileName(projFile)} | {craneName} | Pop={settings.PopulationSize}, Gen={settings.MaxGenerations}, Mut={settings.MutationRate:F2}, Seed={seed} ... Coverage={coveragePct:F1}% Time={sw.ElapsedMilliseconds}ms ✓");
@@ -778,6 +807,298 @@ namespace CraneOptimizer.GAExperiment
                 Area = entity.Area,
                 Vertices = vertices
             };
+        }
+
+        private static async Task PersistAcceptanceArtifactsAsync(
+            GAExperimentConfig config,
+            string configDir,
+            string projectFile,
+            string projectName,
+            string projectId,
+            string ifcFileName,
+            PlacementInput input,
+            PlacementResult result,
+            GASettings settings,
+            string runId,
+            DateTimeOffset startedAtUtc,
+            DateTimeOffset completedAtUtc,
+            long durationMilliseconds,
+            CancellationToken cancellationToken)
+        {
+            var configuredRoot = string.IsNullOrWhiteSpace(config.AcceptanceProjectRoot)
+                ? Path.GetDirectoryName(projectFile) ?? throw new InvalidOperationException("Acceptance project root could not be resolved.")
+                : config.AcceptanceProjectRoot;
+            var projectRoot = Path.GetFullPath(Path.IsPathRooted(configuredRoot)
+                ? configuredRoot
+                : Path.Combine(configDir, configuredRoot));
+
+            if (!Directory.Exists(projectRoot))
+                throw new DirectoryNotFoundException($"Acceptance project root does not exist: {projectRoot}");
+
+            var projectFileRoot = Path.GetFullPath(Path.GetDirectoryName(projectFile) ?? string.Empty);
+            if (!string.Equals(projectFileRoot.TrimEnd(Path.DirectorySeparatorChar), projectRoot.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Acceptance project root '{projectRoot}' does not match the project database root '{projectFileRoot}'. " +
+                    "REV05 acceptance artifacts must be generated from and written back to the same project folder.");
+            }
+
+            if (input.SubmittedCanonicalLiftUnits.Count == 0
+                || string.IsNullOrWhiteSpace(input.CanonicalSnapshotId)
+                || string.IsNullOrWhiteSpace(input.CanonicalPayloadHash))
+            {
+                throw new InvalidOperationException("Acceptance run did not contain the canonical pre-run lift-unit snapshot required for a production GA result snapshot.");
+            }
+
+            var finalStageRunId = runId + "-S1";
+            var requested = CloneSettings(settings);
+            requested.OptimizationRunId = runId;
+            requested.StageRunId = finalStageRunId;
+            requested.StageIndex = 1;
+            var effective = CloneSettings(settings);
+            effective.OptimizationRunId = runId;
+            effective.StageRunId = finalStageRunId;
+            effective.StageIndex = 1;
+
+            var execution = new GaExecutionResult
+            {
+                OriginalInput = input,
+                BestResult = result,
+                OptimizationRunId = runId,
+                FinalStageRunId = finalStageRunId,
+                FinalStageIndex = 1,
+                StartedAtUtc = startedAtUtc,
+                CompletedAtUtc = completedAtUtc,
+                DurationMilliseconds = durationMilliseconds,
+                TerminationReason = "REV05 deterministic acceptance run completed.",
+                RequestedSettings = requested,
+                EffectiveFinalSettings = effective,
+                Stages = new[]
+                {
+                    new GaStageExecutionResult
+                    {
+                        OptimizationRunId = runId,
+                        StageRunId = finalStageRunId,
+                        StageIndex = 1,
+                        EffectiveSettings = effective,
+                        Result = result,
+                        StartedAtUtc = startedAtUtc,
+                        CompletedAtUtc = completedAtUtc,
+                        DurationMilliseconds = durationMilliseconds,
+                        TerminationReason = "Acceptance stage completed.",
+                        WasSelectedAsFinal = true
+                    }
+                }
+            };
+
+            var ifcPath = Path.Combine(projectRoot, "Models", "IFC", ifcFileName);
+            if (!File.Exists(ifcPath))
+                throw new FileNotFoundException("Acceptance project's active IFC was not found.", ifcPath);
+
+            var configuredGitHash = config.GitCommitHash;
+            if (string.Equals(configuredGitHash, "FROM_RELEASE_PIPELINE", StringComparison.OrdinalIgnoreCase))
+                configuredGitHash = Environment.GetEnvironmentVariable("CRANEOPT_GIT_COMMIT") ?? string.Empty;
+
+            var mapper = new GaResultSnapshotMapper();
+            var snapshot = await mapper.MapAsync(
+                execution,
+                new GaSnapshotMappingContext
+                {
+                    ProjectGuid = projectId,
+                    ProjectName = projectName,
+                    ProjectDatabaseId = Path.GetFileName(projectFile),
+                    ProjectRoot = projectRoot,
+                    IfcFilePath = ifcPath,
+                    ApplicationVersion = config.ApplicationVersion,
+                    GitCommitHash = configuredGitHash
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            var validator = new GaResultSnapshotValidator();
+            var validation = validator.Validate(snapshot);
+            if (!validation.IsValid)
+                throw new InvalidOperationException("Acceptance GA snapshot validation failed: " + string.Join("; ", validation.Errors));
+
+            var outputPaths = new ProjectOutputPathService(new FixedActiveProjectPathProvider(projectRoot));
+            var pathResolver = new GaResultSnapshotPathResolver(outputPaths);
+            var snapshotStore = new JsonGaResultSnapshotStore(pathResolver, validator);
+            await snapshotStore.SaveAsync(snapshot, cancellationToken).ConfigureAwait(false);
+
+            // A fresh store instance reads the just-saved snapshot through its checksum and
+            // validator path. This prevents the acceptance result from being accepted merely
+            // because it remained in memory after the GA run.
+            var reopenedStore = new JsonGaResultSnapshotStore(new GaResultSnapshotPathResolver(outputPaths), new GaResultSnapshotValidator());
+            var snapshotPath = pathResolver.ResolveSnapshotPath(runId);
+            var reopened = await reopenedStore.LoadAsync(snapshotPath, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Acceptance GA snapshot could not be reopened through the production snapshot store.");
+            if (!string.Equals(reopened.Run.OptimizationRunId, runId, StringComparison.Ordinal)
+                || reopened.Summary.TotalTargetLiftUnitCount != snapshot.Summary.TotalTargetLiftUnitCount
+                || reopened.Summary.LiftedLiftUnitCount != snapshot.Summary.LiftedLiftUnitCount
+                || !string.Equals(reopened.CanonicalPayloadHash, snapshot.CanonicalPayloadHash, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Acceptance GA snapshot changed after save/reopen verification.");
+            }
+
+            var runDirectory = pathResolver.ResolveRunDirectory(runId);
+
+#pragma warning disable CS0618 // REV05 deliberately exercises the application's headless report foundation in addition to UI reporting.
+            var reportBuilder = new OptimizationSummaryReportBuilder();
+            var report = reportBuilder.Build(new OptimizationReportInput
+            {
+                PlacementInput = input,
+                PlacementResult = result,
+                PreparedBy = "REV05 acceptance harness",
+                CreatedAtUtc = completedAtUtc.UtcDateTime
+            });
+            var formatter = new ReportValueFormatter();
+            var pdfResult = await new PdfReportExporter(formatter)
+                .ExportAsync(report, Path.Combine(runDirectory, "lifting_report.pdf"), cancellationToken)
+                .ConfigureAwait(false);
+            if (!pdfResult.Success || !File.Exists(pdfResult.PrimaryOutputPath) || new FileInfo(pdfResult.PrimaryOutputPath).Length < 1024)
+                throw new InvalidOperationException("Acceptance PDF report generation failed or produced a non-substantive file: " + pdfResult.ErrorMessage);
+
+            var csvResult = await new CsvReportExporter(formatter)
+                .ExportAsync(report, Path.Combine(runDirectory, "csv"), cancellationToken)
+                .ConfigureAwait(false);
+#pragma warning restore CS0618
+            if (!csvResult.Success || !Directory.Exists(csvResult.PrimaryOutputPath))
+                throw new InvalidOperationException("Acceptance CSV report generation failed: " + csvResult.ErrorMessage);
+            var detailedCsv = Directory.EnumerateFiles(csvResult.PrimaryOutputPath, "*.csv", SearchOption.TopDirectoryOnly)
+                .FirstOrDefault(path => Path.GetFileName(path).Contains("element_lift_details", StringComparison.OrdinalIgnoreCase));
+            if (detailedCsv == null || new FileInfo(detailedCsv).Length < 100)
+                throw new InvalidOperationException("Acceptance CSV export did not contain a substantive element_lift_details table.");
+
+            // Bind the exact report rows to the exact PDF/CSV bytes.  The independent
+            // release verifier uses this sidecar to prove report -> snapshot -> catalog
+            // reconciliation without trusting filenames or a non-substantive PDF alone.
+            var detailTable = report.Sections
+                .SelectMany(section => section.Tables)
+                .FirstOrDefault(table => string.Equals(table.Name, "element_lift_details", StringComparison.Ordinal))
+                ?? throw new InvalidOperationException("Acceptance report did not contain element_lift_details.");
+            static string Sha256File(string path)
+            {
+                using var stream = File.OpenRead(path);
+                return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+            }
+            var reportProvenancePath = Path.Combine(runDirectory, "report_provenance.json");
+            var reportProvenance = new
+            {
+                schemaVersion = 1,
+                optimizationRunId = runId,
+                reportTable = detailTable.Name,
+                rowCount = detailTable.Rows.Count,
+                columns = detailTable.Columns.Select(column => column.Key).ToArray(),
+                rows = detailTable.Rows.Select(row => row.Values).ToArray(),
+                pdf = new { path = Path.GetFileName(pdfResult.PrimaryOutputPath), sha256 = Sha256File(pdfResult.PrimaryOutputPath), bytes = new FileInfo(pdfResult.PrimaryOutputPath).Length },
+                csv = new { path = Path.GetRelativePath(runDirectory, detailedCsv).Replace('\\', '/'), sha256 = Sha256File(detailedCsv), bytes = new FileInfo(detailedCsv).Length },
+                generatedAtUtc = DateTimeOffset.UtcNow
+            };
+            await File.WriteAllTextAsync(
+                reportProvenancePath,
+                JsonSerializer.Serialize(reportProvenance, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine,
+                Encoding.UTF8,
+                cancellationToken).ConfigureAwait(false);
+
+            var verificationPath = Path.Combine(runDirectory, "save_reopen_verification.json");
+            var verification = new
+            {
+                schemaVersion = 1,
+                optimizationRunId = runId,
+                snapshotPath = Path.GetRelativePath(projectRoot, snapshotPath).Replace('\\', '/'),
+                snapshotReopened = true,
+                canonicalPayloadHashUnchanged = true,
+                totalTargets = reopened.Summary.TotalTargetLiftUnitCount,
+                liftedTargets = reopened.Summary.LiftedLiftUnitCount,
+                coverageRatio = reopened.Summary.CoverageRatio,
+                pdf = Path.GetRelativePath(projectRoot, pdfResult.PrimaryOutputPath).Replace('\\', '/'),
+                detailedCsv = Path.GetRelativePath(projectRoot, detailedCsv).Replace('\\', '/'),
+                reportProvenance = Path.GetRelativePath(projectRoot, reportProvenancePath).Replace('\\', '/'),
+                generatedAtUtc = DateTimeOffset.UtcNow
+            };
+            await File.WriteAllTextAsync(
+                verificationPath,
+                JsonSerializer.Serialize(verification, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine,
+                Encoding.UTF8,
+                cancellationToken).ConfigureAwait(false);
+
+            // Persist the completed run to project.db so the supported project folder carries
+            // its own run history/state after the same execution that created the reports.
+            var dbOptions = new DbContextOptionsBuilder<CreatedProjectDbContext>()
+                .UseSqlite($"Data Source={projectFile}")
+                .Options;
+            await using (var db = new CreatedProjectDbContext(dbOptions))
+            {
+                var project = await db.ProjectInfo.OrderBy(info => info.Id).FirstAsync(cancellationToken).ConfigureAwait(false);
+                var craneSnapshotId = await db.CraneSnapshots
+                    .Where(crane => crane.ProjectInfoId == project.Id)
+                    .Select(crane => (int?)crane.Id)
+                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+                var previousAcceptanceRuns = await db.OptimizationRuns
+                    .Where(run => run.ProjectInfoId == project.Id && run.RunName != "REV05-FIXTURE")
+                    .ToListAsync(cancellationToken).ConfigureAwait(false);
+                if (previousAcceptanceRuns.Count > 0)
+                    db.OptimizationRuns.RemoveRange(previousAcceptanceRuns);
+
+                var liftedEvaluations = result.Positions
+                    .SelectMany(position => position.ElementResults)
+                    .Where(row => row.Status == LiftStatus.Liftable && row.AvailableCapacity > 0 && row.RequiredCapacity > 0)
+                    .ToList();
+                var avgUtilization = liftedEvaluations.Count == 0
+                    ? 0d
+                    : liftedEvaluations.Average(row => row.RequiredCapacity / row.AvailableCapacity * 100d);
+                var positionsJson = JsonSerializer.Serialize(result.Positions.Select((position, index) => new
+                {
+                    setupIndex = index + 1,
+                    position.X,
+                    position.Y,
+                    position.Z,
+                    position.NewLiftableCount,
+                    position.LiftableCount
+                }));
+                var summaryJson = JsonSerializer.Serialize(new
+                {
+                    optimizationRunId = runId,
+                    snapshot = Path.GetRelativePath(projectRoot, snapshotPath).Replace('\\', '/'),
+                    pdf = Path.GetRelativePath(projectRoot, pdfResult.PrimaryOutputPath).Replace('\\', '/'),
+                    detailedCsv = Path.GetRelativePath(projectRoot, detailedCsv).Replace('\\', '/'),
+                    result.LiftedElementCount,
+                    result.TotalElementCount,
+                    result.CoverageRatio,
+                    result.FitnessScore,
+                    softwareAcceptanceFixture = true
+                });
+
+                db.OptimizationRuns.Add(new CraneOptimizer.Domain.CreatedProject.OptimizationFiles.ProjectOptimizationRunEntity
+                {
+                    ProjectInfoId = project.Id,
+                    CraneSnapshotId = craneSnapshotId,
+                    RunName = runId,
+                    Status = "Completed",
+                    StartedAtUtc = startedAtUtc.UtcDateTime,
+                    FinishedAtUtc = completedAtUtc.UtcDateTime,
+                    TotalElements = result.TotalElementCount,
+                    SafeElements = result.LiftedElementCount,
+                    UnsafeElements = Math.Max(0, result.TotalElementCount - result.LiftedElementCount),
+                    CoverageRatio = result.CoverageRatio,
+                    AverageUtilizationPercent = avgUtilization,
+                    SettingsJson = JsonSerializer.Serialize(effective),
+                    ResultSummaryJson = summaryJson,
+                    CranePositionsJson = positionsJson
+                });
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"[REV05 acceptance] Production snapshot/report/save-reopen artifacts written to: {runDirectory}");
+            Console.ResetColor();
+        }
+
+        private sealed class FixedActiveProjectPathProvider : IActiveProjectPathProvider
+        {
+            private readonly string _projectRoot;
+            public FixedActiveProjectPathProvider(string projectRoot) => _projectRoot = projectRoot;
+            public string? GetActiveProjectPath() => _projectRoot;
         }
 
         private static string ResolveCatalogDbPath(string configuredPath, string configDir)

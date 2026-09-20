@@ -28,8 +28,10 @@ namespace CraneOptimizer.Domain.Diagnostics
         public double AreaConversionFactor { get; set; } = 1.0;
         public string VolumeUnit { get; set; } = "m³";
         public double VolumeConversionFactor { get; set; } = 1.0;
-        public string MassUnit { get; set; } = "kg";
-        public double? MassConversionFactor { get; set; } = 1.0;
+        public string MassUnit { get; set; } = "Unspecified";
+        public double? MassConversionFactor { get; set; }
+        /// <summary>True only when IfcProject.UnitsInContext explicitly declares a mass unit.</summary>
+        public bool MassUnitWasDeclared { get; set; }
         public List<string> Warnings { get; set; } = new();
     }
 
@@ -113,6 +115,9 @@ namespace CraneOptimizer.Domain.Diagnostics
         public string QuantitySetNameOrPropertySetName { get; set; } = string.Empty;
         public bool IsWeightUsedByProductionCurrently { get; set; }
         public string Warning { get; set; } = string.Empty;
+        public string WeightUnitTrustStatus { get; set; } = string.Empty;
+        public bool HasUnitConflict { get; set; }
+        public bool IsGaEligibleByUnit { get; set; }
     }
 
     public sealed class ElementVolumeMaterialAuditDetail

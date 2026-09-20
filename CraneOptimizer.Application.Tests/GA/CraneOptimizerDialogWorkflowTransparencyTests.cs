@@ -251,5 +251,30 @@ namespace CraneOptimizer.Application.Tests.GA
             Assert.Equal(50.0, settings.MaxRadiusForNormalisation);
             Assert.Null(settings.ProfilingLogDirectory);
         }
+
+        [Theory]
+        [InlineData("-1", "0")]
+        [InlineData("NaN", "0")]
+        [InlineData("Infinity", "0")]
+        [InlineData("2", "-0.01")]
+        [InlineData("2", "NaN")]
+        [InlineData("2", "Infinity")]
+        public void ValidateSafetyInputs_RejectsNegativeAndNonFiniteValues(string wireLength, string additionalWeight)
+        {
+            var result = CraneOptimizerDialogWorkflow.ValidateSafetyInputs(wireLength, additionalWeight);
+
+            Assert.False(result.IsValid);
+            Assert.False(string.IsNullOrWhiteSpace(result.FieldName));
+        }
+
+        [Fact]
+        public void ValidateSafetyInputs_AcceptsFiniteNonNegativeValues()
+        {
+            var result = CraneOptimizerDialogWorkflow.ValidateSafetyInputs("2.5", "0.75");
+
+            Assert.True(result.IsValid);
+            Assert.Equal(2.5, result.WireLength, 8);
+            Assert.Equal(0.75, result.AdditionalWeight, 8);
+        }
     }
 }

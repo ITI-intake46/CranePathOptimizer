@@ -1171,11 +1171,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         {
                             if (TryReadQuantityValue(quantity, out var quantityValue, out var quantityKind))
                             {
+                                string? explicitUnitName = null;
+                                double? explicitUnitKgFactor = null;
+                                if (quantity is IIfcQuantityWeight weightQuantity && weightQuantity.Unit != null)
+                                {
+                                    if (IfcMassUnitResolver.TryGetKilogramsPerUnit(weightQuantity.Unit, out var resolvedUnitName, out var kgPerUnit))
+                                    {
+                                        explicitUnitName = resolvedUnitName;
+                                        explicitUnitKgFactor = kgPerUnit;
+                                    }
+                                    else
+                                    {
+                                        explicitUnitName = weightQuantity.Unit.ToString();
+                                    }
+                                }
+
                                 quantities.Add(new SourceProductQuantity(
                                     quantity.Name.ToString(),
                                     quantitySet.Name.ToString(),
                                     quantityKind,
-                                    quantityValue));
+                                    quantityValue,
+                                    explicitUnitName,
+                                    explicitUnitKgFactor));
                             }
                         }
                     }
@@ -1331,7 +1348,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         ContainsAnyAlias(quantity.Name, _exporterProfileDefinition.WeightAliases) &&
                         IsTotalWeightProperty(quantity.Name))
                     {
-                        return UnitSystem.ToTons(quantity.Value, MassUnit.Kilogram);
+                        var resolution = ResolveSnapshotQuantityMass(quantity);
+                        if (resolution.IsResolved)
+                            return resolution.Tons;
+
+                        // Unit-ambiguous explicit weights must not be magnitude-guessed.
+                        return null;
                     }
                 }
 
@@ -1527,9 +1549,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             /// Reads weight/mass from IFC quantity sets or property sets.
             /// </summary>
             /// <remarks>
-            /// IFC 4 standard stores IIfcQuantityWeight values in kilograms.
-            /// Runtime element weights are canonical metric tons, matching crane
-            /// load charts and GA capacity checks.
+            /// IFC weight quantities respect the quantity-level unit when one is declared; otherwise
+            /// the project mass unit applies. Unresolved or malformed unit declarations fail closed.
+            /// Runtime element weights are canonical metric tons, matching crane load charts and GA capacity checks.
             ///
             /// LIMITATION: If a non-standard IFC file encodes mass in a
             /// different unit (e.g. lbs) via IfcPropertySingleValue, the
@@ -1547,7 +1569,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     if (isQty)
                     {
-                        return UnitSystem.ToTons(parsed, MassUnit.Kilogram);
+                        var quantity = product.IsDefinedBy
+                            .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
+                            .SelectMany(r => ((IIfcElementQuantity)r.RelatingPropertyDefinition).Quantities)
+                            .OfType<IIfcQuantityWeight>()
+                            .FirstOrDefault(q => string.Equals(q.Name.ToString(), resolved.SourcePropertyName, StringComparison.Ordinal));
+
+                        var resolution = IfcMassUnitResolver.ResolveQuantity(parsed, quantity?.Unit, _auditMetadata);
+                        return resolution.IsResolved ? resolution.Tons : null;
                     }
                     else
                     {
@@ -2055,39 +2084,74 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
 
 
-            private double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
+            private IfcMassUnitResolver.Resolution ResolveSnapshotQuantityMass(SourceProductQuantity quantity)
             {
-                var source = $"{propertyName} {unitName}".Trim();
-
-                if (source.Contains("kg", StringComparison.OrdinalIgnoreCase) ||
-                    source.Contains("kilo", StringComparison.OrdinalIgnoreCase))
+                if (quantity.ExplicitUnitKgFactor.HasValue)
                 {
-                    return UnitSystem.ToTons(value, MassUnit.Kilogram);
+                    bool conflict = _auditMetadata.MassUnitWasDeclared
+                        && _auditMetadata.MassConversionFactor.HasValue
+                        && Math.Abs(quantity.ExplicitUnitKgFactor.Value - _auditMetadata.MassConversionFactor.Value) > 1e-9;
+
+                    return new IfcMassUnitResolver.Resolution(
+                        quantity.Value,
+                        quantity.Value * quantity.ExplicitUnitKgFactor.Value / 1000d,
+                        quantity.ExplicitUnitName ?? "ExplicitQuantityUnit",
+                        conflict ? "ExplicitQuantityUnitOverridesProject" : "ExplicitQuantityUnit",
+                        "IfcQuantityWeight.ExplicitUnit",
+                        conflict ? $"Quantity unit '{quantity.ExplicitUnitName}' overrides project mass unit '{_auditMetadata.MassUnit}'." : null,
+                        true,
+                        conflict);
                 }
 
-                if (source.Contains("ton", StringComparison.OrdinalIgnoreCase) ||
-                    source.Contains("tonne", StringComparison.OrdinalIgnoreCase))
+                // If an explicit unit exists but could not be converted, do not silently fall back to project units.
+                if (!string.IsNullOrWhiteSpace(quantity.ExplicitUnitName))
                 {
-                    return value;
+                    return new IfcMassUnitResolver.Resolution(
+                        quantity.Value,
+                        null,
+                        quantity.ExplicitUnitName!,
+                        "CannotConvertUnit",
+                        "IfcQuantityWeight.ExplicitUnit",
+                        "The explicit quantity unit could not be converted; no magnitude inference was applied.",
+                        false,
+                        false);
                 }
 
-                if (source.Contains("lb", StringComparison.OrdinalIgnoreCase) ||
-                    source.Contains("pound", StringComparison.OrdinalIgnoreCase))
+                if (_auditMetadata.MassUnitWasDeclared
+                    && _auditMetadata.MassConversionFactor.HasValue
+                    && _auditMetadata.MassConversionFactor.Value > 0d)
                 {
-                    return value * 0.00045359237; // lb to ton
+                    return new IfcMassUnitResolver.Resolution(
+                        quantity.Value,
+                        quantity.Value * _auditMetadata.MassConversionFactor.Value / 1000d,
+                        _auditMetadata.MassUnit,
+                        "ProjectMassUnit",
+                        "IfcQuantityWeight.ProjectUnit",
+                        null,
+                        true,
+                        false);
                 }
 
-                // Fallback to project MassConversionFactor
-                if (_auditMetadata.MassConversionFactor.HasValue)
-                {
-                    return UnitSystem.ToTons(value * _auditMetadata.MassConversionFactor.Value, MassUnit.Kilogram);
-                }
+                return new IfcMassUnitResolver.Resolution(
+                    quantity.Value,
+                    null,
+                    "Unspecified",
+                    "MissingUnit",
+                    "IfcQuantityWeight.UnresolvedUnit",
+                    "The quantity and project both omit mass units; the value is not eligible for GA.",
+                    false,
+                    false);
+            }
 
-                // Tekla often writes plain numeric "Weight" properties in kilograms.
-                // Smaller values are kept as tons to avoid changing hand-authored data.
-                return value > 100d
-                    ? UnitSystem.ToTons(value, MassUnit.Kilogram)
-                    : value;
+            private double? ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
+            {
+                var resolution = IfcMassUnitResolver.ResolveProperty(
+                    value,
+                    unitName,
+                    _auditMetadata,
+                    string.IsNullOrWhiteSpace(propertyName) ? "IfcPropertyWeight" : propertyName);
+
+                return resolution.IsResolved ? resolution.Tons : null;
             }
             //GetMaterial
             private string? GetMaterial(IIfcProduct product)
@@ -3182,7 +3246,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             string Name,
             string QuantitySetName,
             SourceQuantityKind Kind,
-            double Value);
+            double Value,
+            string? ExplicitUnitName,
+            double? ExplicitUnitKgFactor);
 
         private sealed record SourceProductProperty(
             string Name,

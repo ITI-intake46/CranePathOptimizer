@@ -13,11 +13,20 @@
 		<EmbeddedResource Remove="Data\**" />
 		<None Remove="Data\**" />
 	</ItemGroup>
-	<Target Name="CopyXbimEngine" AfterTargets="Build">
+	<Target Name="CopyXbimEngineToOutput" AfterTargets="Build">
 		<ItemGroup>
-			<XbimDll Include="$(NuGetPackageRoot)xbim.geometry\**\x64\Xbim.Geometry.Engine64.dll" />
+			<XbimNativeDll Include="$(NuGetPackageRoot)xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll" />
 		</ItemGroup>
-		<Copy SourceFiles="@(XbimDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+		<Error Condition="'@(XbimNativeDll)' == ''" Text="Xbim.Geometry.Engine64.dll was not restored; IFC geometry deployment is blocked." />
+		<Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+	</Target>
+	<Target Name="CopyXbimEngineToPublish" AfterTargets="Publish">
+		<ItemGroup>
+			<XbimPublishNativeDll Include="$(NuGetPackageRoot)xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll" />
+		</ItemGroup>
+		<Error Condition="'@(XbimPublishNativeDll)' == ''" Text="Xbim.Geometry.Engine64.dll was not restored; IFC geometry publish is blocked." />
+		<Copy SourceFiles="@(XbimPublishNativeDll)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+		<Error Condition="!Exists('$(PublishDir)Xbim.Geometry.Engine64.dll')" Text="IFC native geometry engine is missing from the publish directory." />
 	</Target>
 
 	<ItemGroup>
@@ -28,6 +37,7 @@
 	<ItemGroup>
 		<PackageReference Include="HelixToolkit.Wpf" Version="3.1.2" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.14" />
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.14">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -38,7 +48,6 @@
 		<PackageReference Include="Xbim.Geometry.Engine.Interop" Version="5.1.820" />
 		<PackageReference Include="Xbim.Ifc" Version="6.0.587" />
 		<PackageReference Include="Xbim.ModelGeometry.Scene" Version="5.1.820" />
-		<PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
 	</ItemGroup>
 
 	<ItemGroup>

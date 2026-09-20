@@ -1,0 +1,11 @@
+CraneOpt Project Source — Proprietary / Evaluation Notice
+
+Copyright (c) 2026 CraneOpt project owner(s). All rights reserved.
+
+The source package supplied for software acceptance did not include an upstream open-source
+license grant for the CraneOpt application code. This notice therefore does not grant rights
+beyond the software-acceptance/evaluation rights separately authorized by the project owner.
+Third-party components retain their own licenses and notices; see THIRD-PARTY-NOTICES.md and
+the SPDX SBOM produced by the release pipeline.
+
+The acceptance dataset distributed with this submission is identified as a SOFTWARE ACCEPTANCE FIXTURE.

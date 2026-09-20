@@ -18,9 +18,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         public double MaxRadius { get; }
 
         /// <summary>
+        /// Precomputed minimum operating radius. The explicit crane specification wins;
+        /// otherwise the smallest chart radius is used as the conservative envelope.
+        /// </summary>
+        public double MinRadius { get; }
+
+        /// <summary>
         /// Precomputed maximum boom length from the load chart.
         /// </summary>
         public double MaxBoomLength { get; }
+
+        /// <summary>
+        /// Precomputed minimum boom length. The explicit crane specification wins;
+        /// otherwise the smallest chart boom is used as the conservative envelope.
+        /// </summary>
+        public double MinBoomLength { get; }
 
         /// <summary>
         /// Sorted distinct chart radii for binary search (ascending order).
@@ -47,7 +59,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 IsValid = false;
                 MaxRadius = 0;
+                MinRadius = 0;
                 MaxBoomLength = 0;
+                MinBoomLength = 0;
                 SortedRadii = Array.Empty<double>();
                 BoomGroupsByRadius = new Dictionary<double, List<BoomGroup>>();
                 return;
@@ -61,9 +75,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 ? craneSpec.MaxRadius
                 : chart.Max(tp => tp.Radius);
 
+            MinRadius = craneSpec.MinRadius > 0
+                ? craneSpec.MinRadius
+                : chart.Min(tp => tp.Radius);
+
             MaxBoomLength = craneSpec.MaxBoomLength > 0
                 ? craneSpec.MaxBoomLength
                 : chart.Max(tp => tp.BoomLength);
+
+            MinBoomLength = craneSpec.MinBoomLength > 0
+                ? craneSpec.MinBoomLength
+                : chart.Min(tp => tp.BoomLength);
 
             // Build sorted distinct radii
             SortedRadii = chart

@@ -82,6 +82,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             UpdateSidePanels();
             ContentRendered += OnContentRendered;
             Closed += OnClosed;
+            TxtWireLength.TextChanged += SafetyInput_TextChanged;
+            TxtAdditionalWt.TextChanged += SafetyInput_TextChanged;
+            ValidateSafetyInputsLive();
         }
 
         private async void OnContentRendered(object? sender, EventArgs e)
@@ -92,7 +95,43 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             await LoadCranesAsync();
             RefreshSceneCache();
             TxtStatus.Text = "Ready";
-            BtnRun.IsEnabled = true;
+            ValidateSafetyInputsLive();
+        }
+
+
+        private void SafetyInput_TextChanged(object sender, TextChangedEventArgs e) => ValidateSafetyInputsLive();
+
+        private bool ValidateSafetyInputsLive()
+        {
+            if (TxtWireLength == null || TxtAdditionalWt == null || BtnRun == null || TxtStatus == null)
+                return false;
+
+            var result = CraneOptimizerDialogWorkflow.ValidateSafetyInputs(TxtWireLength.Text, TxtAdditionalWt.Text);
+            var normalBrush = TryFindResource("BorderBrush") as System.Windows.Media.Brush
+                              ?? System.Windows.Media.Brushes.Gray;
+            var errorBrush = System.Windows.Media.Brushes.IndianRed;
+
+            TxtWireLength.BorderBrush = normalBrush;
+            TxtAdditionalWt.BorderBrush = normalBrush;
+            TxtWireLength.ToolTip = null;
+            TxtAdditionalWt.ToolTip = null;
+
+            if (!result.IsValid)
+            {
+                var field = result.FieldName == "WireLength" ? TxtWireLength : TxtAdditionalWt;
+                field.BorderBrush = errorBrush;
+                field.ToolTip = result.ErrorMessage;
+                if (!_isRunning)
+                    BtnRun.IsEnabled = false;
+                TxtStatus.Text = result.ErrorMessage;
+                return false;
+            }
+
+            if (!_isRunning)
+                BtnRun.IsEnabled = true;
+            if (TxtStatus.Text.Contains("finite, non-negative", StringComparison.OrdinalIgnoreCase))
+                TxtStatus.Text = "Ready";
+            return true;
         }
 
         private async Task LoadCranesAsync()
@@ -105,6 +144,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
             if (_isRunning)
+                return;
+
+            if (!ValidateSafetyInputsLive())
                 return;
 
             if (CboCrane.SelectedItem is not Crane selectedCrane)
@@ -244,8 +286,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             finally
             {
                 _isRunning = false;
-                BtnRun.IsEnabled = true;
                 BtnCancel.IsEnabled = false;
+                ValidateSafetyInputsLive();
 
                 _runCts?.Dispose();
                 _runCts = null;

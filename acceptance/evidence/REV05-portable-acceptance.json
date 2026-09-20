@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 3,
+  "release": "REV05",
+  "fixtureType": "SOFTWARE ACCEPTANCE FIXTURE",
+  "evidenceKind": "portable-software-acceptance-fixture-execution",
+  "archiveMode": false,
+  "passed": true,
+  "checkCount": 49,
+  "failureCount": 0,
+  "checks": [
+    {
+      "name": "catalog-generator-run-1",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "fixture-generator-run-1",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "catalog-generator-run-2",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "fixture-generator-run-2",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "byte-deterministic-software-acceptance-fixture",
+      "passed": true,
+      "detail": "{'first': {'CraneOptimizer.UI/Data/CanonicalCatalog.crane.db': 'e517c9334d65473b633d3983ce806c547a41b162afef7b5e06f122222f104119', 'acceptance/catalog/catalog-manifest.json': '2fd92b3d7a208dd1d4358c70156fa93aecabc6f238e1876ffefa92134cbdaec3', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/project.db': '621812f397172ef4831f6e4b67f0f40df48bd151f3a521170f9b5c7ad6123cf8', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Models/IFC/rev05_acceptance.ifc': '05385751c74a845c7d97dcf0b2490588844c238bfe86ebfbb75a04f3b25eb284', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/ga_result_snapshot.fixture.json': 'f69b7abfa6ad6854599f83f940c05be72a1ac51610e1b6b091450f270011e2e0', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/lifting_results.fixture.csv': '2a63425aa2407f7b5d0ba635e71ced599eb03e19df4bd55ba086b4998b21c758', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/lifting_report.fixture.pdf': '83bc01be4d2d5152431c91713cc26de22c8bc55846306774ec6874b183903520'}, 'second': {'CraneOptimizer.UI/Data/CanonicalCatalog.crane.db': 'e517c9334d65473b633d3983ce806c547a41b162afef7b5e06f122222f104119', 'acceptance/catalog/catalog-manifest.json': '2fd92b3d7a208dd1d4358c70156fa93aecabc6f238e1876ffefa92134cbdaec3', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/project.db': '621812f397172ef4831f6e4b67f0f40df48bd151f3a521170f9b5c7ad6123cf8', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Models/IFC/rev05_acceptance.ifc': '05385751c74a845c7d97dcf0b2490588844c238bfe86ebfbb75a04f3b25eb284', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/ga_result_snapshot.fixture.json': 'f69b7abfa6ad6854599f83f940c05be72a1ac51610e1b6b091450f270011e2e0', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/lifting_results.fixture.csv': '2a63425aa2407f7b5d0ba635e71ced599eb03e19df4bd55ba086b4998b21c758', 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/lifting_report.fixture.pdf': '83bc01be4d2d5152431c91713cc26de22c8bc55846306774ec6874b183903520'}}"
+    },
+    {
+      "name": "sqlite-integrity:CanonicalCatalog.crane.db",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "sqlite-integrity:project.db",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "project-cache-current-normalization-version",
+      "passed": true,
+      "detail": "{'acceptanceFixture': True, 'fixtureType': 'SOFTWARE ACCEPTANCE FIXTURE', 'ifcNormalizationCacheVersion': 'ifc-identity-grid-ssot-v3'}"
+    },
+    {
+      "name": "project-cache-ifc-sha256-reconciles",
+      "passed": true,
+      "detail": "{'db': '05385751c74a845c7d97dcf0b2490588844c238bfe86ebfbb75a04f3b25eb284', 'file': '05385751c74a845c7d97dcf0b2490588844c238bfe86ebfbb75a04f3b25eb284'}"
+    },
+    {
+      "name": "project-five-persisted-ga-ready-lift-assemblies",
+      "passed": true,
+      "detail": "[('LiftAssembly', 1, 8.5, 'ExplicitQuantity', 4.0, 0.0, 3.0, 'Beam'), ('LiftAssembly', 1, 5.0, 'ExplicitQuantity', 6.0, 0.0, 3.0, 'Beam'), ('LiftAssembly', 1, 4.0, 'ExplicitQuantity', 8.0, 0.0, 3.0, 'Beam'), ('LiftAssembly', 1, 3.0, 'ExplicitQuantity', 10.0, 0.0, 3.0, 'Beam'), ('LiftAssembly', 1, 2.0, 'ExplicitQuantity', 12.0, 0.0, 3.0, 'Beam')]"
+    },
+    {
+      "name": "project-db-close-reopen-invariant",
+      "passed": true,
+      "detail": "{'before': ('REV05-FIXTURE', 'SoftwareAcceptanceFixtureSeed', 5, 5), 'after': ('REV05-FIXTURE', 'SoftwareAcceptanceFixtureSeed', 5, 5)}"
+    },
+    {
+      "name": "catalog-808-points",
+      "passed": true,
+      "detail": "808"
+    },
+    {
+      "name": "catalog-fixture-type",
+      "passed": true,
+      "detail": "SOFTWARE ACCEPTANCE FIXTURE"
+    },
+    {
+      "name": "fixture-five-elements",
+      "passed": true,
+      "detail": "{'csvRows': 5, 'snapshot': 5}"
+    },
+    {
+      "name": "fixture-csv-snapshot:B-01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fixture-catalog-snapshot:B-01",
+      "passed": true,
+      "detail": "[(51.0,)]"
+    },
+    {
+      "name": "fixture-csv-snapshot:B-02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fixture-catalog-snapshot:B-02",
+      "passed": true,
+      "detail": "[(38.0,)]"
+    },
+    {
+      "name": "fixture-csv-snapshot:B-03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fixture-catalog-snapshot:B-03",
+      "passed": true,
+      "detail": "[(24.5,)]"
+    },
+    {
+      "name": "fixture-csv-snapshot:B-04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fixture-catalog-snapshot:B-04",
+      "passed": true,
+      "detail": "[(16.0,)]"
+    },
+    {
+      "name": "fixture-csv-snapshot:B-05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fixture-catalog-snapshot:B-05",
+      "passed": true,
+      "detail": "[(10.5,)]"
+    },
+    {
+      "name": "fixture-pdf-substantive",
+      "passed": true,
+      "detail": "1650"
+    },
+    {
+      "name": "static-verifier",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "source-release-evidence-generator",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "name": "python-sources-compile",
+      "passed": true,
+      "detail": "10"
+    },
+    {
+      "name": "regression-baseline-preserved",
+      "passed": true,
+      "detail": "{'files': 118, 'declarations': 1079}"
+    },
+    {
+      "name": "xml:CraneOptimizer.AcceptanceHarness/CraneOptimizer.AcceptanceHarness.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.AI/CraneOptimizer.AI.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.Application/CraneOptimizer.Application.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.Application.Tests/CraneOptimizer.Application.Tests.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.Domain/CraneOptimizer.Domain.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.GAExperiment/CraneOptimizer.GAExperiment.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.Infrastructure/CraneOptimizer.Infrastructure.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:CraneOptimizer.UI/CraneOptimizer.UI.csproj",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "xml:Directory.Build.props",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/regression-baseline.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/test-integrity-manifest.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/catalog/catalog-manifest.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/evidence/REV05-static-verification.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/ga/REV05-GAExperimentConfig.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/fixtures/REV05_SoftwareAcceptanceFixture/acceptance-fixture-manifest.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/ga_result_snapshot.fixture.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:release/REV05-RELEASE-MANIFEST.template.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "json:global.json",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "requested-markings-removed",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "git-diff-check",
+      "passed": true,
+      "detail": "warning: in the working copy of 'acceptance/evidence/REV05-portable-acceptance.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Models/IFC/rev05_acceptance.ifc', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Models/IFC/rev05_malformed_explicit_mass_unit.ifc', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Models/IFC/rev05_malformed_project_mass_unit.ifc', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Models/IFC/rev05_missing_mass_unit.ifc', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'acceptance/fixtures/REV05_SoftwareAcceptanceFixture/Reports/GA/REV05-FIXTURE/lifting_results.fixture.csv', LF will be replaced by CRLF the next time Git touches it\n"
+    }
+  ],
+  "limitations": [
+    "Windows WPF/native xBIM and Authenticode execution are performed by the included Windows release gate; this portable host does not execute Windows binaries."
+  ]
+}

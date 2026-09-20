@@ -53,8 +53,7 @@ namespace CraneOptimizer.Application.Tests.GA
 
             if (!File.Exists(ProjectDbPath) || !File.Exists(CraneDbPath))
             {
-                log("SKIP: try4 project.db or crane.db not found on this machine.");
-                return;
+                throw Xunit.Sdk.SkipException.ForSkip("try4 project.db or crane.db not found on this machine.");
             }
 
             // ── Load project data from SQLite ──────────────────────
@@ -408,8 +407,7 @@ namespace CraneOptimizer.Application.Tests.GA
         {
             if (!File.Exists(ProjectDbPath) || !File.Exists(CraneDbPath))
             {
-                _output.WriteLine("SKIP: try4 project.db or crane.db not found on this machine.");
-                return;
+                throw Xunit.Sdk.SkipException.ForSkip("try4 project.db or crane.db not found on this machine.");
             }
 
             // 1. Load project data

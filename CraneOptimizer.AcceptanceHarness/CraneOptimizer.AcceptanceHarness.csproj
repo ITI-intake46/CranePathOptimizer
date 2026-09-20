@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><PlatformTarget>x64</PlatformTarget><SelfContained>false</SelfContained>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\CraneOptimizer.Infrastructure\CraneOptimizer.Infrastructure.csproj" /></ItemGroup>
+  <Target Name="RequireXbimNativeEngine" AfterTargets="Build;Publish"><ItemGroup><XbimNativeDll Include="$(NuGetPackageRoot)xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll" /></ItemGroup><Error Condition="'@(XbimNativeDll)' == ''" Text="Xbim.Geometry.Engine64.dll missing." /><Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" /><Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)' != ''" /></Target>
+</Project>

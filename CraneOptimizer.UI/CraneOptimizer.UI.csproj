@@ -7,6 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <Platforms>AnyCPU;x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <SelfContained>false</SelfContained>
     <ApplicationIcon>Resources\Images\CraneIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -53,6 +55,14 @@
     <Content Include="Data\appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\CanonicalCatalog.crane.db">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\acceptance\catalog\catalog-manifest.json" Link="Data\CanonicalCatalog.manifest.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -93,7 +103,6 @@
     <PackageReference Include="Xbim.Essentials" Version="6.0.587" />
     <PackageReference Include="Xbim.Geometry" Version="5.1.820" />
     <PackageReference Include="Xbim.Ifc" Version="6.0.587" />
-    <PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
   </ItemGroup>
 
   <ItemGroup>
@@ -129,13 +138,21 @@
     </Resource>
   </ItemGroup>
 
-  <Target Name="CopyXbimNativeDll" AfterTargets="Build">
+  <Target Name="CopyXbimNativeDllToOutput" AfterTargets="Build">
     <ItemGroup>
-      <XbimNativeDll Include="..\CraneOptimizer.Infrastructure\bin\**\Xbim.Geometry.Engine64.dll" />
+      <XbimNativeDll Include="$(NuGetPackageRoot)xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll" />
     </ItemGroup>
-    <Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(XbimNativeDll)' != ''" />
-    <Message Importance="High" Text="Xbim DLL copied to $(OutputPath)" Condition="'@(XbimNativeDll)' != ''" />
-    <Warning Text="Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
+    <Error Condition="'@(XbimNativeDll)' == ''" Text="Xbim.Geometry.Engine64.dll was not restored; IFC geometry build is blocked." />
+    <Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('$(TargetDir)Xbim.Geometry.Engine64.dll')" Text="IFC native geometry engine is missing from the application output." />
+  </Target>
+  <Target Name="CopyXbimNativeDllToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <XbimPublishNativeDll Include="$(NuGetPackageRoot)xbim.geometry.engine.interop\5.1.820\**\Xbim.Geometry.Engine64.dll" />
+    </ItemGroup>
+    <Error Condition="'@(XbimPublishNativeDll)' == ''" Text="Xbim.Geometry.Engine64.dll was not restored; IFC geometry publish is blocked." />
+    <Copy SourceFiles="@(XbimPublishNativeDll)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('$(PublishDir)Xbim.Geometry.Engine64.dll')" Text="IFC native geometry engine is missing from the published application." />
   </Target>
 
 </Project>

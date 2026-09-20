@@ -5,7 +5,8 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Threading;
-
+
+
 using CraneOptimizer.UI.Core.Configuration;
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 {
@@ -62,12 +63,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         public GASettings BuildSettings(CraneOptimizerDialogOptions options)
         {
+            var safetyValidation = ValidateSafetyInputs(options.WireLengthText, options.AdditionalWtText);
+            if (!safetyValidation.IsValid)
+                throw new ArgumentException(safetyValidation.ErrorMessage);
+
             return new GASettings
             {
                 CoverageWeight = ParseDouble(options.CoverageWeightText, 10.0),
                 RelocationWeight = ParseDouble(options.RelocationWeightText, 5.0),
-                WireLength = ParseDouble(options.WireLengthText, 2.0),
-                AdditionalWt = ParseDouble(options.AdditionalWtText, 0.0),
+                WireLength = safetyValidation.WireLength,
+                AdditionalWt = safetyValidation.AdditionalWeight,
                 DeratingRatio = Clamp(ParseDouble(options.DeratingRatioText, 0.9), 0.0, 1.0),
                 SafetyFactor = Clamp(ParseDouble(options.SafetyFactorText, 0.95), 0.0, 1.0),
                 MaxCranePositions = ParseInt(options.MaxCranePositionsText, 1),
@@ -126,6 +131,41 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             };
         }
 
+
+        public static GaSafetyInputValidationResult ValidateSafetyInputs(string? wireLengthText, string? additionalWeightText)
+        {
+            if (!TryParseFiniteNonNegative(wireLengthText, out var wireLength))
+            {
+                return new GaSafetyInputValidationResult(
+                    false,
+                    0d,
+                    0d,
+                    "Wire Length must be a finite, non-negative number.",
+                    "WireLength");
+            }
+
+            if (!TryParseFiniteNonNegative(additionalWeightText, out var additionalWeight))
+            {
+                return new GaSafetyInputValidationResult(
+                    false,
+                    wireLength,
+                    0d,
+                    "Lifting Accessories Weight must be a finite, non-negative number.",
+                    "AdditionalWt");
+            }
+
+            return new GaSafetyInputValidationResult(true, wireLength, additionalWeight, string.Empty, string.Empty);
+        }
+
+        private static bool TryParseFiniteNonNegative(string? value, out double parsed)
+        {
+            if (!double.TryParse(value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out parsed))
+                return false;
+
+            return double.IsFinite(parsed) && parsed >= 0d;
+        }
+
         private static double Clamp(double value, double min, double max)
         {
             if (value < min) return min;
@@ -172,6 +212,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 : value.Trim();
         }
     }
+
+    public sealed record GaSafetyInputValidationResult(bool IsValid, double WireLength, double AdditionalWeight, string ErrorMessage, string FieldName);
 
     public sealed record CraneOptimizerDialogOptions(
         string? CoverageWeightText,
